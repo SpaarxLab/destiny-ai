@@ -76,6 +76,6 @@ one unit. P2 is read-only and creates no state requiring compensation.
   reflection, and advanced both authoritative state and orientation cursor from `v1` to `v2`;
   proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty
 - unverified: live WebMCP, deployed runtime, participants, `main` integration, release
-  candidate; live Linear SPX-2 status/evidence write remains pending
+  candidate, and cold-agent model eval; Linear SPX-2 is `In Progress` with this receipt
 - disposition: `ACTIVE` — implementation is ready for review, but may not integrate before
   P1 PR #1 merges and Harsh completes Lane C/runtime review

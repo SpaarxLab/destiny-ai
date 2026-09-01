@@ -21,8 +21,8 @@
   open against `main`. P1 is `In Progress` on the Linear delivery board with a 4 September
   due date. P2 Cold Orientation is active locally on dependency-closed branch
   `codex/spx-2-cold-orientation`, stacked on P1, and remains blocked from integration until P1
-  merges; SPX-2 still requires its Linear status/evidence update. Participant testing remains
-  blocked on reviewer approval and recruitment.
+  merges; SPX-2 is `In Progress` on Linear with the branch and local proof attached.
+  Participant testing remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
