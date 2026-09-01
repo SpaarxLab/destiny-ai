@@ -74,7 +74,7 @@ export class CommandKernel {
         code: "MALFORMED_INPUT",
         what: "The trusted command execution context is invalid.",
         retry: "NEVER",
-        insteadDo: "Invoke the kernel through a product-owned participant or agent adapter.",
+        insteadDo: "Do not repeat this invocation. Invoke the command through a product-owned participant or agent adapter.",
       }, "No state changed because adapter authority was invalid.");
     }
 
@@ -86,8 +86,8 @@ export class CommandKernel {
           .map((issue) => `${issue.path.join(".") || "command"}: ${issue.message}`)
           .join("; "),
         retry: "NEVER",
-        insteadDo: "Correct the input against the declared command schema.",
-      }, "No state changed. Correct the command before trying again.");
+        insteadDo: "Do not repeat this request. Correct the input and submit a new command with a new operationId.",
+      }, "No state changed because the command was malformed.");
     }
 
     const command = { ...parsed.data, ...context } as AuthorizedCommand;
@@ -102,7 +102,7 @@ export class CommandKernel {
         code: "WRONG_PHASE",
         what: `${command.name} is unavailable in ${workspace.phase}.`,
         retry: "NEVER",
-        insteadDo: "Use an action declared for the current phase.",
+        insteadDo: "Do not repeat this request. Submit an action declared for the current phase as a new command with a new operationId.",
       }, "No state changed because the live phase denied this command.", command.actor);
     }
 
@@ -181,7 +181,7 @@ export class CommandKernel {
         code: "WRONG_LIFECYCLE",
         what: `Route set ${predecessor.ref} is the latest proposal history and must be cited as predecessor.`,
         retry: "NEVER",
-        insteadDo: "Cite the latest route set when reshaping the proposal.",
+        insteadDo: "Do not repeat this request. Cite the latest route set in a new command with a new operationId.",
         changedRefs: [predecessor.ref],
       }, "No state changed because route-set lineage must remain explicit.", command.actor);
     }
@@ -232,7 +232,15 @@ export class CommandKernel {
     const changedRefs = supersededIndex >= 0 && input.supersedesRouteSetRef
       ? [input.supersedesRouteSetRef, routeSet.ref]
       : [routeSet.ref];
-    const operation = operationFor(workspace, command, afterVersion, at, changedRefs, "PROPOSED");
+    const operation = operationFor(
+      workspace,
+      command,
+      afterVersion,
+      at,
+      changedRefs,
+      "PROPOSED",
+      routes.map((route) => route.ref),
+    );
     const next = workspaceSchema.parse({
       ...workspace,
       stateVersion: afterVersion,
@@ -532,10 +540,16 @@ function operationFor(
   at: string,
   changedRefs: string[],
   effect: OperationRecord["effect"],
+  prospectiveRefs: string[] = [],
 ): OperationRecord {
   return {
     operationId: command.input.operationId,
-    operationRef: nextAvailableRef(workspace, "operation", afterVersion, changedRefs),
+    operationRef: nextAvailableRef(
+      workspace,
+      "operation",
+      afterVersion,
+      [...changedRefs, ...prospectiveRefs],
+    ),
     actor: command.actor,
     command: command.name,
     effect,
@@ -652,24 +666,24 @@ function wrongActor(workspace: Workspace, command: AuthorizedCommand): CommandRe
     code: "WRONG_ACTOR",
     what: `${command.name} is participant-only.`,
     retry: "NEVER",
-    insteadDo: "Prepare the visible interaction and let the participant decide.",
+    insteadDo: "Do not repeat this request. Prepare the visible interaction and let the participant submit a new command with a new operationId.",
   }, "No state changed because the participant-only boundary denied this command.", command.actor);
 }
 
 function unknownRef(ref: string): CommandError {
-  return { code: "UNKNOWN_REF", what: `Ref ${ref} does not belong to this workspace.`, retry: "NEVER", insteadDo: "Reread current workspace refs." };
+  return { code: "UNKNOWN_REF", what: `Ref ${ref} does not belong to this workspace.`, retry: "NEVER", insteadDo: "Do not repeat this request. Reread current workspace refs, then submit a new command with a new operationId." };
 }
 
 function unknownOrUnconfirmedRef(ref: string): CommandError {
-  return { code: "UNKNOWN_REF", what: `Ref ${ref} is missing or is not participant-confirmed.`, retry: "NEVER", insteadDo: "Use a confirmed reflection ref." };
+  return { code: "UNKNOWN_REF", what: `Ref ${ref} is missing or is not participant-confirmed.`, retry: "NEVER", insteadDo: "Do not repeat this request. Use a confirmed reflection ref in a new command with a new operationId." };
 }
 
 function lifecycleError(ref: string, status: string): CommandError {
-  return { code: "WRONG_LIFECYCLE", what: `${ref} has lifecycle status ${status}.`, retry: "NEVER", insteadDo: "Reread the entity and use an available action." };
+  return { code: "WRONG_LIFECYCLE", what: `${ref} has lifecycle status ${status}.`, retry: "NEVER", insteadDo: "Do not repeat this request. Reread the entity and submit an available action as a new command with a new operationId." };
 }
 
 function policyDenied(what: string): CommandError {
-  return { code: "POLICY_DENIED", what, retry: "NEVER", insteadDo: "Correct the proposal without loosening workspace policy." };
+  return { code: "POLICY_DENIED", what, retry: "NEVER", insteadDo: "Do not repeat this request. Correct the proposal without loosening workspace policy, then submit a new command with a new operationId." };
 }
 
 function nextAvailableRef(

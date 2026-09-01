@@ -47,9 +47,12 @@ authoritative receipt. No second approval is required.
 - Actor and `createdBy` provenance come from trusted adapter execution context, never the command
   payload. Participant adapters cannot impersonate agents, and WebMCP-shaped payloads cannot
   self-assert participant or embedded-inference authority.
-- Workspace validation enforces globally unique addressable refs, resolvable receipt refs, valid
-  supersession targets, selected-route cardinality, and accepted-hypothesis lineage on load/import
-  as well as at command time.
+- Workspace validation enforces globally unique addressable refs, resolvable receipt refs, unique
+  operation IDs, a contiguous version ledger, one-time same-set compensation links, route caps and
+  lifecycle, valid supersession targets, selected-route cardinality, and accepted-hypothesis
+  lineage on load/import as well as at command time.
+- A denial with `retry: NEVER` forbids repeating that exact request; recovery copy may direct a
+  corrected, distinct command with a new `operationId` and must not describe it as a retry.
 - Rejection and compensation preserve proposal and receipt history.
 
 ### Required proof

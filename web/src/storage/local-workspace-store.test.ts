@@ -140,6 +140,34 @@ describe("LocalWorkspaceStore", () => {
     expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(corruptBytes);
   });
 
+  it("preserves stored v2 bytes whose route policy violates participant caps", () => {
+    const storage = new MemoryStorage();
+    const initial = p3Workspace();
+    const routes = validRoutes().map((route, index) => ({
+      ...route,
+      status: "proposed" as const,
+      test: index === 0 ? { ...route.test, maximumHours: 7 } : route.test,
+    }));
+    const invalid = {
+      ...initial,
+      routeProposalSets: [{
+        id: "00000000-0000-4000-8000-000000000750",
+        ref: "route-set-invalid-caps",
+        availableActions: [],
+        status: "proposed",
+        routes,
+        createdBy: "chatgpt_webmcp",
+        createdAt: "2026-09-01T10:00:00.000Z",
+      }],
+    };
+    const originalBytes = JSON.stringify(invalid);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, initial, new SerialLockManager());
+
+    expect(() => store.load()).toThrowError(/original bytes were preserved/i);
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+  });
+
   it("returns a typed storage failure when the browser lock cannot be acquired", async () => {
     const storage = new MemoryStorage();
     const store = new LocalWorkspaceStore(

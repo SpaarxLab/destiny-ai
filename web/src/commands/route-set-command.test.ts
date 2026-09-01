@@ -313,6 +313,17 @@ describe("P3A route proposal and participant choice", () => {
     expect(store.load().hypotheses).toHaveLength(1);
   });
 
+  it("allocates the receipt ref around a route ref supplied by the same command", async () => {
+    const { store, kernel } = setup();
+    const command = proposalCommand();
+    if (command.input.outcome !== "routes") throw new Error("fixture error");
+    command.input.routes[0].ref = "operation-1";
+    const result = await kernel.execute(agentContext, command);
+    expect(result.ok).toBe(true);
+    expect(result.receipt?.operationRef).toBe("operation-1-2");
+    expect(store.load().routeProposalSets[0].routes[0].ref).toBe("operation-1");
+  });
+
   it("denies supplied route refs that collide with workspace id, entities, or operation refs", async () => {
     const initial = p3Workspace();
     const withOperation = workspaceSchema.parse({

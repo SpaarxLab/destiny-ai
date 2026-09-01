@@ -320,6 +320,14 @@ reference. The other routes remain proposal history and never become silently ac
 must equal a substring of its referenced confirmed reflection. Every route respects recorded time
 and money caps and proposes a test idea of no more than seven days.
 
+Workspace validation independently rechecks those caps and lifecycle relationships on load/import.
+Workspace identity, entity refs, route refs, hypothesis refs, and operation refs are globally unique;
+every receipt `changedRef` resolves to an addressable workspace object. Operation IDs are unique and
+the ordered ledger forms a contiguous `beforeVersion -> afterVersion` chain ending at
+`stateVersion`. A compensation may point only to one earlier, uncompensated `PROPOSED`
+`propose_route_set` operation for the same route set, and only a `COMPENSATED`
+`compensate_route_set` record may carry that link.
+
 The workspace snapshot is canonical for current state. Operation receipts are canonical for
 what happened. A stored operation record adds the canonical request identity needed to
 distinguish a retry from reuse of an operation id for a different intent; that internal value
@@ -411,6 +419,12 @@ interface ToolResult<T> {
   guidance: string;          // short, situational, no policy hidden here
 }
 ```
+
+`retry` describes whether the exact request and operation may be repeated; it does not prohibit a
+different recovery action. `NEVER` means do not repeat that request. `insteadDo` may direct the
+caller to reread or correct the input and submit a distinct command with a new `operationId`.
+`SAME_OPERATION_ID` is reserved for retrying the same intended effect after an uncertain/storage
+failure, while `REREAD_THEN_NEW_OPERATION` requires fresh state and a newly considered operation.
 
 On a lost response, the agent retries with the same `operationId`. The command ledger
 returns the original receipt. On `STALE_STATE`, it re-reads and creates a new operation only

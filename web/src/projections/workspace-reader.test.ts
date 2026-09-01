@@ -119,7 +119,6 @@ describe("P2 read_workspace cold orientation", () => {
     }));
     const store = new MemoryWorkspaceStore(workspaceSchema.parse({
       ...createEmptyWorkspace(),
-      stateVersion: reflections.length,
       reflections,
     }));
     const reader = createTestReadAdapter(new WorkspaceReader(store));

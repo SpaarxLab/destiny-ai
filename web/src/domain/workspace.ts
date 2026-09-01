@@ -178,6 +178,89 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
     }
   }
 
+  const operationIds = new Set<string>();
+  const compensatedTargets = new Set<string>();
+  let expectedBeforeVersion = 0;
+  for (const [operationIndex, operation] of workspace.operations.entries()) {
+    if (operationIds.has(operation.operationId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex, "operationId"],
+        message: `Operation id ${operation.operationId} is not unique.`,
+      });
+    }
+    operationIds.add(operation.operationId);
+
+    if (
+      operation.beforeVersion !== expectedBeforeVersion ||
+      operation.afterVersion !== operation.beforeVersion + 1
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex],
+        message: "Operation versions must form an ordered contiguous chain.",
+      });
+    }
+    expectedBeforeVersion = operation.afterVersion;
+
+    const compensationRef = operation.compensatesOperationRef;
+    if (compensationRef === undefined) {
+      if (operation.effect === "COMPENSATED" || operation.command === "compensate_route_set") {
+        context.addIssue({
+          code: "custom",
+          path: ["operations", operationIndex, "compensatesOperationRef"],
+          message: "A compensating route-set operation must name its target proposal operation.",
+        });
+      }
+      continue;
+    }
+
+    if (operation.effect !== "COMPENSATED" || operation.command !== "compensate_route_set") {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex, "compensatesOperationRef"],
+        message: "Only a COMPENSATED compensate_route_set operation may carry a compensation ref.",
+      });
+    }
+    const targetIndex = workspace.operations.findIndex(
+      (candidate) => candidate.operationRef === compensationRef,
+    );
+    const target = workspace.operations[targetIndex];
+    if (targetIndex < 0 || targetIndex >= operationIndex) {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex, "compensatesOperationRef"],
+        message: "A compensation target must be an earlier existing operation.",
+      });
+      continue;
+    }
+    if (
+      target.command !== "propose_route_set" || target.effect !== "PROPOSED" ||
+      target.changedRefs.at(-1) !== operation.changedRefs[0] || operation.changedRefs.length !== 1
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex, "compensatesOperationRef"],
+        message: "Compensation must target a PROPOSED route-set operation for the same route set.",
+      });
+    }
+    if (compensatedTargets.has(compensationRef)) {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex, "compensatesOperationRef"],
+        message: "A route-set proposal operation may be compensated only once.",
+      });
+    }
+    compensatedTargets.add(compensationRef);
+  }
+  if (expectedBeforeVersion !== workspace.stateVersion) {
+    context.addIssue({
+      code: "custom",
+      path: ["stateVersion"],
+      message: "Workspace stateVersion must equal the end of its contiguous operation ledger.",
+    });
+  }
+
   for (const [setIndex, set] of workspace.routeProposalSets.entries()) {
     if (set.supersedesRouteSetRef) {
       const targetIndex = workspace.routeProposalSets.findIndex(
@@ -211,6 +294,13 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
     if (set.status !== "resolved" && set.selectedRouteRef !== undefined) {
       context.addIssue({ code: "custom", path: ["routeProposalSets", setIndex, "status"], message: "Only a resolved set may have a selected route." });
     }
+    if (set.status === "proposed" && set.routes.every((route) => route.status === "rejected")) {
+      context.addIssue({
+        code: "custom",
+        path: ["routeProposalSets", setIndex, "status"],
+        message: "A proposed route set must retain at least one non-rejected route.",
+      });
+    }
     if (set.status === "resolved" && set.selectedRouteRef === undefined) {
       const allRejected = set.routes.every((route) => route.status === "rejected");
       const compensated = workspace.operations.some(
@@ -236,6 +326,17 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
       });
     }
     for (const [routeIndex, route] of set.routes.entries()) {
+      if (
+        route.test.maximumHours > workspace.participant.costCaps.hoursPerWeek ||
+        route.test.maximumMoney > workspace.participant.costCaps.money ||
+        route.test.currency !== workspace.participant.costCaps.currency
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["routeProposalSets", setIndex, "routes", routeIndex, "test"],
+          message: "Stored route tests must stay within participant time, money, and currency caps.",
+        });
+      }
       for (const source of route.sourceQuotes) {
         const reflection = workspace.reflections.find(
           (candidate) => candidate.ref === source.reflectionRef,
