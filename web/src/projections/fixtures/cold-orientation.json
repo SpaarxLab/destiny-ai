@@ -1,0 +1,41 @@
+{
+  "view": "orientation",
+  "identity": {
+    "workspaceRef": "00000000-0000-4000-8000-000000000001",
+    "schemaVersion": 1,
+    "contractVersion": "1.0.0",
+    "stateVersion": 0,
+    "phase": "EXPLORING"
+  },
+  "focus": {
+    "question": null,
+    "costCaps": { "hoursPerWeek": 0, "money": 0, "currency": "XXX" }
+  },
+  "active": { "hypothesis": null, "experiment": null },
+  "nextHumanDecision": {
+    "kind": "ADD_REFLECTION",
+    "targetRefs": ["00000000-0000-4000-8000-000000000001"],
+    "guidance": "Add a participant reflection or prepare a transcription for human review."
+  },
+  "constraints": ["Time cap: 0 hours/week", "Money cap: 0 XXX"],
+  "teachings": [],
+  "pendingHumanInteractions": { "items": [], "total": 0, "truncated": false },
+  "conflicts": [],
+  "changes": { "sinceCursor": null, "items": [], "truncated": false },
+  "cursor": "workspace:00000000-0000-4000-8000-000000000001:v0",
+  "availableActions": [
+    {
+      "tool": "save_reflection",
+      "targetRef": "00000000-0000-4000-8000-000000000001",
+      "effect": "PROPOSE",
+      "requiresHuman": true,
+      "reason": "Agent-transcribed text remains proposed until the participant confirms it."
+    }
+  ],
+  "proof": {
+    "level": "NONE",
+    "confirmedReflectionCount": 0,
+    "proposedReflectionCount": 0
+  },
+  "guidance": "Use target refs and declared actions only. Proposed content requires human confirmation."
+}

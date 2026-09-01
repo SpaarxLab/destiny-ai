@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createParticipantCommandAdapter, type ParticipantCommandAdapter } from "../adapters/participant-command-adapter";
 import { CommandKernel } from "../commands/command-kernel";
+import type { OrientationProjection } from "../domain/reads";
 import type { SaveReflectionResult } from "../domain/results";
 import { createEmptyWorkspace, type Workspace } from "../domain/workspace";
+import { WorkspaceReader } from "../projections/workspace-reader";
 import { LocalWorkspaceStore } from "../storage/local-workspace-store";
 
 interface Runtime {
   store: LocalWorkspaceStore;
   adapter: ParticipantCommandAdapter;
+  reader: WorkspaceReader;
 }
 
 export function CommandSpineDemo() {
@@ -17,6 +20,7 @@ export function CommandSpineDemo() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [text, setText] = useState("");
   const [result, setResult] = useState<SaveReflectionResult | null>(null);
+  const [orientation, setOrientation] = useState<OrientationProjection | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -43,7 +47,8 @@ export function CommandSpineDemo() {
       navigator.locks,
     );
     const adapter = createParticipantCommandAdapter(new CommandKernel(store));
-    runtime.current = { store, adapter };
+    const reader = new WorkspaceReader(store);
+    runtime.current = { store, adapter, reader };
 
     queueMicrotask(() => {
       if (cancelled) {
@@ -52,6 +57,8 @@ export function CommandSpineDemo() {
 
       try {
         setWorkspace(store.load());
+        const readResult = reader.read();
+        setOrientation(readResult.data?.view === "orientation" ? readResult.data : null);
       } catch (error) {
         setStartupError(
           error instanceof Error ? error.message : "The local workspace could not be opened.",
@@ -81,6 +88,8 @@ export function CommandSpineDemo() {
 
       try {
         setWorkspace(runtime.current.store.load());
+        const readResult = runtime.current.reader.read();
+        setOrientation(readResult.data?.view === "orientation" ? readResult.data : null);
       } catch (error) {
         setStartupError(
           error instanceof Error ? error.message : "The local workspace could not be reopened.",
@@ -102,12 +111,12 @@ export function CommandSpineDemo() {
         <header className="flex flex-col gap-5 border-b border-[#d7d0c4] pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
             <p className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-[#745f42]">
-              P1 · Command spine
+              P2 · Command spine + cold orientation
             </p>
             <h1 className="font-serif text-4xl tracking-tight sm:text-6xl">One path to truth.</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#625b51] sm:text-lg">
-              The participant UI and future WebMCP adapter invoke the same command kernel.
-              Only the kernel may change the local workspace.
+              Writes pass through one command kernel. A bounded deterministic projection gives
+              a cold agent and this UI the same current truth.
             </p>
           </div>
           <div className="w-fit border border-[#a99b87] bg-[#eee8de] px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#5b4a34]">
@@ -120,7 +129,7 @@ export function CommandSpineDemo() {
             <h2 className="font-serif text-2xl">Workspace recovery required</h2>
             <p className="mt-2 leading-6">{startupError}</p>
             <p className="mt-2 text-sm text-[#625b51]">
-              The original saved bytes were preserved; this P1 slice does not reset them.
+              The original saved bytes were preserved; this local slice does not reset them.
             </p>
           </section>
         ) : (
@@ -189,6 +198,41 @@ export function CommandSpineDemo() {
             </section>
 
             <aside className="flex flex-col gap-5">
+              <section className="border border-[#315c51] bg-[#dfece6] p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#315c51]">
+                      read_workspace · orientation
+                    </p>
+                    <h2 className="mt-2 font-serif text-2xl">Cold-agent handoff</h2>
+                  </div>
+                  <span className="border border-[#77988f] px-2 py-1 font-mono text-xs">
+                    {orientation?.proof.level ?? "LOADING"}
+                  </span>
+                </div>
+                <p className="mt-5 text-sm font-medium leading-6">
+                  {orientation?.nextHumanDecision.guidance ?? "Reading current truth…"}
+                </p>
+                <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div>
+                    <dt className="text-[#58736c]">Next boundary</dt>
+                    <dd className="mt-1 font-mono text-xs">
+                      {orientation?.nextHumanDecision.kind ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[#58736c]">Pending review</dt>
+                    <dd className="mt-1 font-mono text-xs">
+                      {orientation?.pendingHumanInteractions.total ?? "—"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">
+                    <dt className="text-[#58736c]">Caller cursor</dt>
+                    <dd className="mt-1 break-all font-mono text-xs">{orientation?.cursor ?? "—"}</dd>
+                  </div>
+                </dl>
+              </section>
+
               <section className="border border-[#cfc5b6] bg-[#e9e2d7] p-6">
                 <p className="font-mono text-xs uppercase tracking-[0.16em] text-[#745f42]">
                   Workspace authority

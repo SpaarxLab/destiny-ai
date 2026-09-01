@@ -1,9 +1,9 @@
 import { saveReflectionCommandSchema, reflectionRequestIdentity } from "../domain/commands";
+import { availableActions } from "../domain/affordances";
 import type { SaveReflectionResult } from "../domain/results";
 import {
   publicReceipt,
   workspaceSchema,
-  type AvailableAction,
   type OperationRecord,
   type Reflection,
   type Workspace,
@@ -223,22 +223,6 @@ export class CommandKernel {
       guidance: "Replay detected. The original receipt was returned without a new effect.",
     };
   }
-}
-
-function availableActions(workspace: Workspace): AvailableAction[] {
-  if (workspace.phase !== "EXPLORING") {
-    return [];
-  }
-
-  return [
-    {
-      tool: "save_reflection",
-      targetRef: workspace.id,
-      effect: "PROPOSE",
-      requiresHuman: true,
-      reason: "Agent-transcribed text remains proposed until the participant confirms it.",
-    },
-  ];
 }
 
 function reflectionFromReceipt(

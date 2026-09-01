@@ -14,6 +14,7 @@ export type CommandErrorCode =
   | "WRONG_PHASE"
   | "STALE_STATE"
   | "OPERATION_CONFLICT"
+  | "INVALID_CURSOR"
   | "STORAGE_FAILURE";
 
 export interface CommandError {
