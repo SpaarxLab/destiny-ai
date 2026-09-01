@@ -18,5 +18,5 @@ export class WorkspaceStoreError extends Error {
 
 export interface WorkspaceStore {
   load(): Workspace;
-  save(expectedVersion: number, nextWorkspace: Workspace): void;
+  save(expectedVersion: number, nextWorkspace: Workspace): void | Promise<void>;
 }

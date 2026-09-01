@@ -3,7 +3,7 @@ import type { SaveReflectionResult } from "../domain/results";
 import type { CommandKernel } from "../commands/command-kernel";
 
 export interface ParticipantCommandAdapter {
-  saveReflection(input: SaveReflectionInput): SaveReflectionResult;
+  saveReflection(input: SaveReflectionInput): Promise<SaveReflectionResult>;
 }
 
 export function createParticipantCommandAdapter(

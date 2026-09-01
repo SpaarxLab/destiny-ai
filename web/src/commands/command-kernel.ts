@@ -26,7 +26,7 @@ export class CommandKernel {
     private readonly environment: CommandEnvironment = defaultEnvironment,
   ) {}
 
-  execute(commandInput: unknown): SaveReflectionResult {
+  async execute(commandInput: unknown): Promise<SaveReflectionResult> {
     let workspace: Workspace;
 
     try {
@@ -157,7 +157,7 @@ export class CommandKernel {
     });
 
     try {
-      this.store.save(workspace.stateVersion, nextWorkspace);
+      await this.store.save(workspace.stateVersion, nextWorkspace);
     } catch (error) {
       if (error instanceof WorkspaceStoreError && error.code === "STALE_WRITE") {
         let current = workspace;

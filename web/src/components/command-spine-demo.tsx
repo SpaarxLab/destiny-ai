@@ -18,12 +18,32 @@ export function CommandSpineDemo() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<SaveReflectionResult | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const store = new LocalWorkspaceStore(localStorage, createEmptyWorkspace());
+    let cancelled = false;
+
+    if (!("locks" in navigator)) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setStartupError(
+            "This browser cannot safely coordinate workspace writes across tabs.",
+          );
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const store = new LocalWorkspaceStore(
+      localStorage,
+      createEmptyWorkspace(),
+      navigator.locks,
+    );
     const adapter = createParticipantCommandAdapter(new CommandKernel(store));
     runtime.current = { store, adapter };
-    let cancelled = false;
 
     queueMicrotask(() => {
       if (cancelled) {
@@ -44,30 +64,35 @@ export function CommandSpineDemo() {
     };
   }, []);
 
-  function saveReflection(event: FormEvent<HTMLFormElement>) {
+  async function saveReflection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!runtime.current || !workspace) {
+    if (!runtime.current || !workspace || isSaving) {
       return;
     }
 
-    const commandResult = runtime.current.adapter.saveReflection({
-      operationId: crypto.randomUUID(),
-      expectedVersion: workspace.stateVersion,
-      text,
-    });
-    setResult(commandResult);
-
+    setIsSaving(true);
     try {
-      setWorkspace(runtime.current.store.load());
-    } catch (error) {
-      setStartupError(
-        error instanceof Error ? error.message : "The local workspace could not be reopened.",
-      );
-      return;
-    }
+      const commandResult = await runtime.current.adapter.saveReflection({
+        operationId: crypto.randomUUID(),
+        expectedVersion: workspace.stateVersion,
+        text,
+      });
+      setResult(commandResult);
 
-    if (commandResult.ok) {
-      setText("");
+      try {
+        setWorkspace(runtime.current.store.load());
+      } catch (error) {
+        setStartupError(
+          error instanceof Error ? error.message : "The local workspace could not be reopened.",
+        );
+        return;
+      }
+
+      if (commandResult.ok) {
+        setText("");
+      }
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -132,10 +157,10 @@ export function CommandSpineDemo() {
                 </div>
                 <button
                   className="mt-6 w-full bg-[#27231e] px-5 py-3 font-medium text-[#fffdf8] transition hover:bg-[#463d32] disabled:cursor-not-allowed disabled:bg-[#aaa196]"
-                  disabled={!workspace || text.trim().length === 0}
+                  disabled={!workspace || text.trim().length === 0 || isSaving}
                   type="submit"
                 >
-                  Execute save_reflection
+                  {isSaving ? "Saving…" : "Execute save_reflection"}
                 </button>
               </form>
 
