@@ -325,7 +325,8 @@ Workspace identity, entity refs, route refs, hypothesis refs, and operation refs
 every receipt `changedRef` resolves to an addressable workspace object. Operation IDs are unique and
 the ordered ledger forms a contiguous `beforeVersion -> afterVersion` chain ending at
 `stateVersion`. A compensation may point only to one earlier, uncompensated `PROPOSED`
-`propose_route_set` operation for the same route set, and only a `COMPENSATED`
+`propose_route_set` operation for the same route set, with no intervening operation that changed
+that set, and only a `COMPENSATED`
 `compensate_route_set` record may carry that link.
 
 The workspace snapshot is canonical for current state. Operation receipts are canonical for

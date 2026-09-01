@@ -244,6 +244,17 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
         message: "Compensation must target a PROPOSED route-set operation for the same route set.",
       });
     }
+    const targetRouteSetRef = target.changedRefs.at(-1);
+    const interveningChange = targetRouteSetRef !== undefined && workspace.operations
+      .slice(targetIndex + 1, operationIndex)
+      .some((candidate) => candidate.changedRefs.includes(targetRouteSetRef));
+    if (interveningChange) {
+      context.addIssue({
+        code: "custom",
+        path: ["operations", operationIndex, "compensatesOperationRef"],
+        message: "A route-set proposal cannot be compensated after an intervening change to that set.",
+      });
+    }
     if (compensatedTargets.has(compensationRef)) {
       context.addIssue({
         code: "custom",

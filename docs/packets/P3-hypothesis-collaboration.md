@@ -51,6 +51,8 @@ authoritative receipt. No second approval is required.
   operation IDs, a contiguous version ledger, one-time same-set compensation links, route caps and
   lifecycle, valid supersession targets, selected-route cardinality, and accepted-hypothesis
   lineage on load/import as well as at command time.
+- Compensation is valid only while the original proposal is untouched; any intervening revision,
+  choice, supersession, or other receipt that changes that route set permanently denies it.
 - A denial with `retry: NEVER` forbids repeating that exact request; recovery copy may direct a
   corrected, distinct command with a new `operationId` and must not describe it as a retry.
 - Rejection and compensation preserve proposal and receipt history.

@@ -215,6 +215,30 @@ describe("workspace relational schema", () => {
     expect(workspaceSchema.safeParse(duplicate).success).toBe(false);
   });
 
+  it("rejects compensation of a proposal after an intervening change to its route set", () => {
+    const corrupt = compensatedWorkspace();
+    const proposal = corrupt.operations[0];
+    corrupt.stateVersion = 3;
+    corrupt.operations = [
+      proposal,
+      operation(1, {
+        operationRef: "operation-intervening-revision",
+        command: "revise_route_set",
+        effect: "APPLIED",
+        changedRefs: [corrupt.routeProposalSets[0].ref],
+      }),
+      operation(2, {
+        operationRef: "operation-late-compensation",
+        command: "compensate_route_set",
+        effect: "COMPENSATED",
+        changedRefs: [corrupt.routeProposalSets[0].ref],
+        compensatesOperationRef: proposal.operationRef,
+      }),
+    ];
+
+    expect(workspaceSchema.safeParse(corrupt).success).toBe(false);
+  });
+
   it.each([
     ["hours", { maximumHours: 7 }],
     ["money", { maximumMoney: 101 }],
