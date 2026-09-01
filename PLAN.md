@@ -75,8 +75,9 @@ and visible exit proof pass.
 
 | Packet | Visible outcome | Primary | Prerequisite | Required proof |
 |---|---|---|---|---|
-| P0 Authority and baseline | one repo, clean baseline, owners recorded | Captain | Gate 0 | branch/SHA/status receipt |
-| P1 Command spine | UI and a test adapter execute the same `save_reflection` command | A | P0 | schema, stale, replay, receipt tests |
+| P0A Authority and baseline | one repo, clean recoverable baseline | Harsh | accepted defaults | **INTEGRATED:** `752ab8e` + packet receipt |
+| P0B Team admission | Lane A/B and safeguarding owners recorded | Harsh | owner input | BLOCKED on names |
+| P1 Command spine | UI and a test adapter execute the same `save_reflection` command | A | P0B | schema, stale, replay, receipt tests |
 | P2 Cold orientation | a new agent understands the active situation in one bounded read | A+C | P1 | golden orientation fixtures and token budget |
 | P3 Hypothesis collaboration | quote-backed ghost can be accepted, edited, rejected, or compensated | A+B | P2 | full browser journey plus denial cases |
 | P4 Experiment loop | accepted hypothesis produces one cost-capped, falsifiable experiment | A+B+C | P3 | wrong-phase, over-cap, stale, replay proof |

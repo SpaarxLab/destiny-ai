@@ -8,19 +8,19 @@
 - **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
   (accepted choices), and `PLAN.md` (approved for foundation setup; packet implementation is
   owner-gated). `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
-- **Canonical repo/worktree:** `/Users/harsh/career-lab`, branch `main`. The Next.js app
-  remains in `web/`. Original nested-repository history and dirty-overlay recovery are
-  preserved at the path documented in `RECOVERY.md`; nothing was deleted.
-- **Phase:** P0 foundation setup in progress. Product implementation has not started. P1 can
-  start after Lane A and Lane B owners are named.
+- **Canonical repo/worktree:** `/Users/harsh/career-lab`, branch `main`; foundation
+  baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
+  Original nested-repository history and dirty-overlay recovery are preserved at the path
+  documented in `RECOVERY.md`; nothing was deleted.
+- **Phase:** P0A integrated; P0B team admission blocked on owner names. Product implementation
+  has not started. P1 can start after Lane A and Lane B owners are named.
 - **Owner:** Harsh = product authority, integration captain, and Lane C (agent/evals/runtime).
   Lane A and Lane B require owner names.
 - **Next decision:** fill the five `OWNER INPUT` entries in `DECISIONS.md`: Lane A, Lane B,
   safeguarding reviewer, participant commitments, and repository license/visibility.
-- **Last verified evidence:** 2026-09-01 read-only review of recent WebMCP/Career Lab chats,
-  all authority documents, the scaffold checkout/dirty state, the OpenAI challenge page,
-  current WebMCP draft, and Chrome origin-trial documentation. ChatGPT in-app browser support
-  and `document.modelContext` are currently documented; Chrome remains experimental.
+- **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
+  committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build.
+  This is foundation/static proof—not live WebMCP, deployed, participant, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
   pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
   plan" MVP and the 8-internal-agents concept.
