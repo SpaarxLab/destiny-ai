@@ -243,6 +243,10 @@ describe("P2 read_workspace cold orientation", () => {
   it("advances past one operation with maximal changed refs", () => {
     const workspace = workspaceSchema.parse({
       ...createEmptyWorkspace(),
+      participant: {
+        ...createEmptyWorkspace().participant,
+        focusQuestion: "界".repeat(500),
+      },
       stateVersion: 1,
       operations: [{
         operationId: "00000000-0000-4000-8000-000000000901",
@@ -252,9 +256,7 @@ describe("P2 read_workspace cold orientation", () => {
         effect: "APPLIED",
         beforeVersion: 0,
         afterVersion: 1,
-        changedRefs: Array.from({ length: READ_ENTITY_LIMIT }, (_, index) =>
-          `reflection-${index}-${"x".repeat(110)}`,
-        ),
+        changedRefs: Array.from({ length: READ_ENTITY_LIMIT }, () => `界`.repeat(128)),
         at: "2026-09-01T10:00:00.000Z",
         requestIdentity: "internal-maximal",
       }],
@@ -267,7 +269,7 @@ describe("P2 read_workspace cold orientation", () => {
     expect(result.data?.view).toBe("orientation");
     if (result.data?.view !== "orientation") return;
     expect(result.data.changes.items).toHaveLength(1);
-    expect(result.data.changes.items[0].changedRefs).toHaveLength(5);
+    expect(result.data.changes.items[0].changedRefs.length).toBeLessThanOrEqual(5);
     expect(result.data.changes.items[0].changedRefsTruncated).toBe(true);
     expect(result.data.cursor).toBe(`workspace:${workspace.id}:v1`);
     expect(new TextEncoder().encode(JSON.stringify(result)).length).toBeLessThanOrEqual(

@@ -292,7 +292,7 @@ function boundOrientationResult(result: ReadWorkspaceResult): void {
     projection.pendingHumanInteractions.items.pop();
     projection.pendingHumanInteractions.truncated = true;
   }
-  while (overOrientationBudget(result) && projection.changes.items.length) {
+  while (overOrientationBudget(result) && projection.changes.items.length > 1) {
     projection.changes.items.pop();
     projection.changes.truncated = true;
     const lastDeliveredVersion = projection.changes.items.at(-1)?.afterVersion;
@@ -300,6 +300,22 @@ function boundOrientationResult(result: ReadWorkspaceResult): void {
       lastDeliveredVersion === undefined
         ? projection.changes.sinceCursor ?? projection.cursor
         : `workspace:${projection.identity.workspaceRef}:v${lastDeliveredVersion}`;
+  }
+  while (
+    overOrientationBudget(result) &&
+    projection.changes.items[0]?.changedRefs.length
+  ) {
+    projection.changes.items[0].changedRefs.pop();
+    projection.changes.items[0].changedRefsTruncated = true;
+  }
+  while (overOrientationBudget(result) && projection.constraints.length) {
+    projection.constraints.pop();
+  }
+  while (overOrientationBudget(result) && projection.focus.question !== null) {
+    projection.focus.question =
+      projection.focus.question.length > 1
+        ? projection.focus.question.slice(0, Math.floor(projection.focus.question.length / 2))
+        : null;
   }
 
   orientationProjectionSchema.parse(projection);
