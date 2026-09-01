@@ -1,5 +1,8 @@
 # Destiny.AI — Specialist System Review
 
+> **ARCHIVED 2026-09-01.** Historical receipt; findings were folded into `SPEC.md`.
+> Not current authority.
+
 **Verdict:** `PARTIAL` — unusually strong concept and agent-facing instincts, but not yet
 safe for parallel implementation.
 **Reviewed:** 2026-09-01 against `PROJECT_STATE.md`, `SPEC.md`, `PLAN.md`, `METHOD.md`,

@@ -53,7 +53,7 @@ submission until rights are resolved.
 ## Admission check
 
 P1 implementation is admitted because all three lanes are named. Participant testing remains
-blocked until `DECISIONS.md` and `PROJECT_STATE.md` name the reviewer and
+blocked until `docs/DECISIONS.md` and `PROJECT_STATE.md` name the reviewer and
 `research/PARTICIPANTS.md` records five non-identifying recruitment commitments.
 
 ## Closeout

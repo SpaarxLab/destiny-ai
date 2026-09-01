@@ -1,5 +1,8 @@
 # Destiny.AI — Repository Consolidation Recovery
 
+> **ARCHIVED 2026-09-01.** One-time consolidation receipt. The recovery material it points
+> to still exists at the path below; restoring it is a recovery action, not development.
+
 On 2026-09-01, the nested Create Next App repository was consolidated into the canonical
 repository at `/Users/harsh/career-lab`.
 

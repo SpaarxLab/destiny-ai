@@ -1,6 +1,6 @@
 # Packet P1 — Command Spine
 
-**Status:** ACTIVE — PR #1 open for integration review
+**Status:** INTEGRATED — PR #1 merged to `main` as `58536ab`
 **Owner:** Devarsh (Lane A)
 **Branch/worktree:** `codex/p1-command-spine` in the current canonical checkout
 **Integration destination:** `main`
@@ -106,3 +106,5 @@ appear during the packet.
 - review state: PR #1 is open against `main`; merge and live WebMCP remain unverified
 - disposition: `ACTIVE` — implementation is committed and under integration review; the
   packet is not integrated into `main`
+- post-receipt update: hardened head `94898ce0c2d0042af837dca9a00d2ed34694023d` passed
+  exact-head CI and merged to `main` via PR #1 (`58536ab`); disposition is now `INTEGRATED`

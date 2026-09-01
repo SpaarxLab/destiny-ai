@@ -5,13 +5,13 @@ These rules apply to the whole repository. `web/AGENTS.md` adds framework-specif
 ## Read before action
 
 1. `PROJECT_STATE.md` — current authority, checkout, phase, and open owner decisions.
-2. `DECISIONS.md` — accepted and owner-dependent decisions.
-3. `SPEC.md` — product and system contract.
-4. `PLAN.md` — approved delivery sequence and packet gates.
+2. `SPEC.md` — product and system contract.
+3. `docs/DECISIONS.md` — accepted and owner-dependent decisions.
+4. `docs/PLAN.md` — approved delivery sequence and packet gates.
 5. The active packet in `docs/packets/`.
 
-`SYSTEM_REVIEW.md` and `boards.html` are supporting evidence/explainers, not competing
-authority.
+`docs/archive/` holds superseded history and receipts. It is never current authority; do not
+cite it as current without explicit revalidation.
 
 ## Repository boundary
 

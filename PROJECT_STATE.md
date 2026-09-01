@@ -2,64 +2,103 @@
 
 **Last updated:** 2026-09-01
 
-- **Objective:** agent-native career-experiment workspace for a later OpenAI WebMCP Challenge
-  window; primary goal = deep learning of coherent, safe, resource-efficient agentic product
-  design.
-- **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
-  (accepted choices), and `PLAN.md` (approved delivery programme; P1 and P2 integrated, P3
-  admitted next).
-  `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
-- **Canonical repo/worktree:** `/Users/harsh/career-lab`; integration branch `main`; current
-  closeout branch `codex/p1-p2-integration-receipt`; foundation
-  baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
-  Original nested-repository history and dirty-overlay recovery are preserved at the path
-  documented in `RECOVERY.md`; nothing was deleted.
-- **GitHub remote:** `origin = https://github.com/SpaarxLab/destiny-ai.git`; private
-  SpaarxLab repository; default branch `main`; Harsh has admin access. Remote candidate
-  `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
-  Actions CI in run `33497218996`.
-- **Phase:** P0A, P1 Command Spine, and P2 Cold Orientation are integrated on `main`. P1 head
-  `94898ce0c2d0042af837dca9a00d2ed34694023d` landed through
-  [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1) as merge commit `58536ab`; P2 head
-  `61e5bc686425c5334b36ec4e1819006eb8d516ad` landed through
-  [PR #2](https://github.com/SpaarxLab/destiny-ai/pull/2) as merge commit `f7dea24`. SPX-3/P3
-  is now the next admitted implementation packet. Participant testing remains blocked on
-  reviewer approval and recruitment.
-- **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
-  board/collaboration); Harsh = product authority, integration captain, and Lane C
-  (agent/evals/runtime).
-- **Repository access:** `Devarsh009` and `Tirth262830` hold GitHub's `All-repository write`
-  organization role for SpaarxLab. It covers every current and future organization repository
-  without granting repository admin or organization-owner authority.
-- **Delivery integration:** Linear's `Linear Code` GitHub App is connected to the SpaarxLab
-  organization with read/write code, issue, pull-request, workflow, and action access across
-  all current and future organization repositories. Linear readback shows `SpaarxLab` as a
-  connected organization, enabled by Harsh on 2026-09-01.
-- **Linear roles:** Devarsh, Tirth, and Harsh remain workspace admins because this is a Free
-  workspace and Linear makes every user an admin on that plan. Reducing Devarsh and Tirth to
-  members requires an explicitly approved paid-plan upgrade; no upgrade has been authorized.
-- **Delivery board:** [Destiny.AI — Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)
-  in the SpaarxLab Linear team. `docs/LINEAR_WORKBOARD.md` is the repository-side issue,
-  milestone, owner, dependency, and workflow receipt. Repository documents remain product
-  authority; Linear indexes execution and evidence.
-- **Next decision:** Harsh names the qualified safeguarding reviewer and records five adult
-  participant commitments before participant testing. Separately, Harsh must choose whether
-  to keep Linear Free with all three users as admins or authorize a paid upgrade so Devarsh
-  and Tirth can become members.
-- **Last verified evidence:** on integrated P2 head
-  `61e5bc686425c5334b36ec4e1819006eb8d516ad`, Node 24 `web/npm run check` passed 36
-  focused P1/P2 tests, ESLint, generated route types, TypeScript, and the Next.js production
-  build locally and in exact-head GitHub Actions run `33506297045`. Three golden
-  orientation fixtures, caller-owned recoverable pagination, bounded reads, and the complete
-  6,000-character/3,000-byte result cap passed. A local production-browser journey applied one
-  participant reflection and advanced authoritative state plus orientation cursor from
-  `v1` to `v2`; browser warning/error logs were empty. P1 hardening commit
-  `94898ce0c2d0042af837dca9a00d2ed34694023d` separately passed 20 focused command and
-  storage tests and exact-head GitHub CI as part of PR #1. This is local/static journey and
-  PR CI proof—not live WebMCP, deployed, participant, or submission proof.
-- **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
-  pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
-  plan" MVP and the 8-internal-agents concept.
-- **Documents:** README.md · PROJECT_STATE.md · DECISIONS.md · SPEC.md · PLAN.md · TEAM.md ·
-  SAFETY_AND_PRIVACY.md · SYSTEM_REVIEW.md · METHOD.md · VOCABULARY.md · RECOVERY.md ·
-  docs/LINEAR_WORKBOARD.md · boards.html
+## Objective
+
+Deliver a strong ChatGPT WebMCP competition candidate. A career-stuck adult moves through a short,
+guided Destiny Journey, sees three grounded routes in a shared Route Room, chooses one to test, and
+retains control of every durable decision. ChatGPT uses the site's WebMCP tools to read and change
+the same governed state the participant sees. The product does not predict a career.
+
+## Current authority
+
+- **Contract:** `SPEC.md`
+- **Accepted decisions:** `docs/DECISIONS.md`, through D-014
+- **Delivery programme:** `docs/PLAN.md`
+- **Active packets:** `docs/packets/P3-hypothesis-collaboration.md` and
+  `docs/packets/P8A-webmcp-foundation.md`
+- **Canonical repo:** `/Users/harsh/career-lab`; Next.js app in `web/`; integration branch `main`
+- **Current authority branch:** `chore/docs-declutter`; the exact A0 head is recorded in PR #4 and
+  SPX-14 at closeout
+- **Execution tracker:** [Linear — Destiny.AI Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)
+
+Repository documents are product authority. Linear mirrors owners, dependencies, and delivery
+status. A task is not complete because a ticket says so; its packet and PR must contain the proof.
+
+## Accepted experience
+
+- Promise: “You do not have to choose your whole career. Find one direction worth testing next.”
+- Audience: adults who feel stuck; the first choice adapts the journey without labelling the person.
+- Primary surface: ChatGPT conversation through WebMCP.
+- Shared visual surface: the Route Room on the website.
+- First reveal: Closest, Bridge, and Probe route previews with exact quote sources, constraints, and
+  a test of seven days or less. They are not ranked answers.
+- Human gate: the participant edits or rejects previews, then `choose_route` is the single acceptance
+  command that creates the accepted P3 hypothesis and receipt.
+- Inference: OpenCode Go Luna through AI SDK is optional and replaceable. EVE is deferred because no
+  durable orchestration need has been proven.
+
+## Integrated base
+
+P0A, P1, and P2 are integrated on `main` through PR #1 and PR #2. The base currently provides:
+
+- one schema-versioned local workspace;
+- a shared command kernel with `operationId`, `expectedVersion`, replay protection, stale denial,
+  typed results, and receipts;
+- `save_reflection`;
+- bounded `read_workspace` projections and fixtures.
+
+On the integrated P2 head, 36 focused tests, lint, types, build, CI, and a local browser journey
+passed. On this documentation branch at `5247199`, `npm run check` also passed before the current
+authority revision. This is local/CI base proof only—not P3, live WebMCP, deployment, participant,
+public-source, video, or submission proof.
+
+## Active dependency-closed work
+
+1. **SPX-14 / A0 authority:** this D-014 experience, contract, tickets, and PR stack must land first.
+2. **SPX-15 / A1 / P3A domain:** Devarsh owns `propose_route_set`, participant-only
+   `revise_route_set` and `choose_route`, route and
+   accepted-hypothesis schemas,
+   migration, fixtures, denials, replay, compensation, and receipts.
+3. **B1 / P8A WebMCP foundation:** Harsh owns feature detection, abort-safe registration, bounded
+   reads, method guide, deterministic harness, and absent-runtime behavior. It may run from the
+   exact A0 head in parallel with A1.
+4. **SPX-16 / A2 / P3B journey:** Tirth stacks the guided onboarding and Route Room on the frozen A1
+   contract.
+5. **C1 / P8B:** Harsh combines integrated P3 and P8A into the ChatGPT write journey and evals.
+6. **C2/C3 / P8C:** harden, freeze, deploy, prove in ChatGPT, and assemble exact submission receipts.
+7. **D1 / P9:** AI SDK plus OpenCode Go Luna remains a separate optional adapter PR and never blocks
+   the provider-free candidate.
+
+## Chief-of-Staff coordination
+
+The `Destiny.AI Chief of Staff` thread heartbeat is active every 30 minutes. It reviews completed
+task results and repository gates before sending follow-ups or opening dependency-ready work. Four
+first-wave reviews—product, WebMCP, runtime, and PR stack—are complete. Their accepted conclusions
+are reflected in D-014 and the current packet sequence.
+
+## Remaining gates
+
+- P3 domain and human journey: not implemented.
+- Native WebMCP registration and tool execution: not implemented or runtime-proven.
+- OpenCode Go Luna adapter: not implemented or live-proven.
+- Human usefulness: not tested; a qualified safeguarding reviewer and adult commitments remain
+  required before participant sessions.
+- Deployment, public repository/license, public video, testing instructions, and submission: not
+  completed.
+- Current A0 check: 36 tests, lint, types, and production build passed on 2026-09-01. It must run
+  again on every implementation and candidate SHA.
+
+## Owner input still required before participant testing
+
+1. Name the qualified safeguarding reviewer for distress copy.
+2. Record five adult participant commitments using pseudonymous IDs only.
+3. Keep Linear Free with all three users as admins or authorize paid member roles.
+
+These do not block synthetic-fixture implementation and deterministic testing.
+
+## Supersession receipt
+
+D-014 supersedes the sterile linear presentation of the competition flow and the earlier Career
+Investigation Board draft. D-013's official deadline and truthful narrow-candidate boundary remain
+current. Pre-2026-09-01 whiteboards, the student seven-day-plan MVP, and the eight-internal-agent
+concept remain archived under `docs/archive/2026-09-01-foundation/`.
