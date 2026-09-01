@@ -27,7 +27,8 @@ Repository metadata and foundation files only. No product implementation.
 - package manager: npm;
 - Node: 24;
 - original nested history remains recoverable;
-- no remote or license created without owner choice.
+- private development remote: `https://github.com/SpaarxLab/destiny-ai`;
+- no public release or license file before the release-readiness decision.
 
 ## Success and recovery proof
 
@@ -36,7 +37,10 @@ Repository metadata and foundation files only. No product implementation.
 - verified complete bundle:
   `/Users/harsh/career-lab-recovery/2026-09-01-1535-web-scaffold/web-scaffold-6290be4.bundle`;
 - original `.git` metadata and package overlay preserved beside the bundle;
-- `cd web && npm run check` passed: ESLint, TypeScript, Next.js production build.
+- `cd web && npm run check` passed: ESLint, generated route types, TypeScript, and Next.js
+  production build;
+- GitHub Actions run `33497021144` passed on exact candidate
+  `76e8dbd59743eaaaf8c1b48c4dfdc7f46d514c44`.
 
 ## Rollback or compensation
 
@@ -55,6 +59,6 @@ reviewer and participant commitments remain `OWNER INPUT` before research.
 
 ## Closeout receipt
 
-- verified: recovery bundle, root history, local CI-equivalent checks;
-- unverified: GitHub CI, remote repository, live WebMCP, participant value;
+- verified: recovery bundle, root history, private remote, local checks, clean GitHub CI;
+- unverified: live WebMCP, deployment, safeguarding approval, participant value;
 - disposition: `INTEGRATE`.

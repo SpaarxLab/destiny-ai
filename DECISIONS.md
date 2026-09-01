@@ -64,16 +64,28 @@ complete the candidate study if recruitment succeeds. Report actual counts hones
 that reviewer before participant sessions. Product implementation may start; participant
 testing remains blocked until the reviewer approves the distress copy.
 
-### D-009 — Repository visibility and license
+### D-009 — Repository visibility and license (ownership amended by D-010)
 
-**Decision:** create a private GitHub repository under `harsh41099` for team development.
-Before submission, complete source-ownership, secret, participant-data, and candidate review;
-then add the MIT license and make the repository public.
+**Original decision:** create a private GitHub repository under `harsh41099` for team
+development. The personal-account ownership portion is superseded by D-010. The visibility
+and release-gate portion remains current: before submission, complete source-ownership,
+secret, participant-data, and candidate review; then add the MIT license and make the
+repository public.
 
 No license is granted and the repository remains private until that release gate.
 
-**Implemented:** [`harsh41099/destiny-ai`](https://github.com/harsh41099/destiny-ai) was
-created private with `main` as the default branch.
+**Historical implementation:** `harsh41099/destiny-ai` was created private, then transferred
+to the SpaarxLab organization under D-010.
+
+### D-010 — Repository organization authority
+
+**Decision:** SpaarxLab, not Harsh's personal account, owns the canonical Destiny.AI
+repository. Keep Harsh as repository admin and add Devarsh and Tirth as collaborators after
+their exact GitHub usernames are supplied.
+
+**Implemented:** [`SpaarxLab/destiny-ai`](https://github.com/SpaarxLab/destiny-ai) is private
+with `main` as the default branch. The transfer preserved repository history and GitHub
+Actions history.
 
 ## Owner input still required before participant testing
 

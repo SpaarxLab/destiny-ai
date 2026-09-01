@@ -5,7 +5,7 @@ board: the participant reflects, the agent proposes quoted hypotheses, they run 
 real-world experiment, and confidence can move only through confirmed evidence.
 Built for the OpenAI WebMCP Challenge.
 
-**Development repository:** private [`harsh41099/destiny-ai`](https://github.com/harsh41099/destiny-ai).
+**Development repository:** private [`SpaarxLab/destiny-ai`](https://github.com/SpaarxLab/destiny-ai).
 
 ## The idea in 5 lines (humans)
 
