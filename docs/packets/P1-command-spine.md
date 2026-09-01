@@ -90,12 +90,12 @@ appear during the packet.
 
 ## Closeout receipt
 
-- branch/SHA: `codex/p1-command-spine` / uncommitted working tree based at
-  `045af62322fbd1c2816b2da06eb7cf6815361c88`
+- branch/SHA: `codex/p1-command-spine` / implementation commit
+  `009b7f999c3b8b99740f465058bdedba6f403ca1`
 - verified: Node 24 `npm run check`; 9 focused contract tests; strict schema, wrong-phase,
   stale, replay, conflict, receipt, and persistence-failure proof; local production-browser
   journey rendered one confirmed reflection, one `APPLIED` receipt, and state `0 -> 1` with
   no browser errors
 - unverified: live WebMCP, deployed runtime, participants, release candidate
-- disposition: `ACTIVE` — implementation proof is ready for commit and integration review;
-  the packet is not integrated
+- disposition: `ACTIVE` — implementation is committed and ready for integration review;
+  the packet is not integrated into `main`

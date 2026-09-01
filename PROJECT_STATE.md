@@ -27,13 +27,14 @@
   without granting repository admin or organization-owner authority.
 - **Next decision:** Harsh names the qualified safeguarding reviewer and records five adult
   participant commitments before participant testing.
-- **Last verified evidence:** on the uncommitted `codex/p1-command-spine` working tree based at
-  `045af62322fbd1c2816b2da06eb7cf6815361c88`, Node 24 `web/npm run check` passed 9 focused
+- **Last verified evidence:** on P1 implementation commit
+  `009b7f999c3b8b99740f465058bdedba6f403ca1` on `codex/p1-command-spine`, Node 24
+  `web/npm run check` passed 9 focused
   command tests, ESLint, generated route types, TypeScript, and the Next.js production build.
   A local production-browser journey saved one participant reflection and rendered one
   `APPLIED` receipt with state version `0 -> 1`; browser error logs were empty. P0A remote CI
   evidence remains GitHub Actions run `33497218996`. This is local/static journey proof—not
-  live WebMCP, deployed, participant, integration, or submission proof.
+  live WebMCP, deployed, participant, `main` integration, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
   pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
   plan" MVP and the 8-internal-agents concept.
