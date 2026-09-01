@@ -6,6 +6,7 @@ import {
   operationRecordSchema,
   participantSchema,
   phaseSchema,
+  workspaceObjectSchema,
   workspaceSchema,
   type OperationRecord,
   type Workspace,
@@ -71,6 +72,7 @@ export class LocalWorkspaceStore implements WorkspaceStore {
   }
 }
 
+// Schema v1 (P1/P2): reflections only, no actor on available actions.
 const legacyAvailableActionSchema = z.strictObject({
   tool: z.string().min(1).max(64),
   targetRef: z.string().min(1).max(128),
@@ -90,7 +92,7 @@ const legacyReflectionSchema = z.strictObject({
 });
 
 const emptyLegacyCollection = z.array(z.never()).length(0);
-const legacyWorkspaceSchema = z.strictObject({
+const legacyV1WorkspaceSchema = z.strictObject({
   id: z.string().uuid(),
   schemaVersion: z.literal(1),
   contractVersion: z.literal("1.0.0"),
@@ -108,25 +110,45 @@ const legacyWorkspaceSchema = z.strictObject({
   operations: z.array(operationRecordSchema),
 });
 
+// Schema v2 (P3A): route sets and hypotheses, no follow-up questions.
+const legacyV2WorkspaceSchema = workspaceObjectSchema
+  .omit({ followUpQuestions: true })
+  .extend({
+    schemaVersion: z.literal(2),
+    contractVersion: z.literal("1.1.0"),
+  });
+
 export function migrateWorkspace(input: unknown): Workspace {
   const current = workspaceSchema.safeParse(input);
   if (current.success) return current.data;
 
-  const legacy = legacyWorkspaceSchema.parse(input);
-  return workspaceSchema.parse({
-    ...legacy,
-    schemaVersion: WORKSPACE_SCHEMA_VERSION,
-    contractVersion: CONTRACT_VERSION,
-    reflections: legacy.reflections.map((reflection) => ({
+  const v2 = legacyV2WorkspaceSchema.safeParse(input);
+  if (v2.success) return migrateV2(v2.data);
+
+  const v1 = legacyV1WorkspaceSchema.parse(input);
+  return migrateV2(legacyV2WorkspaceSchema.parse({
+    ...v1,
+    schemaVersion: 2,
+    contractVersion: "1.1.0",
+    reflections: v1.reflections.map((reflection) => ({
       ...reflection,
       availableActions: reflection.availableActions.map((action) => ({
         ...action,
         actor: actorSchema.parse("agent"),
       })),
     })),
-    operations: legacy.operations.map(normalizeLegacyOperation),
+    operations: v1.operations.map(normalizeLegacyOperation),
     routeProposalSets: [],
     hypotheses: [],
+  }));
+}
+
+function migrateV2(legacy: z.infer<typeof legacyV2WorkspaceSchema>): Workspace {
+  return workspaceSchema.parse({
+    ...legacy,
+    schemaVersion: WORKSPACE_SCHEMA_VERSION,
+    contractVersion: CONTRACT_VERSION,
+    followUpQuestions: [],
   });
 }
 

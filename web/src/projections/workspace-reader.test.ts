@@ -118,6 +118,7 @@ describe("P2 read_workspace cold orientation", () => {
     expect(result.data.changes.items).toEqual([
       {
         operationRef: "operation-1",
+        actor: "participant",
         command: "save_reflection",
         effect: "APPLIED",
         afterVersion: 1,
@@ -564,7 +565,19 @@ describe("P3C cold-agent route collaboration projections", () => {
     const { store, kernel, reader } = p3Setup();
     await proposeRoutes(kernel);
     const predecessorRef = store.load().routeProposalSets[0].ref;
-    await proposeRoutes(kernel, operationTwo, 1, predecessorRef);
+    await kernel.execute(
+      { actor: "participant", proposalSource: "participant" },
+      {
+        name: "revise_route_set",
+        input: {
+          operationId: "00000000-0000-4000-8000-000000000021",
+          expectedVersion: 1,
+          routeSetRef: predecessorRef,
+          rejectRouteRefs: ["route-closest", "route-bridge", "route-probe"],
+        },
+      },
+    );
+    await proposeRoutes(kernel, operationTwo, 2, predecessorRef);
     const successorRef = store.load().routeProposalSets[1].ref;
 
     const orientation = reader.readWorkspace({ view: "orientation" });
@@ -587,7 +600,7 @@ describe("P3C cold-agent route collaboration projections", () => {
       expect.objectContaining({
         entityType: "route_proposal_set",
         ref: predecessorRef,
-        status: "superseded",
+        status: "resolved",
         supersededByRouteSetRef: successorRef,
       }),
       expect.objectContaining({
@@ -663,7 +676,7 @@ describe("P3C cold-agent route collaboration projections", () => {
       effect: "APPLIED",
       changedRefs: [routeSetRef, hypothesis.ref],
     });
-    expect(coldReread.data.nextHumanDecision.kind).toBe("NO_PENDING_DECISION");
+    expect(coldReread.data.nextHumanDecision.kind).toBe("REOPEN_OR_CONTINUE");
     expect(JSON.stringify(coldReread).length).toBeLessThanOrEqual(
       ORIENTATION_MAX_SERIALIZED_CHARS,
     );
@@ -695,7 +708,7 @@ describe("P3C cold-agent route collaboration projections", () => {
       contractVersion: "1.0.0",
     };
     const legacyWithoutRouteSets = Object.fromEntries(
-      Object.entries(legacy).filter(([key]) => key !== "routeProposalSets"),
+      Object.entries(legacy).filter(([key]) => key !== "routeProposalSets" && key !== "followUpQuestions"),
     );
     const migrated = migrateWorkspace(legacyWithoutRouteSets);
     const store = new MemoryWorkspaceStore(migrated);
@@ -704,10 +717,137 @@ describe("P3C cold-agent route collaboration projections", () => {
 
     expect(result.data?.view).toBe("orientation");
     if (result.data?.view !== "orientation") return;
-    expect(result.data.identity).toMatchObject({ schemaVersion: 2, contractVersion: "1.1.0" });
+    expect(result.data.identity).toMatchObject({ schemaVersion: 3, contractVersion: "1.2.0" });
     expect(result.data.active.routeSet).toBeNull();
     expect(result.data.active.hypothesis).toBeNull();
     expect(result.data.proof.routeProposalSetStatus).toBeNull();
     expect(store.load()).toEqual(before);
+  });
+});
+
+describe("candidate-v2 orientation projections", () => {
+  const question = {
+    outcome: "insufficient_signal" as const,
+    followUpQuestion: "Which recent task did you want to repeat?",
+    reasonRefs: ["reflection-grounded"],
+  };
+
+  it("exposes exact confirmed words and a fresh proposal availability to a cold agent", () => {
+    const { reader } = p3Setup();
+    const result = reader.readWorkspace();
+    expect(result.data?.view).toBe("orientation");
+    if (result.data?.view !== "orientation") return;
+    expect(result.data.confirmedWords).toEqual([
+      { ref: "reflection-grounded", text: p3Workspace().reflections[0].text, answersFollowUpRef: null },
+    ]);
+    expect(result.data.confirmedWordsTruncated).toBe(false);
+    expect(result.data.proposal).toEqual({
+      available: true,
+      mode: "fresh",
+      reason: expect.stringContaining("Propose three"),
+      supersedesRouteSetRef: null,
+      carryRouteRefs: [],
+      replaceKinds: ["closest", "bridge", "probe"],
+    });
+    expect(result.data.availableActions.map((action) => action.tool)).toEqual(["propose_route_set"]);
+  });
+
+  it("names the open follow-up as the next human decision and as an entity", async () => {
+    const { store, kernel, reader } = p3Setup();
+    await kernel.execute({ actor: "agent", proposalSource: "chatgpt_webmcp" }, {
+      name: "propose_route_set",
+      input: { operationId: operationOne, expectedVersion: 0, ...question },
+    });
+    const orientation = reader.readWorkspace();
+    if (orientation.data?.view !== "orientation") throw new Error("expected orientation");
+    expect(orientation.data.active.followUp).toEqual({
+      ref: "question-1", status: "proposed", question: question.followUpQuestion,
+      reasonRefs: ["reflection-grounded"], askedBy: "chatgpt_webmcp", answerReflectionRef: null,
+    });
+    expect(orientation.data.nextHumanDecision).toMatchObject({ kind: "ANSWER_FOLLOW_UP", targetRefs: ["question-1"] });
+    expect(orientation.data.pendingHumanInteractions.items).toEqual([
+      { ref: "question-1", kind: "ANSWER_FOLLOW_UP", excerpt: question.followUpQuestion },
+    ]);
+    expect(orientation.data.availableActions).toEqual([]);
+    expect(orientation.data.proposal).toEqual({ available: false, reason: expect.stringContaining("follow-up question is waiting") });
+
+    const workingSet = reader.readWorkspace({ view: "working_set" });
+    if (workingSet.data?.view !== "working_set") throw new Error("expected working set");
+    expect(workingSet.data.entities[0]).toMatchObject({ entityType: "follow_up_question", ref: "question-1", availableActions: [] });
+    const targeted = reader.readWorkspace({ view: "entities", refs: ["question-1"] });
+    if (targeted.data?.view !== "entities") throw new Error("expected entities");
+    expect(targeted.data.entities[0]).toMatchObject({ entityType: "follow_up_question", status: "proposed" });
+
+    await kernel.execute({ actor: "participant", proposalSource: "participant" }, {
+      name: "save_reflection",
+      input: { operationId: operationTwo, expectedVersion: 1, text: "I wanted to repeat the workshop.", answersFollowUpRef: "question-1" },
+    });
+    const answered = reader.readWorkspace();
+    if (answered.data?.view !== "orientation") throw new Error("expected orientation");
+    expect(answered.data.active.followUp).toMatchObject({ status: "answered", answerReflectionRef: "reflection-2" });
+    expect(answered.data.confirmedWords.at(-1)).toEqual({ ref: "reflection-2", text: "I wanted to repeat the workshop.", answersFollowUpRef: "question-1" });
+    expect(answered.data.nextHumanDecision.kind).toBe("ADD_REFLECTION");
+    expect(answered.data.availableActions.map((action) => action.tool)).toEqual(["propose_route_set"]);
+    expect(store.load().stateVersion).toBe(2);
+  });
+
+  it("switches proposal availability to replace_rejected after the participant sets a route aside", async () => {
+    const { kernel, reader } = p3Setup();
+    await proposeRoutes(kernel);
+    const waiting = reader.readWorkspace();
+    if (waiting.data?.view !== "orientation") throw new Error("expected orientation");
+    expect(waiting.data.proposal).toEqual({ available: false, reason: expect.stringContaining("waiting") });
+    expect(waiting.data.availableActions).toEqual([]);
+
+    await kernel.execute({ actor: "participant", proposalSource: "participant" }, {
+      name: "revise_route_set",
+      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", rejectRouteRefs: ["route-probe"] },
+    });
+    const replace = reader.readWorkspace();
+    if (replace.data?.view !== "orientation") throw new Error("expected orientation");
+    expect(replace.data.proposal).toEqual({
+      available: true,
+      mode: "replace_rejected",
+      reason: expect.stringContaining("carryRouteRef"),
+      supersedesRouteSetRef: "route-set-1",
+      carryRouteRefs: ["route-closest", "route-bridge"],
+      replaceKinds: ["probe"],
+    });
+    expect(replace.data.availableActions[0]).toMatchObject({ tool: "propose_route_set", targetRef: "route-set-1" });
+    expect(replace.data.nextHumanDecision.kind).toBe("CHOOSE_OR_REVISE_ROUTE_SET");
+  });
+
+  it("reports unavailability after a choice and REOPEN_OR_CONTINUE as the human decision", async () => {
+    const { kernel, reader } = p3Setup();
+    await proposeRoutes(kernel);
+    await kernel.execute({ actor: "participant", proposalSource: "participant" }, {
+      name: "choose_route",
+      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", routeRef: "route-closest" },
+    });
+    const result = reader.readWorkspace();
+    if (result.data?.view !== "orientation") throw new Error("expected orientation");
+    expect(result.data.proposal).toEqual({ available: false, reason: expect.stringContaining("chosen") });
+    expect(result.data.nextHumanDecision.kind).toBe("REOPEN_OR_CONTINUE");
+    expect(result.data.identity.phase).toBe("TESTING");
+  });
+
+  it("keeps six long confirmed words inside the orientation budget and truncates honestly beyond it", () => {
+    const words = Array.from({ length: 8 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      ref: `reflection-${index + 1}`,
+      availableActions: [],
+      status: "confirmed" as const,
+      text: `${index + 1} `.repeat(1).concat("w".repeat(498)),
+      recordedBy: "participant" as const,
+      createdAt: "2026-09-01T10:00:00.000Z",
+    }));
+    const store = new MemoryWorkspaceStore(workspaceSchema.parse({ ...createEmptyWorkspace(), reflections: words }));
+    const result = new WorkspaceReader(store).read();
+    if (result.data?.view !== "orientation") throw new Error("expected orientation");
+    expect(result.data.confirmedWords.length).toBeGreaterThan(0);
+    expect(result.data.confirmedWordsTruncated).toBe(true);
+    expect(result.data.confirmedWords.at(-1)?.ref).toBe("reflection-8");
+    expect(JSON.stringify(result).length).toBeLessThanOrEqual(ORIENTATION_MAX_SERIALIZED_CHARS);
+    expect(new TextEncoder().encode(JSON.stringify(result)).length).toBeLessThanOrEqual(ORIENTATION_ESTIMATED_TOKEN_BUDGET);
   });
 });

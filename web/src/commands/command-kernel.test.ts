@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createParticipantCommandAdapter } from "../adapters/participant-command-adapter";
 import { createTestCommandAdapter } from "../adapters/test-command-adapter";
 import { createEmptyWorkspace, workspaceSchema, type Workspace } from "../domain/workspace";
+import { p3Workspace, validRoutes } from "./fixtures/p3-route-set";
 import { MemoryWorkspaceStore } from "../storage/memory-workspace-store";
 import { WorkspaceStoreError, type WorkspaceStore } from "../storage/workspace-store";
 import { CommandKernel, type CommandEnvironment } from "./command-kernel";
@@ -139,20 +140,20 @@ describe("P1 save_reflection command spine", () => {
   });
 
   it("denies save_reflection outside EXPLORING", async () => {
-    const testingWorkspace = workspaceSchema.parse({
-      ...createEmptyWorkspace(),
-      phase: "TESTING",
-    });
-    const { store, kernel } = setup(testingWorkspace);
-    const result = await createParticipantCommandAdapter(kernel).saveReflection({
-      operationId: operationOne,
-      expectedVersion: 0,
+    const { store, kernel } = setup(p3Workspace());
+    const participant = createParticipantCommandAdapter(kernel);
+    await participant.proposeRouteSet({ operationId: operationOne, expectedVersion: 0, outcome: "routes", routes: validRoutes() });
+    await participant.chooseRoute({ operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", routeRef: "route-closest" });
+    expect(store.load().phase).toBe("TESTING");
+    const result = await participant.saveReflection({
+      operationId: "00000000-0000-4000-8000-000000000030",
+      expectedVersion: 2,
       text: "This should not be written in the testing phase.",
     });
 
     expect(result.ok).toBe(false);
     expect(result.error?.code).toBe("WRONG_PHASE");
-    expect(store.load().stateVersion).toBe(0);
+    expect(store.load().stateVersion).toBe(2);
   });
 
   it("returns stale-state guidance and changed refs without mutation", async () => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ToolResult } from "./results";
 import {
   availableActionSchema,
+  followUpQuestionSchema,
   hypothesisSchema,
   phaseSchema,
   reflectionSchema,
@@ -12,9 +13,10 @@ import {
 export const READ_ENTITY_LIMIT = 20;
 export const READ_CHANGE_LIMIT = 20;
 export const PUBLIC_CHANGED_REF_LIMIT = 5;
-export const ORIENTATION_MAX_SERIALIZED_CHARS = 6_000;
-export const ORIENTATION_ESTIMATED_TOKEN_BUDGET = 3_000;
-export const READ_WORKSPACE_CONTRACT_VERSION = "read-workspace/2.0.0";
+export const CONFIRMED_WORDS_LIMIT = 6;
+export const ORIENTATION_MAX_SERIALIZED_CHARS = 8_000;
+export const ORIENTATION_ESTIMATED_TOKEN_BUDGET = 4_000;
+export const READ_WORKSPACE_CONTRACT_VERSION = "read-workspace/3.0.0";
 
 const cursorSchema = z.string().min(1).max(200);
 const refSchema = z.string().min(1).max(128);
@@ -56,6 +58,7 @@ export type WorkspaceIdentity = z.infer<typeof workspaceIdentitySchema>;
 
 export const changeSummarySchema = z.strictObject({
   operationRef: z.string().min(1).max(128),
+  actor: z.enum(["participant", "agent"]),
   command: z.string().min(1).max(64),
   effect: z.enum(["APPLIED", "PROPOSED", "AWAITING_HUMAN", "COMPENSATED"]),
   afterVersion: z.number().int().nonnegative(),
@@ -93,6 +96,41 @@ export const hypothesisSummarySchema = z.strictObject({
   originatingRouteRef: refSchema,
 });
 
+export const followUpSummarySchema = z.strictObject({
+  ref: refSchema,
+  status: z.enum(["proposed", "answered", "skipped", "withdrawn"]),
+  question: z.string().min(1).max(300),
+  reasonRefs: z.array(refSchema).max(5),
+  askedBy: z.enum(["chatgpt_webmcp", "embedded_inference"]),
+  answerReflectionRef: refSchema.nullable(),
+});
+
+/**
+ * Exact confirmed participant words. Quotes in a proposal must be exact substrings of `text`.
+ * This is the only field an agent needs in order to ground a proposal without a second read.
+ */
+export const confirmedWordsSchema = z.strictObject({
+  ref: refSchema,
+  text: z.string().min(1).max(2_000),
+  answersFollowUpRef: refSchema.nullable(),
+});
+
+export const proposalAvailabilitySchema = z.discriminatedUnion("available", [
+  z.strictObject({
+    available: z.literal(true),
+    mode: z.enum(["fresh", "replace_rejected"]),
+    reason: z.string().min(1).max(240),
+    supersedesRouteSetRef: refSchema.nullable(),
+    carryRouteRefs: z.array(refSchema).max(3),
+    replaceKinds: z.array(z.enum(["closest", "bridge", "probe"])).max(3),
+  }),
+  z.strictObject({
+    available: z.literal(false),
+    reason: z.string().min(1).max(240),
+  }),
+]);
+export type ProposalAvailabilityProjection = z.infer<typeof proposalAvailabilitySchema>;
+
 const publicReflectionSchema = reflectionSchema.omit({ availableActions: true }).extend({
   entityType: z.literal("reflection"),
   availableActions: z.array(agentAvailableActionSchema).max(READ_ENTITY_LIMIT),
@@ -118,6 +156,11 @@ const publicHypothesisSchema = hypothesisSchema.omit({ availableActions: true })
   availableActions: z.array(agentAvailableActionSchema).max(READ_ENTITY_LIMIT),
 });
 
+const publicFollowUpSchema = followUpQuestionSchema.omit({ availableActions: true }).extend({
+  entityType: z.literal("follow_up_question"),
+  availableActions: z.array(agentAvailableActionSchema).max(READ_ENTITY_LIMIT),
+});
+
 const publicReceiptSummarySchema = changeSummarySchema.extend({
   entityType: z.literal("operation_receipt"),
 });
@@ -127,6 +170,7 @@ export const publicReadEntitySchema = z.discriminatedUnion("entityType", [
   publicRouteSetSchema,
   publicRoutePreviewSchema,
   publicHypothesisSchema,
+  publicFollowUpSchema,
   publicReceiptSummarySchema,
 ]);
 export type PublicReadEntity = z.infer<typeof publicReadEntitySchema>;
@@ -139,6 +183,15 @@ const changesSchema = z.strictObject({
 
 const emptyProjectionCollectionSchema = z.array(z.never()).length(0);
 
+export const nextHumanDecisionKindSchema = z.enum([
+  "ADD_REFLECTION",
+  "REVIEW_PROPOSED_REFLECTION",
+  "ANSWER_FOLLOW_UP",
+  "CHOOSE_OR_REVISE_ROUTE_SET",
+  "REOPEN_OR_CONTINUE",
+  "NO_PENDING_DECISION",
+]);
+
 export const orientationProjectionSchema = z.strictObject({
   view: z.literal("orientation"),
   identity: workspaceIdentitySchema,
@@ -150,18 +203,17 @@ export const orientationProjectionSchema = z.strictObject({
       currency: z.string().length(3),
     }),
   }),
+  confirmedWords: z.array(confirmedWordsSchema).max(CONFIRMED_WORDS_LIMIT),
+  confirmedWordsTruncated: z.boolean(),
   active: z.strictObject({
     routeSet: routeSetSummarySchema.nullable(),
     hypothesis: hypothesisSummarySchema.nullable(),
+    followUp: followUpSummarySchema.nullable(),
     experiment: z.null(),
   }),
+  proposal: proposalAvailabilitySchema,
   nextHumanDecision: z.strictObject({
-    kind: z.enum([
-      "ADD_REFLECTION",
-      "REVIEW_PROPOSED_REFLECTION",
-      "CHOOSE_OR_REVISE_ROUTE_SET",
-      "NO_PENDING_DECISION",
-    ]),
+    kind: nextHumanDecisionKindSchema,
     targetRefs: z.array(z.string().min(1).max(128)).max(READ_ENTITY_LIMIT),
     guidance: z.string().min(1).max(240),
   }),
@@ -172,7 +224,7 @@ export const orientationProjectionSchema = z.strictObject({
       .array(
         z.strictObject({
           ref: z.string().min(1).max(128),
-          kind: z.enum(["CONFIRM_REFLECTION", "CHOOSE_OR_REVISE_ROUTE_SET"]),
+          kind: z.enum(["CONFIRM_REFLECTION", "ANSWER_FOLLOW_UP", "CHOOSE_OR_REVISE_ROUTE_SET"]),
           excerpt: z.string().min(1).max(160),
         }),
       )

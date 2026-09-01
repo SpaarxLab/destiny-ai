@@ -35,6 +35,12 @@ export class FakeWebMcpRuntime implements WebMcpModelContext {
     this.registrations.push({ tool, signal });
   }
 
+  activeTools(): WebMcpToolDefinition[] {
+    return this.registrations
+      .filter(({ signal }) => !signal.aborted)
+      .map(({ tool }) => tool);
+  }
+
   activeToolNames(): string[] {
     return this.registrations
       .filter(({ signal }) => !signal.aborted)

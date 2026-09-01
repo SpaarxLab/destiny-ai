@@ -8,7 +8,7 @@ export function routeSetActions(routeSetRef: string): AvailableAction[] {
       actor: "participant",
       effect: "PREPARE_UI",
       requiresHuman: true,
-      reason: "Only the participant may edit or reject route previews.",
+      reason: "Only the participant may edit or set aside route previews.",
     },
     {
       tool: "choose_route",
@@ -29,62 +29,142 @@ export function routeSetActions(routeSetRef: string): AvailableAction[] {
   ];
 }
 
+export function followUpActions(followUpRef: string): AvailableAction[] {
+  return [
+    {
+      tool: "save_reflection",
+      targetRef: followUpRef,
+      actor: "participant",
+      effect: "PREPARE_UI",
+      requiresHuman: true,
+      reason: "Only the participant may answer the agent's follow-up question in their own words.",
+    },
+    {
+      tool: "skip_follow_up",
+      targetRef: followUpRef,
+      actor: "participant",
+      effect: "PREPARE_UI",
+      requiresHuman: true,
+      reason: "Only the participant may skip the follow-up question.",
+    },
+  ];
+}
+
+export function proposedRouteSet(workspace: Workspace): RouteProposalSet | undefined {
+  return workspace.routeProposalSets.find((set) => set.status === "proposed");
+}
+
+export function openFollowUp(workspace: Workspace) {
+  return workspace.followUpQuestions.find((question) => question.status === "proposed");
+}
+
+/**
+ * Describes why the agent may or may not propose right now. The WebMCP catalogue and the visible
+ * room header both derive from this single answer, so a judge sees the same truth the agent sees.
+ */
+export type ProposalAvailability =
+  | { available: true; mode: "fresh"; reason: string }
+  | { available: true; mode: "replace_rejected"; reason: string; routeSetRef: string; rejectedRouteRefs: string[] }
+  | { available: false; reason: string };
+
+export function proposalAvailability(workspace: Workspace): ProposalAvailability {
+  if (workspace.phase !== "EXPLORING") {
+    return { available: false, reason: "The participant has chosen a direction. Proposals resume only if they reopen exploring." };
+  }
+  if (!workspace.reflections.some((reflection) => reflection.status === "confirmed")) {
+    return { available: false, reason: "The participant has not confirmed any words yet." };
+  }
+  const waiting = openFollowUp(workspace);
+  if (waiting) {
+    return { available: false, reason: "Your follow-up question is waiting for the participant. Reread after they answer or skip it." };
+  }
+  const proposed = proposedRouteSet(workspace);
+  if (!proposed) {
+    return {
+      available: true,
+      mode: "fresh",
+      reason: "Propose three grounded route previews, or ask one focused follow-up question if the confirmed words are not enough.",
+    };
+  }
+  const rejected = proposed.routes.filter((route) => route.status === "rejected").map((route) => route.ref);
+  if (rejected.length === 0) {
+    return { available: false, reason: "Three routes are waiting for the participant. They must edit, set aside, or choose before a new proposal." };
+  }
+  return {
+    available: true,
+    mode: "replace_rejected",
+    reason: "Replace only the route(s) the participant set aside; carry every kept route over unchanged with carryRouteRef.",
+    routeSetRef: proposed.ref,
+    rejectedRouteRefs: rejected,
+  };
+}
+
 export function availableActions(
   workspace: Workspace,
   actor: Actor = "agent",
 ): AvailableAction[] {
-  if (workspace.phase !== "EXPLORING") {
-    return [];
-  }
-
   const actions: AvailableAction[] = [];
   if (actor === "agent") {
-    actions.push({
-      tool: "save_reflection",
-      targetRef: workspace.id,
-      actor: "agent",
-      effect: "PROPOSE",
-      requiresHuman: true,
-      reason: "Agent-transcribed text remains proposed until the participant confirms it.",
-    });
-    if (
-      workspace.reflections.some((reflection) => reflection.status === "confirmed") &&
-      !workspace.routeProposalSets.some((set) => set.status === "proposed")
-    ) {
+    if (workspace.phase !== "EXPLORING") return actions;
+    const availability = proposalAvailability(workspace);
+    if (availability.available) {
       actions.push({
         tool: "propose_route_set",
-        targetRef: workspace.id,
+        targetRef: availability.mode === "replace_rejected" ? availability.routeSetRef : workspace.id,
         actor: "agent",
         effect: "PROPOSE",
         requiresHuman: true,
-        reason: "Route previews remain proposals until the participant chooses one.",
+        reason: availability.reason,
       });
     }
-  } else {
+    return actions;
+  }
+
+  if (workspace.phase === "TESTING") {
+    const accepted = workspace.hypotheses.find((hypothesis) => hypothesis.status === "accepted");
+    if (accepted) {
+      actions.push({
+        tool: "reopen_exploring",
+        targetRef: accepted.ref,
+        actor: "participant",
+        effect: "PREPARE_UI",
+        requiresHuman: true,
+        reason: "Only the participant may park the chosen direction and return to exploring.",
+      });
+    }
+    return actions;
+  }
+  if (workspace.phase !== "EXPLORING") return actions;
+
+  actions.push({
+    tool: "save_reflection",
+    targetRef: workspace.id,
+    actor: "participant",
+    effect: "PROPOSE",
+    requiresHuman: false,
+  });
+  actions.push({
+    tool: "set_limits",
+    targetRef: workspace.id,
+    actor: "participant",
+    effect: "PROPOSE",
+    requiresHuman: false,
+  });
+  if (!proposedRouteSet(workspace)) {
     actions.push({
-      tool: "save_reflection",
+      tool: "propose_route_set",
       targetRef: workspace.id,
       actor: "participant",
       effect: "PROPOSE",
       requiresHuman: false,
     });
-    if (!workspace.routeProposalSets.some((set) => set.status === "proposed")) {
-      actions.push({
-        tool: "propose_route_set",
-        targetRef: workspace.id,
-        actor: "participant",
-        effect: "PROPOSE",
-        requiresHuman: false,
-      });
-    }
-    for (const routeSet of workspace.routeProposalSets.filter(isParticipantActionable)) {
-      actions.push(...routeSet.availableActions.filter((action) => action.actor === actor));
-    }
   }
-
+  for (const routeSet of workspace.routeProposalSets.filter((set) => set.status === "proposed")) {
+    actions.push(...routeSet.availableActions.filter((action) => action.actor === actor));
+  }
+  const followUp = openFollowUp(workspace);
+  if (followUp) {
+    actions.push(...followUp.availableActions.filter((action) => action.actor === actor));
+  }
   return actions;
-}
-
-function isParticipantActionable(routeSet: RouteProposalSet): boolean {
-  return routeSet.status === "proposed";
 }

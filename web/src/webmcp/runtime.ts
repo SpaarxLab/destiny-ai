@@ -24,7 +24,7 @@ export interface WebMcpDocument {
 
 export function detectModelContext(
   candidate: WebMcpDocument | undefined =
-    typeof document === "undefined" ? undefined : (document as WebMcpDocument),
+    typeof document === "undefined" ? undefined : (document as unknown as WebMcpDocument),
 ): WebMcpModelContext | null {
   const modelContext = candidate?.modelContext;
   return modelContext && typeof modelContext.registerTool === "function" ? modelContext : null;

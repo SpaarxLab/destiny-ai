@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const WORKSPACE_SCHEMA_VERSION = 2;
-export const CONTRACT_VERSION = "1.1.0";
+export const WORKSPACE_SCHEMA_VERSION = 3;
+export const CONTRACT_VERSION = "1.2.0";
 
 const refSchema = z.string().trim().min(1).max(128);
 const boundedText = (maximum: number) => z.string().trim().min(1).max(maximum);
@@ -11,6 +11,9 @@ export type Phase = z.infer<typeof phaseSchema>;
 
 export const actorSchema = z.enum(["participant", "agent"]);
 export type Actor = z.infer<typeof actorSchema>;
+
+export const proposalSourceSchema = z.enum(["chatgpt_webmcp", "participant", "embedded_inference"]);
+export type ProposalSource = z.infer<typeof proposalSourceSchema>;
 
 export const availableActionSchema = z.strictObject({
   tool: z.string().min(1).max(64),
@@ -30,8 +33,22 @@ export const reflectionSchema = z.strictObject({
   text: z.string().min(1).max(2_000),
   recordedBy: z.enum(["participant", "agent_transcribed"]),
   createdAt: z.string().datetime({ offset: true }),
+  answersFollowUpRef: refSchema.optional(),
 });
 export type Reflection = z.infer<typeof reflectionSchema>;
+
+export const followUpQuestionSchema = z.strictObject({
+  id: z.string().uuid(),
+  ref: refSchema,
+  availableActions: z.array(availableActionSchema),
+  status: z.enum(["proposed", "answered", "skipped", "withdrawn"]),
+  question: boundedText(300),
+  reasonRefs: z.array(refSchema).min(1).max(5),
+  askedBy: z.enum(["chatgpt_webmcp", "embedded_inference"]),
+  createdAt: z.string().datetime({ offset: true }),
+  answerReflectionRef: refSchema.optional(),
+});
+export type FollowUpQuestion = z.infer<typeof followUpQuestionSchema>;
 
 export const quoteSourceSchema = z.strictObject({
   reflectionRef: refSchema,
@@ -63,6 +80,7 @@ export const routePreviewSchema = z.strictObject({
   strengthensWhen: boundedText(300),
   weakensWhen: boundedText(300),
   status: z.enum(["proposed", "edited", "rejected", "selected"]),
+  carriedFromRouteRef: refSchema.optional(),
 });
 export type RoutePreview = z.infer<typeof routePreviewSchema>;
 
@@ -74,7 +92,7 @@ export const routeProposalSetSchema = z.strictObject({
   routes: z.tuple([routePreviewSchema, routePreviewSchema, routePreviewSchema]),
   selectedRouteRef: refSchema.optional(),
   supersedesRouteSetRef: refSchema.optional(),
-  createdBy: z.enum(["chatgpt_webmcp", "participant", "embedded_inference"]),
+  createdBy: proposalSourceSchema,
   createdAt: z.string().datetime({ offset: true }),
 });
 export type RouteProposalSet = z.infer<typeof routeProposalSetSchema>;
@@ -115,19 +133,22 @@ export const operationRecordSchema = operationReceiptSchema.extend({
 });
 export type OperationRecord = z.infer<typeof operationRecordSchema>;
 
+export const costCapsSchema = z.strictObject({
+  hoursPerWeek: z.number().nonnegative(),
+  money: z.number().nonnegative(),
+  currency: z.string().length(3),
+});
+export type CostCaps = z.infer<typeof costCapsSchema>;
+
 export const participantSchema = z.strictObject({
   displayName: z.string().max(120),
   focusQuestion: z.string().max(500),
-  costCaps: z.strictObject({
-    hoursPerWeek: z.number().nonnegative(),
-    money: z.number().nonnegative(),
-    currency: z.string().length(3),
-  }),
+  costCaps: costCapsSchema,
 });
 
 const notImplementedCollectionSchema = z.array(z.never()).length(0);
 
-const workspaceObjectSchema = z.strictObject({
+export const workspaceObjectSchema = z.strictObject({
   id: z.string().uuid(),
   schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
   contractVersion: z.literal(CONTRACT_VERSION),
@@ -135,6 +156,7 @@ const workspaceObjectSchema = z.strictObject({
   phase: phaseSchema,
   participant: participantSchema,
   reflections: z.array(reflectionSchema),
+  followUpQuestions: z.array(followUpQuestionSchema),
   routeProposalSets: z.array(routeProposalSetSchema),
   hypotheses: z.array(hypothesisSchema),
   experiments: notImplementedCollectionSchema,
@@ -146,10 +168,19 @@ const workspaceObjectSchema = z.strictObject({
   operations: z.array(operationRecordSchema),
 });
 
+export function routeContent(route: RoutePreview): string {
+  const { ref, status, carriedFromRouteRef, ...content } = route;
+  void ref;
+  void status;
+  void carriedFromRouteRef;
+  return JSON.stringify(content);
+}
+
 export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, context) => {
   const addressableRefs = [
     { ref: workspace.id, path: ["id"] },
     ...workspace.reflections.map((entity, index) => ({ ref: entity.ref, path: ["reflections", index, "ref"] })),
+    ...workspace.followUpQuestions.map((entity, index) => ({ ref: entity.ref, path: ["followUpQuestions", index, "ref"] })),
     ...workspace.routeProposalSets.map((entity, index) => ({ ref: entity.ref, path: ["routeProposalSets", index, "ref"] })),
     ...workspace.routeProposalSets.flatMap((set, setIndex) =>
       set.routes.map((route, routeIndex) => ({
@@ -272,7 +303,67 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
     });
   }
 
+  const proposedSets = workspace.routeProposalSets.filter((set) => set.status === "proposed");
+  if (proposedSets.length > 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["routeProposalSets"],
+      message: "At most one route set may be proposed at a time.",
+    });
+  }
+
+  const openFollowUps = workspace.followUpQuestions.filter((question) => question.status === "proposed");
+  if (openFollowUps.length > 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["followUpQuestions"],
+      message: "At most one follow-up question may be open at a time.",
+    });
+  }
+  for (const [questionIndex, question] of workspace.followUpQuestions.entries()) {
+    for (const reasonRef of question.reasonRefs) {
+      const reflection = workspace.reflections.find((candidate) => candidate.ref === reasonRef);
+      if (!reflection || reflection.status !== "confirmed") {
+        context.addIssue({
+          code: "custom",
+          path: ["followUpQuestions", questionIndex, "reasonRefs"],
+          message: "Follow-up reasons must cite confirmed reflections.",
+        });
+      }
+    }
+    const answer = question.answerReflectionRef === undefined
+      ? undefined
+      : workspace.reflections.find((candidate) => candidate.ref === question.answerReflectionRef);
+    if (question.status === "answered") {
+      if (!answer || answer.status !== "confirmed" || answer.answersFollowUpRef !== question.ref) {
+        context.addIssue({
+          code: "custom",
+          path: ["followUpQuestions", questionIndex, "answerReflectionRef"],
+          message: "An answered follow-up must point to the confirmed reflection that answers it.",
+        });
+      }
+    } else if (question.answerReflectionRef !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["followUpQuestions", questionIndex, "answerReflectionRef"],
+        message: "Only an answered follow-up may name an answer reflection.",
+      });
+    }
+  }
+  for (const [reflectionIndex, reflection] of workspace.reflections.entries()) {
+    if (reflection.answersFollowUpRef === undefined) continue;
+    const question = workspace.followUpQuestions.find((candidate) => candidate.ref === reflection.answersFollowUpRef);
+    if (!question || question.answerReflectionRef !== reflection.ref) {
+      context.addIssue({
+        code: "custom",
+        path: ["reflections", reflectionIndex, "answersFollowUpRef"],
+        message: "A reflection may only answer the follow-up that names it back.",
+      });
+    }
+  }
+
   for (const [setIndex, set] of workspace.routeProposalSets.entries()) {
+    let predecessor: RouteProposalSet | undefined;
     if (set.supersedesRouteSetRef) {
       const targetIndex = workspace.routeProposalSets.findIndex(
         (candidate) => candidate.ref === set.supersedesRouteSetRef,
@@ -283,6 +374,8 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
           path: ["routeProposalSets", setIndex, "supersedesRouteSetRef"],
           message: "A supersession target must be an earlier route set in this workspace.",
         });
+      } else {
+        predecessor = workspace.routeProposalSets[targetIndex];
       }
     }
 
@@ -338,14 +431,15 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
     }
     for (const [routeIndex, route] of set.routes.entries()) {
       if (
+        set.status === "proposed" && (
         route.test.maximumHours > workspace.participant.costCaps.hoursPerWeek ||
         route.test.maximumMoney > workspace.participant.costCaps.money ||
-        route.test.currency !== workspace.participant.costCaps.currency
+        route.test.currency !== workspace.participant.costCaps.currency)
       ) {
         context.addIssue({
           code: "custom",
           path: ["routeProposalSets", setIndex, "routes", routeIndex, "test"],
-          message: "Stored route tests must stay within participant time, money, and currency caps.",
+          message: "Proposed route tests must stay within the current participant time, money, and currency limits.",
         });
       }
       for (const source of route.sourceQuotes) {
@@ -357,6 +451,16 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
             code: "custom",
             path: ["routeProposalSets", setIndex, "routes", routeIndex, "sourceQuotes"],
             message: "Stored route quotes must exactly cite confirmed reflections.",
+          });
+        }
+      }
+      if (route.carriedFromRouteRef !== undefined) {
+        const origin = predecessor?.routes.find((candidate) => candidate.ref === route.carriedFromRouteRef);
+        if (!origin || origin.kind !== route.kind || routeContent(origin) !== routeContent(route)) {
+          context.addIssue({
+            code: "custom",
+            path: ["routeProposalSets", setIndex, "routes", routeIndex, "carriedFromRouteRef"],
+            message: "A carried route must copy a route of the same kind from the superseded set unchanged.",
           });
         }
       }
@@ -384,6 +488,21 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
       });
     }
   }
+  const acceptedCount = workspace.hypotheses.filter((hypothesis) => hypothesis.status === "accepted").length;
+  if (workspace.phase === "TESTING" && acceptedCount !== 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["phase"],
+      message: "The TESTING phase requires exactly one accepted hypothesis.",
+    });
+  }
+  if (workspace.phase === "EXPLORING" && acceptedCount !== 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["phase"],
+      message: "The EXPLORING phase cannot hold an accepted hypothesis.",
+    });
+  }
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
 
@@ -402,6 +521,7 @@ export function createEmptyWorkspace(
       costCaps: { hoursPerWeek: 0, money: 0, currency: "XXX" },
     },
     reflections: [],
+    followUpQuestions: [],
     routeProposalSets: [],
     hypotheses: [],
     experiments: [],

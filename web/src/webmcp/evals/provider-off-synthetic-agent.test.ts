@@ -57,10 +57,26 @@ describe("P8B provider-off synthetic agent policy", () => {
   });
 
   it("does not attempt propose_route_set when discovery omits it", async () => {
-    const wrongPhase = createProviderOffEvalContext(workspaceSchema.parse({
-      ...p3Workspace(),
-      phase: "TESTING",
-    }));
+    // TESTING requires an accepted hypothesis; reach it through the real participant command.
+    const wrongPhase = createProviderOffEvalContext(p3Workspace());
+    await wrongPhase.discover();
+    const seeded = await runProviderOffSyntheticAgent({
+      catalogue: wrongPhase.catalogue(),
+      invoke: wrongPhase.invokeDiscovered,
+      operationId: "00000000-0000-4000-8000-000000008303",
+    });
+    expect(seeded.proposalResult).toMatchObject({ ok: true });
+    const chosen = await wrongPhase.participant({
+      name: "choose_route",
+      input: {
+        operationId: "00000000-0000-4000-8000-000000008304",
+        expectedVersion: 1,
+        routeSetRef: "route-set-1",
+        routeRef: "route-synthetic-closest",
+      },
+    });
+    expect(chosen.ok).toBe(true);
+    expect(wrongPhase.store.load().phase).toBe("TESTING");
     await wrongPhase.discover();
 
     const unavailableRun = await runProviderOffSyntheticAgent({
@@ -73,7 +89,7 @@ describe("P8B provider-off synthetic agent policy", () => {
       "get_method_guide",
     ]);
     expect(unavailableRun.calls.map((call) => call.name)).not.toContain("propose_route_set");
-    expect(wrongPhase.store.load().stateVersion).toBe(0);
+    expect(wrongPhase.store.load().stateVersion).toBe(2);
 
     const lifecycle = createProviderOffEvalContext(p3Workspace());
     await lifecycle.discover();

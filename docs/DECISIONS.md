@@ -189,6 +189,56 @@ sound like form processing. Guided branching gives an immediate human win; three
 make AI synthesis visible; WebMCP lets ChatGPT change the same inspectable object the person sees;
 and advancing only one selected route preserves a coherent authority model.
 
+### D-015 — Candidate v2: two chairs, one table
+
+**Decision:** the competition candidate is rebuilt around one visible principle: the person and the
+agent operate the same Route Room, every agent move is a receipted proposal, and the agent can only
+replace what the person set aside. Contract version `1.2.0`, workspace schema `3`.
+
+Admitted changes:
+
+1. `propose_route_set` with `outcome: insufficient_signal` is now a receipted `PROPOSED` write. It
+   creates one visible `FollowUpQuestion`; the participant answers it with `save_reflection` carrying
+   `answersFollowUpRef` (a confirmed reflection the agent may quote) or skips it with the
+   participant-only `skip_follow_up`. A routes proposal or a choice withdraws an open question in the
+   same receipt. Only one question may be open.
+2. A proposal may supersede a set that is still proposed only when the participant has set at least
+   one route aside. Every kept route must be carried over unchanged through a `carryRouteRef` slot;
+   the kernel copies it with a fresh ref and `carriedFromRouteRef`, preserving participant edits.
+   Only the set-aside kinds may be replaced. This is the "replace only what I set aside" rule.
+3. `set_limits` is a participant-only command with a receipt. Caps and the focus question never
+   enter state through an initial snapshot. Limits cannot shrink below a proposed route.
+4. `reopen_exploring` is a participant-only command that parks the accepted hypothesis and returns
+   the workspace to `EXPLORING`, so a person can change their mind on one device with a receipt.
+5. Agent affordances never advertise a tool that is not registered. `save_reflection` is no longer
+   an agent action; agent transcription returns in P10 through a real tool.
+6. The participant's answer boxes are declarative WebMCP forms (`draft_words`): an agent may fill
+   the box, never submit it. This is the `PREPARE_UI` effect class made native to the browser.
+7. The Route Room shows provenance, receipts, denials, the live capability line, an activity
+   drawer built from the ledger, grounding highlights of quoted words, and a "see what the agent
+   sees" panel that renders the exact orientation projection. Nothing the agent can read is hidden
+   from the person; private notes are never readable by the agent.
+8. An embedded lab assistant (AI SDK, any OpenAI-compatible endpoint including OpenCode Go) is
+   admitted as a replaceable proposal source behind `LAB_ASSISTANT_PROVIDER`, disabled by default,
+   server-side, with an explicit per-request consent sentence in the UI, deterministic grounding
+   validation, and no persistence. Its proposals pass through the same kernel with
+   `embedded_inference` provenance. Real participant content is sent only when the participant
+   ticks the consent sentence for that request.
+9. A visiting-agent simulator (AI SDK tool loop over the WebMCP catalogue) is admitted as eval
+   tooling only. It never touches product state outside the harness.
+10. Live proof is captured in real Chrome with the `enable-webmcp-testing` flag persisted in a
+    temporary profile, driving `document.modelContext.getTools()` and `executeTool()` from
+    Playwright. ChatGPT in-app browser proof remains a human step.
+
+**Why:** the previous candidate could not reach the agent-proposal state from the shipped journey,
+hid receipts and provenance from the person, and ended in a dead end. These changes make the
+collaboration multi-turn, visible, repeatable on one device, and demonstrably governed, without
+adding hidden memory, extra authorities, prediction, or outreach.
+
+**Supersedes:** the P3/P8B assumption that `insufficient_signal` is non-mutating; the P8B rule that
+denied every new proposal while an unresolved set remained (now: denied unless a route was set
+aside and kept routes are carried); the initial-snapshot cap seeding in P3B.
+
 ## Owner input still required before participant testing
 
 1. `OWNER INPUT` — safeguarding reviewer name/role for distress copy.

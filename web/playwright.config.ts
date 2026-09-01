@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: "journey.spec.ts",
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
