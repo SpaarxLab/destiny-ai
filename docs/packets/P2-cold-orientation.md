@@ -1,10 +1,12 @@
 # Packet P2 — Cold Orientation
 
-**Status:** ACTIVE — implementation complete; integration blocked on P1
+**Status:** ACTIVE — PR #2 open; integration blocked on P1
 **Owner:** Devarsh (Lane A), with Harsh (Lane C) required for integration/runtime review
 **Branch/worktree:** `codex/spx-2-cold-orientation` in the current canonical checkout
 **Integration destination:** `main`, only after P1 PR #1 merges
 **Depends on:** P1 commit `44acf7d` and https://github.com/SpaarxLab/destiny-ai/pull/1
+**Pull request:** https://github.com/SpaarxLab/destiny-ai/pull/2 (stacked review base:
+`codex/p1-command-spine`)
 
 ## Operator-visible outcome
 
@@ -76,6 +78,6 @@ one unit. P2 is read-only and creates no state requiring compensation.
   reflection, and advanced both authoritative state and orientation cursor from `v1` to `v2`;
   proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty
 - unverified: live WebMCP, deployed runtime, participants, `main` integration, release
-  candidate, and cold-agent model eval; Linear SPX-2 is `In Progress` with this receipt
-- disposition: `ACTIVE` — implementation is ready for review, but may not integrate before
-  P1 PR #1 merges and Harsh completes Lane C/runtime review
+  candidate, and cold-agent model eval; Linear SPX-2 is `In Review` with PR #2 attached
+- disposition: `ACTIVE` — PR #2 is open for stacked review, but may not integrate before P1
+  PR #1 merges, PR #2 is retargeted to `main`, and Harsh completes Lane C/runtime review
