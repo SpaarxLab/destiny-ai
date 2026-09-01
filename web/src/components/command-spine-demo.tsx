@@ -8,6 +8,7 @@ import type { SaveReflectionResult } from "../domain/results";
 import { createEmptyWorkspace, type Workspace } from "../domain/workspace";
 import { WorkspaceReader } from "../projections/workspace-reader";
 import { LocalWorkspaceStore } from "../storage/local-workspace-store";
+import { WebMcpRegistrar } from "../webmcp/registrar";
 
 interface Runtime {
   store: LocalWorkspaceStore;
@@ -18,6 +19,7 @@ interface Runtime {
 export function CommandSpineDemo() {
   const runtime = useRef<Runtime | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [webMcpReader, setWebMcpReader] = useState<WorkspaceReader | null>(null);
   const [text, setText] = useState("");
   const [result, setResult] = useState<SaveReflectionResult | null>(null);
   const [orientation, setOrientation] = useState<OrientationProjection | null>(null);
@@ -56,6 +58,7 @@ export function CommandSpineDemo() {
       }
 
       try {
+        setWebMcpReader(reader);
         setWorkspace(store.load());
         const readResult = reader.read();
         setOrientation(readResult.data?.view === "orientation" ? readResult.data : null);
@@ -119,8 +122,11 @@ export function CommandSpineDemo() {
               a cold agent and this UI the same current truth.
             </p>
           </div>
-          <div className="w-fit border border-[#a99b87] bg-[#eee8de] px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#5b4a34]">
-            Local only · schema v{workspace?.schemaVersion ?? "—"}
+          <div className="flex flex-col items-end gap-2">
+            <WebMcpRegistrar reader={webMcpReader} />
+            <div className="w-fit border border-[#a99b87] bg-[#eee8de] px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#5b4a34]">
+              Local only · schema v{workspace?.schemaVersion ?? "—"}
+            </div>
           </div>
         </header>
 
