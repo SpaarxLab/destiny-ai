@@ -8,7 +8,8 @@
 - **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
   (accepted choices), and `PLAN.md` (approved delivery programme; P1 admitted).
   `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
-- **Canonical repo/worktree:** `/Users/harsh/career-lab`, branch `main`; foundation
+- **Canonical repo/worktree:** `/Users/harsh/career-lab`; integration branch `main`; active P1
+  branch `codex/p1-command-spine`; foundation
   baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
   Original nested-repository history and dirty-overlay recovery are preserved at the path
   documented in `RECOVERY.md`; nothing was deleted.
@@ -16,11 +17,12 @@
   SpaarxLab repository; default branch `main`; Harsh has admin access. Remote candidate
   `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
   Actions CI in run `33497218996`.
-- **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
-  produced an implementation receipt. The Linear delivery board contains all eight
-  dependency-closed packets: P1 moved to `In Progress` at 16:32 IST with a 4 September due
-  date; P2-P8 remain `Backlog`. Participant testing remains blocked on reviewer approval and
-  recruitment.
+- **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
+  `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
+  open against `main`. P1 is `In Progress` on the Linear delivery board with a 4 September
+  due date. P2 may begin only as a dependency-closed branch stacked on P1 and remains blocked
+  from integration until P1 merges; P2-P8 remain `Backlog` on Linear. Participant testing
+  remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
@@ -42,11 +44,17 @@
   participant commitments before participant testing. Separately, Harsh must choose whether
   to keep Linear Free with all three users as admins or authorize a paid upgrade so Devarsh
   and Tirth can become members.
-- **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
-  committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build;
-  the private GitHub remote and pushed SHA were read back; GitHub Actions run `33497218996`
-  passed on that exact candidate. This is foundation/static proof—not live WebMCP, deployed,
-  participant, or submission proof.
+- **Last verified evidence:** on P1 hardening commit
+  `c5ac83c72fd060729390062cd740ecef60edefc7` on `codex/p1-command-spine`, Node 24
+  `web/npm run check` passed 20 focused
+  command and storage tests, ESLint, generated route types, TypeScript, and the Next.js
+  production build. Cross-tab writes are serialized and an absent workspace read no longer
+  creates an unreceipted bootstrap write. Concurrent same-operation retries return the
+  original receipt, while same-ID different-intent races return `OPERATION_CONFLICT`.
+  A local production-browser journey saved one participant reflection and rendered one
+  `APPLIED` receipt with state version `0 -> 1`; browser error logs were empty. P0A remote CI
+  evidence remains GitHub Actions run `33497218996`. This is local/static journey proof—not
+  live WebMCP, deployed, participant, `main` integration, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
   pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
   plan" MVP and the 8-internal-agents concept.

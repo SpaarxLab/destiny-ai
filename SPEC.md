@@ -173,13 +173,20 @@ interface Workspace {
   planItems: PlanItem[];
   outbox: OutreachDraft[];
   teachings: HumanTeaching[];
-  operations: OperationReceipt[];
+  operations: OperationRecord[];
 }
 
 interface AgentAddressable {
   id: string;
   ref: string;
   availableActions: AvailableAction[];
+}
+
+interface Reflection extends AgentAddressable {
+  status: 'proposed' | 'confirmed';
+  text: string;
+  recordedBy: 'participant' | 'agent_transcribed';
+  createdAt: string;
 }
 
 interface Hypothesis extends AgentAddressable {
@@ -228,11 +235,17 @@ interface OperationReceipt {
   at: string;
   compensatesOperationRef?: string;
 }
+
+interface OperationRecord extends OperationReceipt {
+  requestIdentity: string; // internal canonical intent used for replay-conflict checks
+}
 ```
 
 The workspace snapshot is canonical for current state. Operation receipts are canonical for
-what happened. Orientation, counts, “story so far,” and collaboration patterns are
-deterministic projections and can always be rebuilt.
+what happened. A stored operation record adds the canonical request identity needed to
+distinguish a retry from reuse of an operation id for a different intent; that internal value
+is not returned in the public receipt. Orientation, counts, “story so far,” and collaboration
+patterns are deterministic projections and can always be rebuilt.
 
 ## 8. Agent driver's-seat contract
 
@@ -379,7 +392,7 @@ Tool handlers are mechanically thin:
 ```ts
 async function executeWebMcpTool(input: unknown) {
   const command = parseToolInput(input);
-  const result = commandKernel.execute(command);
+  const result = await commandKernel.execute(command);
   renderAuthoritativeState(result.stateVersion);
   return toWebMcpResult(result);
 }
@@ -404,7 +417,12 @@ the metaphor must not make the product harder for a distressed or uncertain pers
 
 - Next.js + TypeScript; shared Zod schemas; one client command kernel.
 - One versioned local workspace in localStorage for the challenge MVP.
-- Each accepted command atomically writes the next snapshot and receipt.
+- Each accepted command atomically writes the next snapshot and receipt. Browser writes are
+  serialized across same-origin tabs with the Web Locks API; a command whose expected version
+  became stale while waiting for the lock is denied before persistence.
+- Reading an absent workspace returns the validated initial snapshot without creating an
+  unreceipted persistence write. The first accepted command persists the first authoritative
+  snapshot and receipt together.
 - Startup validates and migrates `schemaVersion`; migration failure preserves the original
   bytes and offers export/reset rather than guessing.
 - Import validates into a preview before replacement.
