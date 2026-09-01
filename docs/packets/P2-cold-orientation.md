@@ -1,6 +1,6 @@
 # Packet P2 — Cold Orientation
 
-**Status:** ACTIVE — PR #2 open; integration blocked on P1
+**Status:** ACTIVE — PR #2 requires reconciliation with updated P1
 **Owner:** Devarsh (Lane A), with Harsh (Lane C) required for integration/runtime review
 **Branch/worktree:** `codex/spx-2-cold-orientation` in the current canonical checkout
 **Integration destination:** `main`, only after P1 PR #1 merges
@@ -79,5 +79,7 @@ one unit. P2 is read-only and creates no state requiring compensation.
   proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty
 - unverified: live WebMCP, deployed runtime, participants, `main` integration, release
   candidate, and cold-agent model eval; Linear SPX-2 is `In Review` with PR #2 attached
-- disposition: `ACTIVE` — PR #2 is open for stacked review, but may not integrate before P1
-  PR #1 merges, PR #2 is retargeted to `main`, and Harsh completes Lane C/runtime review
+- review state: P1 advanced to `94898ce0c2d0042af837dca9a00d2ed34694023d` with
+  contention-safe write/replay changes; GitHub reports stacked PR #2 dirty against that head
+- disposition: `ACTIVE` — reconcile P2 with P1, rerun the full proof, and return SPX-2 to
+  review before P1 integration, retargeting, or Lane C/runtime acceptance
