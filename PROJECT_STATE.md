@@ -12,16 +12,22 @@
   baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
   Original nested-repository history and dirty-overlay recovery are preserved at the path
   documented in `RECOVERY.md`; nothing was deleted.
+- **GitHub remote:** `origin = https://github.com/harsh41099/destiny-ai.git`; private
+  repository; default branch `main`; Harsh has admin access. Remote candidate
+  `bb3a438aff15b6a6a74e8fde47e9634bd43d456d` was pushed successfully.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
   started. Participant testing remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
-- **Next decision:** name the qualified safeguarding reviewer and record five adult
-  participant commitments before participant testing.
+- **Next decision:** Harsh adds Devarsh and Tirth by their exact GitHub usernames, then names
+  the qualified safeguarding reviewer and records five adult participant commitments before
+  participant testing.
 - **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
-  committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build.
-  This is foundation/static proof—not live WebMCP, deployed, participant, or submission proof.
+  committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build;
+  the private GitHub remote and pushed SHA were read back. GitHub CI was started and remained
+  in progress at this receipt. This is foundation/static proof—not live WebMCP, deployed,
+  participant, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
   pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
   plan" MVP and the 8-internal-agents concept.

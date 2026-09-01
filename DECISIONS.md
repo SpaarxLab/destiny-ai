@@ -72,6 +72,9 @@ then add the MIT license and make the repository public.
 
 No license is granted and the repository remains private until that release gate.
 
+**Implemented:** [`harsh41099/destiny-ai`](https://github.com/harsh41099/destiny-ai) was
+created private with `main` as the default branch.
+
 ## Owner input still required before participant testing
 
 1. `OWNER INPUT` — safeguarding reviewer name/role for distress copy.
