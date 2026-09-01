@@ -1,41 +1,57 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createParticipantCommandAdapter, type ParticipantCommandAdapter } from "../../adapters/participant-command-adapter";
 import { createWebMcpCommandAdapter, type WebMcpCommandAdapter } from "../../adapters/webmcp-command-adapter";
+import { createEmbeddedCommandAdapter, type EmbeddedCommandAdapter } from "../../adapters/embedded-command-adapter";
 import { CommandKernel } from "../../commands/command-kernel";
-import type { RouteEdit, RouteProposalInput } from "../../domain/commands";
-import type { RouteProposalSet, Workspace } from "../../domain/workspace";
-import { createEmptyWorkspace } from "../../domain/workspace";
+import type { RouteEdit, RouteProposalInput, RouteSlotInput } from "../../domain/commands";
+import type { OrientationProjection } from "../../domain/reads";
+import { createEmptyWorkspace, type Workspace } from "../../domain/workspace";
 import { LOCAL_WORKSPACE_KEY, LocalWorkspaceStore } from "../../storage/local-workspace-store";
 import { WorkspaceReader } from "../../projections/workspace-reader";
-import { WebMcpRegistrar } from "../../webmcp/registrar";
 import {
-  JOURNEY_COPY,
-  STUCK_CHOICES,
-  questionsFor,
-  type StuckShape,
-} from "../../content/journey";
+  WebMcpRegistrar,
+  agentCapabilityCopy,
+  type AgentActivityEvent,
+  type WebMcpRegistrationState,
+} from "../../webmcp/registrar";
+import { COPY, ROUTE_LABELS, questionsFor, type StuckShape } from "../../content/journey";
 import { ActionButton } from "../primitives/action-button";
-import { ProgressTrack } from "../primitives/progress-track";
+import { ConfirmDialog } from "../primitives/confirm-dialog";
+import { Notice } from "../primitives/notice";
 import { StepShell } from "../primitives/step-shell";
-import { RouteRoom } from "../routes/route-room";
+import { ActivityDrawer } from "../room/activity-drawer";
+import { AgentViewPanel } from "../room/agent-view-panel";
+import { RouteRoom } from "../room/route-room";
+import type { WordSlip } from "../room/words-panel";
+import { ChosenScreen } from "../screens/chosen-screen";
+import { ConfirmWordsScreen } from "../screens/confirm-words-screen";
+import { HandoffScreen, type AssistantStatus } from "../screens/handoff-screen";
+import { LimitsScreen } from "../screens/limits-screen";
+import { QuestionScreen } from "../screens/question-screen";
+import { ShapeScreen } from "../screens/shape-screen";
+import { WelcomeScreen } from "../screens/welcome-screen";
+import { WorkshopScreen } from "../screens/workshop-screen";
+import { ledgerSentences, type ActivityLine } from "./ledger-sentences";
 import {
   JOURNEY_DRAFT_KEY,
   answeredEntries,
   emptyJourneyDraft,
   parseJourneyDraft,
+  starterRouteDrafts,
   type ConfirmedSource,
-  type JourneyCaps,
   type JourneyDraft,
+  type JourneyLimits,
   type JourneyScreen,
-  type RouteMarks,
 } from "./journey-state";
 
 interface JourneyRuntime {
   store: LocalWorkspaceStore;
+  kernel: CommandKernel;
   adapter: ParticipantCommandAdapter;
   webMcpAdapter: WebMcpCommandAdapter;
+  embeddedAdapter: EmbeddedCommandAdapter;
   reader: WorkspaceReader;
 }
 
@@ -44,7 +60,7 @@ const ROUTE_KINDS = ["closest", "bridge", "probe"] as const;
 export function DestinyJourney() {
   const runtime = useRef<JourneyRuntime | null>(null);
   const draftRef = useRef<JourneyDraft>(emptyJourneyDraft());
-  const hasPresentedInitialScreen = useRef(false);
+  const presented = useRef(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [reader, setReader] = useState<WorkspaceReader | null>(null);
   const [webMcpAdapter, setWebMcpAdapter] = useState<WebMcpCommandAdapter | null>(null);
@@ -53,100 +69,86 @@ export function DestinyJourney() {
   const [busy, setBusy] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [agentEvents, setAgentEvents] = useState<AgentActivityEvent[]>([]);
+  const [dismissedDenial, setDismissedDenial] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<"none" | "activity" | "agent-view">("none");
+  const [startOverOpen, setStartOverOpen] = useState(false);
+  const [assistant, setAssistant] = useState<AssistantStatus | null>(null);
+  const [registration, setRegistration] = useState<WebMcpRegistrationState>({ status: "unsupported" });
+  const agentConnected = registration.status === "registered";
 
-  const questions = useMemo(
-    () => draft.shape ? questionsFor(draft.shape) : [],
-    [draft.shape],
-  );
+  const questions = useMemo(() => (draft.shape ? questionsFor(draft.shape) : []), [draft.shape]);
   const answers = answeredEntries(draft);
   const latestRouteSet = workspace?.routeProposalSets.at(-1) ?? null;
-  const chosenHypothesis = workspace?.hypotheses.at(-1) ?? null;
+  const proposedRouteSet = workspace?.routeProposalSets.find((set) => set.status === "proposed") ?? null;
+  const openFollowUp = workspace?.followUpQuestions.find((question) => question.status === "proposed") ?? null;
+  const acceptedHypothesis = workspace?.hypotheses.find((hypothesis) => hypothesis.status === "accepted") ?? null;
+  const parkedHypothesis = workspace?.hypotheses.filter((hypothesis) => hypothesis.status === "parked").at(-1) ?? null;
+  const words: WordSlip[] = useMemo(
+    () => (workspace?.reflections ?? []).filter((reflection) => reflection.status === "confirmed").map((reflection) => ({ ref: reflection.ref, text: reflection.text })),
+    [workspace],
+  );
+  const orientation: OrientationProjection | null = useMemo(() => {
+    if (!reader || !workspace) return null;
+    const result = reader.read({ view: "orientation" });
+    return result.data?.view === "orientation" ? result.data : null;
+  }, [reader, workspace]);
+
+  // ---- boot ---------------------------------------------------------------------------------
 
   useEffect(() => {
     let cancelled = false;
     if (!("locks" in navigator)) {
       queueMicrotask(() => {
         if (!cancelled) {
-          setStartupError("This browser cannot safely save changes across tabs. Open the journey in a current browser.");
+          setStartupError("This browser cannot save changes safely. Open the journey in a current browser.");
           setReady(true);
         }
       });
       return () => { cancelled = true; };
     }
-
     const savedDraft = parseJourneyDraft(localStorage.getItem(JOURNEY_DRAFT_KEY));
-    const store = new LocalWorkspaceStore(
-      localStorage,
-      createInitialWorkspace(savedDraft.caps),
-      navigator.locks,
-    );
-    const kernel = new CommandKernel(store);
-    const adapter = createParticipantCommandAdapter(kernel);
-    const webMcpAdapter = createWebMcpCommandAdapter(kernel);
-    const workspaceReader = new WorkspaceReader(store);
-    runtime.current = { store, adapter, webMcpAdapter, reader: workspaceReader };
-
+    const created = createRuntime();
+    runtime.current = created;
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        const currentWorkspace = store.load();
-        const newestSet = currentWorkspace.routeProposalSets.at(-1);
-        let nextDraft = savedDraft;
-
-        if (currentWorkspace.hypotheses.length > 0) {
-          nextDraft = { ...savedDraft, screen: "chosen" };
-        } else if (newestSet?.status === "proposed") {
-          nextDraft = { ...savedDraft, screen: "routes" };
-        } else if (
-          newestSet?.status === "resolved" &&
-          !newestSet.selectedRouteRef &&
-          newestSet.routes.every((route) => route.status === "rejected")
-        ) {
-          nextDraft = { ...savedDraft, screen: "all-rejected" };
-        }
-
+        const current = created.store.load();
+        const nextDraft = { ...savedDraft, screen: resolveScreen(current, savedDraft) };
         draftRef.current = nextDraft;
         setDraft(nextDraft);
-        setWorkspace(currentWorkspace);
-        setReader(workspaceReader);
-        setWebMcpAdapter(webMcpAdapter);
+        setWorkspace(current);
+        setReader(created.reader);
+        setWebMcpAdapter(created.webMcpAdapter);
         setReady(true);
       } catch {
-        setStartupError("Your saved journey could not be opened. Its original copy is still on this device.");
+        setStartupError("Your saved room could not be opened. Its original copy is still on this device.");
         setReady(true);
       }
     });
-
+    void fetch("/api/lab-assistant/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((status: AssistantStatus | null) => {
+        if (!cancelled && status && typeof status.enabled === "boolean") {
+          setAssistant({ enabled: status.enabled, label: typeof status.label === "string" ? status.label : COPY.assistantName });
+        }
+      })
+      .catch(() => undefined);
     return () => { cancelled = true; };
-  }, []);
-
-  const handleWebMcpWorkspaceChanged = useCallback(() => {
-    if (!runtime.current) return;
-    const nextWorkspace = runtime.current.store.load();
-    setWorkspace(nextWorkspace);
-    if (nextWorkspace.routeProposalSets.at(-1)?.status === "proposed") {
-      const nextDraft = { ...draftRef.current, screen: "routes" as const };
-      draftRef.current = nextDraft;
-      localStorage.setItem(JOURNEY_DRAFT_KEY, JSON.stringify(nextDraft));
-      setDraft(nextDraft);
-      setStatusMessage("ChatGPT added three grounded route previews for you to review.");
-    }
-  }, []);
-
-  const handleWebMcpWorkspaceSyncError = useCallback(() => {
-    setStatusMessage("Your routes were saved, but this screen could not refresh. Reload to see them.");
   }, []);
 
   useEffect(() => {
     if (!ready) return;
-    if (!hasPresentedInitialScreen.current) {
-      hasPresentedInitialScreen.current = true;
+    if (!presented.current) {
+      presented.current = true;
       return;
     }
     requestAnimationFrame(() => {
       document.querySelector<HTMLElement>("#journey-content h1")?.focus();
     });
-  }, [ready, draft.screen, draft.questionIndex, draft.confirmIndex]);
+  }, [ready, draft.screen, draft.questionIndex]);
+
+  // ---- draft helpers ------------------------------------------------------------------------
 
   function commitDraft(update: (current: JourneyDraft) => JourneyDraft): JourneyDraft {
     const committed = update(draftRef.current);
@@ -161,54 +163,80 @@ export function DestinyJourney() {
     setStatusMessage("");
   }
 
-  function saveAndExit() {
-    commitDraft((current) => ({
-      ...current,
-      resumeScreen: current.screen === "saved" ? current.resumeScreen : current.screen,
-      screen: "saved",
-    }));
-    setStatusMessage("Your place is saved on this device.");
+  function refreshWorkspace(): Workspace | null {
+    if (!runtime.current) return null;
+    const current = runtime.current.store.load();
+    setWorkspace(current);
+    return current;
   }
 
-  function resumeJourney() {
-    commitDraft((current) => ({
-      ...current,
-      screen: current.resumeScreen && current.resumeScreen !== "saved" ? current.resumeScreen : "shape",
-      resumeScreen: undefined,
-    }));
-  }
+  const syncFromWorkspace = useCallback((message?: string) => {
+    if (!runtime.current) return;
+    const current = runtime.current.store.load();
+    setWorkspace(current);
+    const screen = resolveScreen(current, draftRef.current);
+    if (screen !== draftRef.current.screen) {
+      const nextDraft = { ...draftRef.current, screen };
+      draftRef.current = nextDraft;
+      localStorage.setItem(JOURNEY_DRAFT_KEY, JSON.stringify(nextDraft));
+      setDraft(nextDraft);
+    }
+    if (message) setStatusMessage(message);
+  }, []);
+
+  const handleWebMcpWorkspaceChanged = useCallback(() => {
+    if (!runtime.current) return;
+    const current = runtime.current.store.load();
+    const latest = current.operations.at(-1);
+    const proposedNow = current.routeProposalSets.find((set) => set.status === "proposed");
+    const followUpNow = current.followUpQuestions.find((question) => question.status === "proposed");
+    let message = "";
+    if (latest?.command === "propose_route_set" && proposedNow && latest.changedRefs.includes(proposedNow.ref)) {
+      message = proposedNow.routes.some((route) => route.carriedFromRouteRef)
+        ? `${COPY.agentName} replaced the route you set aside. Your kept routes are unchanged.`
+        : `${COPY.agentName} proposed three routes. Nothing has been chosen for you.`;
+    } else if (followUpNow) {
+      message = `${COPY.agentName} asked one question before proposing.`;
+    }
+    syncFromWorkspace(message);
+  }, [syncFromWorkspace]);
+
+  const handleWebMcpWorkspaceSyncError = useCallback(() => {
+    setStatusMessage("A change was saved, but this screen could not refresh. Reload to see it.");
+  }, []);
+
+  const handleAgentActivity = useCallback((event: AgentActivityEvent) => {
+    setAgentEvents((events) => [event, ...events].slice(0, 60));
+  }, []);
+
+  // ---- journey steps ------------------------------------------------------------------------
 
   function chooseShape(shape: StuckShape) {
     commitDraft((current) => {
-      const continuingSameBranch = current.startedShape === shape;
+      const same = current.shape === shape;
       return {
         ...current,
         shape,
-        startedShape: shape,
         questionIndex: 0,
-        confirmIndex: 0,
-        answers: continuingSameBranch ? current.answers : {},
-        confirmedSources: continuingSameBranch ? current.confirmedSources : [],
-        reflectionOperationIds: continuingSameBranch ? current.reflectionOperationIds : {},
+        answers: same ? current.answers : {},
+        agentDrafted: same ? current.agentDrafted : {},
         screen: "questions",
       };
     });
   }
 
-  function submitAnswer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitAnswer() {
     const question = questions[draft.questionIndex];
     if (!question) return;
     const answer = draft.answers[question.id]?.trim() ?? "";
     if (!answer && !question.skippable) {
-      setStatusMessage("Write a response before you continue.");
+      setStatusMessage("Write a sentence before you continue.");
       return;
     }
-
     if (draft.questionIndex < questions.length - 1) {
       commitDraft((current) => ({ ...current, questionIndex: current.questionIndex + 1 }));
     } else {
-      commitDraft((current) => ({ ...current, screen: "confirm", confirmIndex: 0 }));
+      moveTo("confirm");
     }
     setStatusMessage("");
   }
@@ -216,8 +244,8 @@ export function DestinyJourney() {
   function skipQuestion() {
     const question = questions[draft.questionIndex];
     if (!question?.skippable) return;
-    commitDraft((current) => ({ ...current, answers: { ...current.answers, [question.id]: "" }, screen: "confirm", confirmIndex: 0 }));
-    setStatusMessage("Skipped. Your earlier answers are enough to continue.");
+    commitDraft((current) => ({ ...current, answers: { ...current.answers, [question.id]: "" }, screen: "confirm" }));
+    setStatusMessage("");
   }
 
   function goBack() {
@@ -227,210 +255,239 @@ export function DestinyJourney() {
       return;
     }
     if (draft.screen === "confirm") {
-      if (draft.confirmIndex === 0) {
-        commitDraft((current) => ({ ...current, screen: "questions", questionIndex: Math.max(0, questions.length - 1) }));
-      } else {
-        commitDraft((current) => ({ ...current, confirmIndex: current.confirmIndex - 1 }));
-      }
+      commitDraft((current) => ({ ...current, screen: "questions", questionIndex: Math.max(0, questions.length - 1) }));
       return;
     }
+    if (draft.screen === "limits") moveTo("confirm");
     if (draft.screen === "shape") moveTo("welcome");
+    if (draft.screen === "workshop") moveTo("handoff");
   }
 
-  function confirmCurrentWording(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const entry = answers[draft.confirmIndex];
-    if (!entry || !entry[1].trim()) {
+  function confirmWords() {
+    if (answers.length === 0) {
       setStatusMessage("Keep at least one sentence in your own words.");
       return;
     }
-    if (draft.confirmIndex < answers.length - 1) {
-      commitDraft((current) => ({ ...current, confirmIndex: current.confirmIndex + 1 }));
-    } else {
-      moveTo("boundaries");
-    }
+    moveTo("limits");
   }
 
-  function saveCaps(caps: JourneyCaps) {
-    commitDraft((current) => ({ ...current, caps, screen: "workshop" }));
-    setStatusMessage("");
-  }
-
-  async function buildRoutes() {
+  async function saveLimitsAndWords(limits: JourneyLimits) {
     if (!runtime.current || busy) return;
-    if (!draft.caps || !draft.workshopReviewed) {
-      setStatusMessage("Check your limits and review all three route drafts before continuing.");
-      return;
-    }
-    const caps = draft.caps;
     setBusy(true);
-    setStatusMessage("Saving your confirmed words…");
+    setStatusMessage("Saving…");
     try {
-      let currentDraft = draft;
-      if (!ensureRuntimeCaps(caps)) return;
-      const sources: ConfirmedSource[] = [...currentDraft.confirmedSources];
-
-      for (const [answerId, rawText] of answeredEntries(currentDraft)) {
-        if (sources.some((source) => source.answerId === answerId)) continue;
-        const operationId = currentDraft.reflectionOperationIds[answerId] ?? crypto.randomUUID();
-        if (!currentDraft.reflectionOperationIds[answerId]) {
-          currentDraft = commitDraft((current) => ({
-            ...current,
-            reflectionOperationIds: { ...current.reflectionOperationIds, [answerId]: operationId },
-          }));
+      let current = commitDraft((existing) => ({ ...existing, limits }));
+      let ws = runtime.current.store.load();
+      if (!sameLimits(ws.participant.costCaps, limits)) {
+        const reuse = current.limitsOperation && sameLimits(current.limitsOperation.limits, limits)
+          ? current.limitsOperation.operationId
+          : crypto.randomUUID();
+        current = commitDraft((existing) => ({ ...existing, limitsOperation: { operationId: reuse, limits } }));
+        const result = await runtime.current.adapter.setLimits({
+          operationId: reuse,
+          expectedVersion: ws.stateVersion,
+          costCaps: limits,
+        });
+        if (!result.ok) {
+          setStatusMessage(result.error?.code === "POLICY_DENIED"
+            ? "A route already in your room would break these limits. Set it aside first."
+            : "Your limits could not be saved. Try again.");
+          return;
         }
-
-        const currentWorkspace = runtime.current.store.load();
+        ws = runtime.current.store.load();
+      }
+      const sources: ConfirmedSource[] = [...current.confirmedSources];
+      for (const [answerId, text] of answeredEntries(current)) {
+        const existing = sources.find((source) => source.answerId === answerId);
+        if (existing && existing.text === text.trim()) continue;
+        const operationId = existing ? crypto.randomUUID() : (current.reflectionOperationIds[answerId] ?? crypto.randomUUID());
+        current = commitDraft((draftState) => ({
+          ...draftState,
+          reflectionOperationIds: { ...draftState.reflectionOperationIds, [answerId]: operationId },
+        }));
+        ws = runtime.current.store.load();
         const result = await runtime.current.adapter.saveReflection({
           operationId,
-          expectedVersion: currentWorkspace.stateVersion,
-          text: rawText.trim(),
+          expectedVersion: ws.stateVersion,
+          text: text.trim(),
         });
         if (!result.ok || !result.data) {
-          setStatusMessage("Your words could not be saved. Check this page and try again.");
+          setStatusMessage("Your words could not be saved. Try again.");
           return;
         }
         const source = { answerId, reflectionRef: result.data.reflection.ref, text: result.data.reflection.text };
-        sources.push(source);
-        currentDraft = commitDraft((current) => ({ ...current, confirmedSources: [...sources] }));
+        const index = sources.findIndex((candidate) => candidate.answerId === answerId);
+        if (index >= 0) sources[index] = source; else sources.push(source);
+        current = commitDraft((draftState) => ({ ...draftState, confirmedSources: [...sources] }));
       }
-
-      setStatusMessage("Saving your three route drafts…");
-      const routeOperationId = currentDraft.routeOperationId ?? crypto.randomUUID();
-      const routeRefs = currentDraft.routeRefs ?? createRouteRefs();
-      if (!currentDraft.routeOperationId || !currentDraft.routeRefs) {
-        currentDraft = commitDraft((current) => ({ ...current, routeOperationId, routeRefs }));
-      }
-
-      const currentWorkspace = runtime.current.store.load();
-      const result = await runtime.current.adapter.proposeRouteSet({
-        operationId: routeOperationId,
-        expectedVersion: currentWorkspace.stateVersion,
-        outcome: "routes",
-        routes: createManualRoutes(
-          sources,
-          routeRefs,
-          currentWorkspace,
-          currentDraft.routeDrafts,
-        ),
-      });
-      if (!result.ok) {
-        setStatusMessage("The three routes could not be saved. Review your confirmed words and try again.");
-        return;
-      }
-      if (result.data.outcome !== "routes") {
-        setStatusMessage(result.data.followUpQuestion);
-        return;
-      }
-      setWorkspace(runtime.current.store.load());
-      commitDraft((current) => ({ ...current, screen: "routes" }));
-      setStatusMessage("Your Route Room is ready. Nothing has been chosen for you.");
+      refreshWorkspace();
+      commitDraft((draftState) => ({ ...draftState, screen: "handoff" }));
+      setStatusMessage("");
     } catch {
-      setStatusMessage("The journey could not finish saving. Your place is still saved on this device.");
+      setStatusMessage("Saving did not finish. Your place is still on this device.");
     } finally {
       setBusy(false);
     }
   }
 
-  function updateMarks(routeRef: string, marks: RouteMarks) {
-    commitDraft((current) => ({ ...current, marks: { ...current.marks, [routeRef]: marks } }));
-  }
-
-  function markRouteReviewed(routeRef: string) {
+  function openWorkshop() {
     commitDraft((current) => ({
       ...current,
-      reviewedRoutes: { ...current.reviewedRoutes, [routeRef]: true },
+      screen: "workshop",
+      routeOperationId: crypto.randomUUID(),
+      routeRefs: createRouteRefs(),
+      routeDrafts: current.routeDrafts,
     }));
+    setStatusMessage("");
   }
 
-  function markComparisonSeen() {
-    commitDraft((current) => ({ ...current, hasComparedRoutes: true }));
-  }
-
-  function ensureRuntimeCaps(caps: JourneyCaps): boolean {
-    if (!runtime.current) return false;
-    const current = runtime.current.store.load();
-    if (sameCaps(current.participant.costCaps, caps)) return true;
-    if (current.stateVersion !== 0 || localStorage.getItem(LOCAL_WORKSPACE_KEY) !== null) {
-      setStatusMessage("These limits do not match the saved workspace. Start with a fresh local journey before building routes.");
-      return false;
+  async function saveManualRoutes() {
+    if (!runtime.current || busy || !draft.routeOperationId || !draft.routeRefs) return;
+    setBusy(true);
+    setStatusMessage("Saving your three routes…");
+    try {
+      const ws = runtime.current.store.load();
+      const routes = manualRoutes(draft, words, ws);
+      const result = await runtime.current.adapter.proposeRouteSet({
+        operationId: draft.routeOperationId,
+        expectedVersion: ws.stateVersion,
+        outcome: "routes",
+        routes,
+        ...(ws.routeProposalSets.at(-1) ? { supersedesRouteSetRef: ws.routeProposalSets.at(-1)!.ref } : {}),
+      });
+      if (!result.ok) {
+        setStatusMessage(`These drafts could not be saved: ${plainReason(result.error?.what)}`);
+        return;
+      }
+      commitDraft((current) => ({ ...current, routeDrafts: starterRouteDrafts(), routeOperationId: undefined, routeRefs: undefined }));
+      syncFromWorkspace("Your three routes are in the room. Nothing has been chosen for you.");
+    } catch {
+      setStatusMessage("Saving did not finish. Try again.");
+    } finally {
+      setBusy(false);
     }
-
-    const store = new LocalWorkspaceStore(
-      localStorage,
-      createInitialWorkspace(caps),
-      navigator.locks,
-    );
-    const kernel = new CommandKernel(store);
-    const adapter = createParticipantCommandAdapter(kernel);
-    const webMcpAdapter = createWebMcpCommandAdapter(kernel);
-    const workspaceReader = new WorkspaceReader(store);
-    runtime.current = { store, adapter, webMcpAdapter, reader: workspaceReader };
-    setWorkspace(store.load());
-    setReader(workspaceReader);
-    setWebMcpAdapter(webMcpAdapter);
-    return true;
   }
+
+  async function askAssistant() {
+    if (!runtime.current || busy || !orientation) return;
+    setBusy(true);
+    setStatusMessage("Asking the lab assistant…");
+    try {
+      const proposal = orientation.proposal;
+      const requestStateVersion = orientation.identity.stateVersion;
+      const response = await fetch("/api/lab-assistant/propose", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          confirmedWords: orientation.confirmedWords.map((word) => ({ ref: word.ref, text: word.text })),
+          costCaps: orientation.focus.costCaps,
+          supersedesRouteSetRef: proposal.available ? proposal.supersedesRouteSetRef : null,
+          carryRouteRefs: proposal.available ? proposal.carryRouteRefs : [],
+          replaceKinds: proposal.available ? proposal.replaceKinds : [],
+        }),
+      });
+      const body = await response.json() as
+        | { outcome: "routes"; routes: [RouteSlotInput, RouteSlotInput, RouteSlotInput] }
+        | { outcome: "insufficient_signal"; followUpQuestion: string; reasonRefs: string[] }
+        | { outcome: "error"; code: string; message: string };
+      if (body.outcome === "error") {
+        setStatusMessage(`The lab assistant could not draft routes: ${plainReason(body.message)}`);
+        return;
+      }
+      const ws = runtime.current.store.load();
+      if (ws.stateVersion !== requestStateVersion) {
+        setWorkspace(ws);
+        setStatusMessage("Your room changed while the lab assistant was drafting. Review the latest room, then ask again.");
+        return;
+      }
+      const predecessor = proposal.available ? proposal.supersedesRouteSetRef : null;
+      const result = body.outcome === "insufficient_signal"
+        ? await runtime.current.embeddedAdapter.proposeRouteSet({
+            operationId: crypto.randomUUID(),
+            expectedVersion: ws.stateVersion,
+            outcome: "insufficient_signal",
+            followUpQuestion: body.followUpQuestion,
+            reasonRefs: body.reasonRefs,
+          })
+        : await runtime.current.embeddedAdapter.proposeRouteSet({
+            operationId: crypto.randomUUID(),
+            expectedVersion: ws.stateVersion,
+            outcome: "routes",
+            routes: body.routes,
+            ...(predecessor ? { supersedesRouteSetRef: predecessor } : {}),
+          });
+      if (!result.ok) {
+        setStatusMessage(`The lab assistant's draft was declined by your room: ${plainReason(result.error.what)}`);
+        return;
+      }
+      syncFromWorkspace(body.outcome === "insufficient_signal"
+        ? "The lab assistant asked one question before proposing."
+        : "The lab assistant drafted three routes. Nothing has been chosen for you.");
+    } catch {
+      setStatusMessage("The lab assistant is not reachable right now. The other paths still work.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ---- room actions --------------------------------------------------------------------------
 
   async function editRoute(edit: RouteEdit): Promise<boolean> {
-    if (!runtime.current || !latestRouteSet || busy) return false;
+    if (!runtime.current || !proposedRouteSet || busy) return false;
     setBusy(true);
-    setStatusMessage("Saving your route changes…");
     try {
-      const currentWorkspace = runtime.current.store.load();
+      const ws = runtime.current.store.load();
+      const operationId = crypto.randomUUID();
+      const kind = proposedRouteSet.routes.find((route) => route.ref === edit.routeRef)?.kind;
       const result = await runtime.current.adapter.reviseRouteSet({
-        operationId: crypto.randomUUID(),
-        expectedVersion: currentWorkspace.stateVersion,
-        routeSetRef: latestRouteSet.ref,
+        operationId,
+        expectedVersion: ws.stateVersion,
+        routeSetRef: proposedRouteSet.ref,
         edits: [edit],
       });
       if (!result.ok) {
-        setStatusMessage("That edit did not change the route. Adjust the wording and save again.");
+        setStatusMessage(result.error?.code === "POLICY_DENIED" && result.error.what.includes("does not change")
+          ? "Nothing changed, so nothing was saved."
+          : `That edit could not be saved: ${plainReason(result.error?.what)}`);
         return false;
       }
-      setWorkspace(runtime.current.store.load());
-      commitDraft((current) => {
-        const reviewedRoutes = { ...current.reviewedRoutes };
-        delete reviewedRoutes[edit.routeRef];
-        return { ...current, reviewedRoutes, hasComparedRoutes: false };
-      });
-      setStatusMessage("Your route changes are saved.");
+      commitDraft((current) => ({ ...current, activityDetails: { ...current.activityDetails, [operationId]: `edited ${kind ? ROUTE_LABELS[kind].name : "a route"}` } }));
+      syncFromWorkspace("Your changes are saved.");
       return true;
     } catch {
-      setStatusMessage("The route change could not be saved. Check this page and try again.");
+      setStatusMessage("That edit could not be saved. Try again.");
       return false;
     } finally {
       setBusy(false);
     }
   }
 
-  async function rejectRoute(routeRef: string): Promise<boolean> {
-    if (!runtime.current || !latestRouteSet || busy) return false;
+  async function setAsideRoute(routeRef: string): Promise<boolean> {
+    if (!runtime.current || !proposedRouteSet || busy) return false;
     setBusy(true);
-    setStatusMessage("Setting that route aside…");
     try {
-      const currentWorkspace = runtime.current.store.load();
+      const ws = runtime.current.store.load();
+      const operationId = crypto.randomUUID();
+      const kind = proposedRouteSet.routes.find((route) => route.ref === routeRef)?.kind;
       const result = await runtime.current.adapter.reviseRouteSet({
-        operationId: crypto.randomUUID(),
-        expectedVersion: currentWorkspace.stateVersion,
-        routeSetRef: latestRouteSet.ref,
+        operationId,
+        expectedVersion: ws.stateVersion,
+        routeSetRef: proposedRouteSet.ref,
         rejectRouteRefs: [routeRef],
       });
       if (!result.ok) {
-        setStatusMessage("That route could not be set aside. Refresh the page and try again.");
+        setStatusMessage(`That route could not be set aside: ${plainReason(result.error?.what)}`);
         return false;
       }
-      const nextWorkspace = runtime.current.store.load();
-      setWorkspace(nextWorkspace);
-      commitDraft((current) => ({ ...current, hasComparedRoutes: false }));
-      const nextSet = nextWorkspace.routeProposalSets.at(-1);
-      if (nextSet?.routes.every((route) => route.status === "rejected")) {
-        commitDraft((current) => ({ ...current, screen: "all-rejected" }));
-      }
-      setStatusMessage("The route is set aside. Your other routes have not changed.");
+      commitDraft((current) => ({ ...current, activityDetails: { ...current.activityDetails, [operationId]: `set aside ${kind ? ROUTE_LABELS[kind].name : "a route"}` } }));
+      const after = runtime.current.store.load();
+      const allAside = after.routeProposalSets.at(-1)?.routes.every((route) => route.status === "rejected");
+      syncFromWorkspace(allAside
+        ? "You set all three aside. No direction moved forward. You can ask for a new set or draft your own."
+        : "Set aside. Your other routes are unchanged.");
       return true;
     } catch {
-      setStatusMessage("That route could not be set aside. Your other routes have not changed.");
+      setStatusMessage("That route could not be set aside. Try again.");
       return false;
     } finally {
       setBusy(false);
@@ -438,24 +495,21 @@ export function DestinyJourney() {
   }
 
   async function chooseRoute(routeRef: string) {
-    if (!runtime.current || !latestRouteSet || busy) return;
+    if (!runtime.current || !proposedRouteSet || busy) return;
     setBusy(true);
-    setStatusMessage("Saving the direction you chose…");
     try {
-      const currentWorkspace = runtime.current.store.load();
+      const ws = runtime.current.store.load();
       const result = await runtime.current.adapter.chooseRoute({
         operationId: crypto.randomUUID(),
-        expectedVersion: currentWorkspace.stateVersion,
-        routeSetRef: latestRouteSet.ref,
+        expectedVersion: ws.stateVersion,
+        routeSetRef: proposedRouteSet.ref,
         routeRef,
       });
       if (!result.ok) {
-        setStatusMessage("Your choice could not be saved. Refresh the page and check the routes again.");
+        setStatusMessage(`Your choice could not be saved: ${plainReason(result.error?.what)}`);
         return;
       }
-      setWorkspace(runtime.current.store.load());
-      commitDraft((current) => ({ ...current, screen: "chosen" }));
-      setStatusMessage("Your direction is saved. Only the route you chose moves forward.");
+      syncFromWorkspace("Saved. Only the route you chose moves forward.");
     } catch {
       setStatusMessage("Your choice could not be saved. Your routes are still here.");
     } finally {
@@ -463,381 +517,372 @@ export function DestinyJourney() {
     }
   }
 
+  async function answerFollowUp(text: string) {
+    if (!runtime.current || !openFollowUp || busy) return;
+    setBusy(true);
+    try {
+      const ws = runtime.current.store.load();
+      const result = await runtime.current.adapter.saveReflection({
+        operationId: crypto.randomUUID(),
+        expectedVersion: ws.stateVersion,
+        text,
+        answersFollowUpRef: openFollowUp.ref,
+      });
+      if (!result.ok) {
+        setStatusMessage(`Your answer could not be saved: ${plainReason(result.error?.what)}`);
+        return;
+      }
+      syncFromWorkspace(`Your answer is saved. ${COPY.agentName} can quote it in the next proposal.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function skipFollowUp() {
+    if (!runtime.current || !openFollowUp || busy) return;
+    setBusy(true);
+    try {
+      const ws = runtime.current.store.load();
+      const result = await runtime.current.adapter.skipFollowUp({
+        operationId: crypto.randomUUID(),
+        expectedVersion: ws.stateVersion,
+        followUpRef: openFollowUp.ref,
+      });
+      if (!result.ok) {
+        setStatusMessage(`The question could not be skipped: ${plainReason(result.error?.what)}`);
+        return;
+      }
+      syncFromWorkspace("Skipped. Routes can be proposed from your words as they stand.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reopenExploring() {
+    if (!runtime.current || !acceptedHypothesis || busy) return;
+    setBusy(true);
+    try {
+      const ws = runtime.current.store.load();
+      const result = await runtime.current.adapter.reopenExploring({
+        operationId: crypto.randomUUID(),
+        expectedVersion: ws.stateVersion,
+        hypothesisRef: acceptedHypothesis.ref,
+      });
+      if (!result.ok) {
+        setStatusMessage(`Exploring could not be reopened: ${plainReason(result.error?.what)}`);
+        return;
+      }
+      syncFromWorkspace("That direction is parked, not erased. New routes can be proposed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function exportRoom() {
+    const raw = localStorage.getItem(LOCAL_WORKSPACE_KEY);
+    if (!raw) {
+      setStatusMessage("There is nothing saved to export yet.");
+      return;
+    }
+    const blob = new Blob([raw], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "destiny-room.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatusMessage("Your room was exported as a file.");
+  }
+
+  async function startOver() {
+    if (!runtime.current || busy) return;
+    setBusy(true);
+    try {
+      const current = runtime.current.store.load();
+      await runtime.current.store.clear(current.stateVersion);
+      localStorage.removeItem(JOURNEY_DRAFT_KEY);
+      const created = createRuntime();
+      runtime.current = created;
+      const fresh = emptyJourneyDraft();
+      draftRef.current = fresh;
+      setDraft(fresh);
+      setWorkspace(created.store.load());
+      setReader(created.reader);
+      setWebMcpAdapter(created.webMcpAdapter);
+      setAgentEvents([]);
+      setStartOverOpen(false);
+      setDrawer("none");
+      setStatusMessage("");
+    } catch {
+      setStartOverOpen(false);
+      setStatusMessage("Your room changed before it could be cleared. Review the latest room, then try Start over again.");
+      setWorkspace(runtime.current.store.load());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ---- derived view state --------------------------------------------------------------------
+
+  const activityLines: ActivityLine[] = useMemo(() => {
+    const ledger = workspace ? ledgerSentences(workspace, draft.activityDetails) : [];
+    const session: ActivityLine[] = agentEvents
+      .filter((event) => event.effect === "READ" || event.outcome !== "ok")
+      .map((event) => ({
+        id: event.id,
+        at: event.at,
+        actor: "agent" as const,
+        sentence: event.summary,
+        session: true,
+        denied: event.outcome !== "ok",
+      }));
+    return [...session, ...ledger].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  }, [workspace, draft.activityDetails, agentEvents]);
+
+  const latestDenial = agentEvents.find((event) => event.outcome === "denied");
+  const capabilityLine = agentCapabilityCopy(orientation, registration);
+  const parkedNote = parkedHypothesis && !proposedRouteSet && !acceptedHypothesis
+    ? `You parked “${parkedHypothesis.claim.slice(0, 80)}${parkedHypothesis.claim.length > 80 ? "…" : ""}”. A new set can be proposed now.`
+    : null;
+  const canResume = draft.screen !== "welcome" || answers.length > 0;
+  const hasRoomHeader = ready && !startupError && (words.length > 0 || (workspace?.operations.length ?? 0) > 0);
+  const receiptLine = latestReceiptLine(workspace);
+
   return (
     <main className="journey-app">
-      <a className="skip-link" href="#journey-content">Skip to journey</a>
+      <a className="skip-link" href="#journey-content">Skip to content</a>
       <header className="site-header">
-        <a className="wordmark" href="#journey-content" aria-label="Destiny.AI journey home">
+        <a className="wordmark" href="#journey-content" aria-label="Destiny.AI home">
           <span aria-hidden="true">D</span>
           Destiny.AI
         </a>
         <div className="site-header__actions">
+          {hasRoomHeader ? (
+            <>
+              <ActionButton
+                aria-expanded={drawer === "activity"}
+                aria-controls="activity-drawer"
+                onClick={() => setDrawer(drawer === "activity" ? "none" : "activity")}
+                tone="quiet"
+              >
+                What happened
+              </ActionButton>
+              <ActionButton
+                aria-expanded={drawer === "agent-view"}
+                aria-controls="agent-view-drawer"
+                onClick={() => setDrawer(drawer === "agent-view" ? "none" : "agent-view")}
+                tone="quiet"
+              >
+                See what ChatGPT sees
+              </ActionButton>
+              <ActionButton onClick={() => setStartOverOpen(true)} tone="quiet">
+                {COPY.startOver}
+              </ActionButton>
+            </>
+          ) : null}
           <WebMcpRegistrar
             commandAdapter={webMcpAdapter}
             onWorkspaceChanged={handleWebMcpWorkspaceChanged}
             onWorkspaceSyncError={handleWebMcpWorkspaceSyncError}
+            onAgentActivity={handleAgentActivity}
+            onRegistrationChanged={setRegistration}
             reader={reader}
             stateVersion={workspace?.stateVersion}
           />
-          {ready && !["welcome", "saved", "chosen", "all-rejected", "routes"].includes(draft.screen) ? (
-            <ActionButton onClick={saveAndExit} tone="quiet">Save and exit</ActionButton>
-          ) : null}
         </div>
       </header>
 
+      {latestDenial && dismissedDenial !== latestDenial.id ? (
+        <div className="journey-notices">
+          <Notice tone="warning" onDismiss={() => setDismissedDenial(latestDenial.id)}>
+            {latestDenial.summary} Nothing changed.
+          </Notice>
+        </div>
+      ) : null}
+
       <div id="journey-content" className="journey-content">
         {!ready ? (
-          <StepShell title="Opening your journey…"><div className="loading-block" aria-hidden="true" /></StepShell>
+          <StepShell title="Opening your room…"><div className="loading-block" aria-hidden="true" /></StepShell>
         ) : startupError ? (
-          <StepShell eyebrow="Your saved work is protected" title="This journey needs a current browser" description={startupError}>
+          <StepShell eyebrow="Your saved work is protected" title="This room needs a current browser" description={startupError}>
             <p className="recovery-note">Nothing was cleared or replaced.</p>
           </StepShell>
         ) : draft.screen === "welcome" ? (
-          <StepShell eyebrow="A small direction lab" title={JOURNEY_COPY.promise} description={JOURNEY_COPY.intro}>
-            <div className="welcome-card">
-              <ol className="journey-preview" aria-label="What happens in this journey">
-                <li><span>1</span><p><strong>Notice what is stuck</strong>Answer three focused questions in your own words.</p></li>
-                <li><span>2</span><p><strong>See three routes</strong>Compare a close step, a bridge, and a small probe.</p></li>
-                <li><span>3</span><p><strong>Choose one test</strong>Edit or reject every route before one moves forward.</p></li>
-              </ol>
-              <p className="privacy-note">{JOURNEY_COPY.privacy}</p>
-              <ActionButton onClick={() => moveTo("shape")} tone="primary" fullWidth>{JOURNEY_COPY.start}</ActionButton>
-            </div>
-          </StepShell>
+          <WelcomeScreen
+            canResume={canResume}
+            onStart={() => moveTo("shape")}
+            onResume={() => syncFromWorkspace()}
+            onStartOver={() => setStartOverOpen(true)}
+          />
         ) : draft.screen === "shape" ? (
-          <StepShell
-            eyebrow="Start where you are"
-            title="What shape does “stuck” have today?"
-            description="Choose the closest fit. This only changes the next question; it does not label you."
-            progress={<ProgressTrack current={0} total={3} label="Questions answered" />}
-          >
-            <fieldset className="choice-list">
-              <legend className="sr-only">Choose the shape of stuck</legend>
-              {STUCK_CHOICES.map((choice) => (
-                <label key={choice.id} className="choice-card">
-                  <input
-                    name="stuck-shape"
-                    type="radio"
-                    checked={draft.shape === choice.id}
-                    onChange={() => commitDraft((current) => ({ ...current, shape: choice.id }))}
-                  />
-                  <span><strong>{choice.title}</strong><small>{choice.description}</small></span>
-                </label>
-              ))}
-            </fieldset>
-            <div className="step-actions">
-              <ActionButton onClick={goBack}>{JOURNEY_COPY.back}</ActionButton>
-              <ActionButton disabled={!draft.shape} onClick={() => draft.shape && chooseShape(draft.shape)} tone="primary">
-                {JOURNEY_COPY.continue}
-              </ActionButton>
-            </div>
-          </StepShell>
-        ) : draft.screen === "questions" ? (
-          <QuestionStep
-            draft={draft}
+          <ShapeScreen
+            shape={draft.shape}
+            onSelect={(shape) => commitDraft((current) => ({ ...current, shape }))}
+            onBack={goBack}
+            onContinue={() => draft.shape && chooseShape(draft.shape)}
+          />
+        ) : draft.screen === "questions" && questions[draft.questionIndex] ? (
+          <QuestionScreen
             question={questions[draft.questionIndex]}
+            index={draft.questionIndex}
             total={questions.length}
+            value={draft.answers[questions[draft.questionIndex].id] ?? ""}
+            agentDrafted={draft.agentDrafted[questions[draft.questionIndex].id] === true}
             statusMessage={statusMessage}
-            onAnswer={(id, value) => commitDraft((current) => ({ ...current, answers: { ...current.answers, [id]: value } }))}
+            onChange={(value) => commitDraft((current) => ({
+              ...current,
+              answers: { ...current.answers, [questions[current.questionIndex].id]: value },
+              agentDrafted: { ...current.agentDrafted, [questions[current.questionIndex].id]: false },
+            }))}
+            onAgentDraft={(value) => commitDraft((current) => ({
+              ...current,
+              answers: { ...current.answers, [questions[current.questionIndex].id]: value },
+              agentDrafted: { ...current.agentDrafted, [questions[current.questionIndex].id]: true },
+            }))}
             onBack={goBack}
             onSkip={skipQuestion}
             onSubmit={submitAnswer}
           />
         ) : draft.screen === "confirm" ? (
-          <ConfirmStep
-            answer={answers[draft.confirmIndex]}
-            current={draft.confirmIndex + 1}
-            total={answers.length}
+          <ConfirmWordsScreen
+            answers={answers}
+            agentDrafted={draft.agentDrafted}
             statusMessage={statusMessage}
+            onChange={(id, value) => commitDraft((current) => ({
+              ...current,
+              answers: { ...current.answers, [id]: value },
+              agentDrafted: { ...current.agentDrafted, [id]: false },
+            }))}
             onBack={goBack}
-            onChange={(id, value) => commitDraft((current) => ({ ...current, answers: { ...current.answers, [id]: value } }))}
-            onSubmit={confirmCurrentWording}
+            onSubmit={confirmWords}
           />
-        ) : draft.screen === "boundaries" ? (
-          <BoundariesStep
-            caps={draft.caps}
-            onBack={() => moveTo("confirm")}
-            onSubmit={saveCaps}
-          />
-        ) : draft.screen === "workshop" ? (
-          <StepShell
-            eyebrow="Shape the starter routes"
-            title="Make these three drafts sound useful to you"
-            description="These are plain starter templates, not AI recommendations. Rewrite the title, reason, question, or test before saving them to your Route Room."
-            progress={<ProgressTrack current={answers.length} total={answers.length} label="Sources confirmed" />}
-          >
-            <div className="source-stack">
-              {answers.map(([id, text]) => <blockquote key={id}>“{text}”</blockquote>)}
-            </div>
-            <div className="workshop-routes">
-              {draft.routeDrafts.map((routeDraft, index) => (
-                <fieldset className="workshop-route" key={ROUTE_KINDS[index]}>
-                  <legend>{index + 1}. {ROUTE_KINDS[index] === "closest" ? "Closest" : ROUTE_KINDS[index] === "bridge" ? "Bridge" : "Probe"}</legend>
-                  <label>Route title<input maxLength={120} required value={routeDraft.title} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { title: event.target.value }) }))} /></label>
-                  <label>Why it may be worth testing<textarea maxLength={600} required value={routeDraft.premise} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { premise: event.target.value }) }))} /></label>
-                  <label>What it should help you learn<textarea maxLength={300} required value={routeDraft.learningQuestion} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { learningQuestion: event.target.value }) }))} /></label>
-                  <label>Small test idea<textarea maxLength={500} required value={routeDraft.testAction} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { testAction: event.target.value }) }))} /></label>
-                </fieldset>
-              ))}
-            </div>
-            <label className="review-check">
-              <input
-                checked={draft.workshopReviewed}
-                onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: event.target.checked }))}
-                type="checkbox"
-              />
-              <span>I have read these three starter routes and they are ready for my Route Room.</span>
-            </label>
-            <div className="status-region" role="status" aria-live="polite" aria-atomic="true">{statusMessage}</div>
-            <div className="step-actions">
-              <ActionButton disabled={busy} onClick={() => moveTo("boundaries")}>{JOURNEY_COPY.back}</ActionButton>
-              <ActionButton disabled={busy || !draft.workshopReviewed} onClick={buildRoutes} tone="primary">
-                {busy ? "Saving my routes…" : "Save my three routes"}
-              </ActionButton>
-            </div>
-          </StepShell>
-        ) : draft.screen === "routes" && latestRouteSet ? (
-          <RouteRoom
-            routeSet={latestRouteSet}
-            marks={draft.marks}
+        ) : draft.screen === "limits" ? (
+          <LimitsScreen
+            limits={draft.limits}
             busy={busy}
             statusMessage={statusMessage}
-            reviewedRoutes={draft.reviewedRoutes}
-            hasComparedRoutes={draft.hasComparedRoutes}
-            onMarksChange={updateMarks}
-            onReviewed={markRouteReviewed}
-            onComparisonSeen={markComparisonSeen}
-            onEdit={editRoute}
-            onReject={rejectRoute}
-            onChoose={chooseRoute}
+            onBack={goBack}
+            onSubmit={(limits) => void saveLimitsAndWords(limits)}
           />
-        ) : draft.screen === "chosen" && latestRouteSet && chosenHypothesis ? (
-          <ChosenStep routeSet={latestRouteSet} statusMessage={statusMessage} />
-        ) : draft.screen === "all-rejected" ? (
-          <StepShell
-            eyebrow="You kept control"
-            title="You set all three routes aside"
-            description="No direction moved forward. The routes stay in your local history so your decision remains clear."
-          >
-            <div className="completion-card">
-              <p>That result is useful: the next set needs a different angle, not a forced choice.</p>
-            </div>
-          </StepShell>
-        ) : draft.screen === "saved" ? (
-          <StepShell
-            eyebrow="Saved on this device"
-            title="Your place is here when you return"
-            description="Your answers and route marks remain in this browser."
-          >
-            <ActionButton onClick={resumeJourney} tone="primary" fullWidth>{JOURNEY_COPY.resume}</ActionButton>
-          </StepShell>
-        ) : null}
+        ) : draft.screen === "handoff" ? (
+          <HandoffScreen
+            words={words}
+            limits={draft.limits ?? (workspace ? workspace.participant.costCaps : undefined)}
+            capabilityLine={capabilityLine}
+            agentConnected={agentConnected}
+            parkedNote={parkedNote}
+            assistant={assistant}
+            assistantConsent={draft.assistantConsent}
+            busy={busy}
+            statusMessage={statusMessage}
+            onConsentChange={(value) => commitDraft((current) => ({ ...current, assistantConsent: value }))}
+            onAskAssistant={() => void askAssistant()}
+            onDraftMyOwn={openWorkshop}
+          />
+        ) : draft.screen === "workshop" ? (
+          <WorkshopScreen
+            drafts={draft.routeDrafts}
+            words={words}
+            busy={busy}
+            statusMessage={statusMessage}
+            onChange={(index, changes) => commitDraft((current) => ({
+              ...current,
+              routeDrafts: current.routeDrafts.map((item, itemIndex) => (itemIndex === index ? { ...item, ...changes } : item)) as JourneyDraft["routeDrafts"],
+            }))}
+            onBack={goBack}
+            onSave={() => void saveManualRoutes()}
+          />
+        ) : draft.screen === "room" ? (
+          <>
+            {statusMessage ? <div className="status-region status-region--room" role="status" aria-live="polite" aria-atomic="true">{statusMessage}</div> : null}
+            <RouteRoom
+              routeSet={proposedRouteSet}
+              followUp={openFollowUp}
+              words={words}
+              orientation={orientation}
+              notes={draft.notes}
+              busy={busy}
+              onNotesChange={(routeRef, notes) => commitDraft((current) => ({ ...current, notes: { ...current.notes, [routeRef]: notes } }))}
+              onEdit={editRoute}
+              onSetAside={setAsideRoute}
+              onChoose={chooseRoute}
+              onAnswerFollowUp={answerFollowUp}
+              onSkipFollowUp={skipFollowUp}
+            />
+          </>
+        ) : draft.screen === "chosen" && latestRouteSet && acceptedHypothesis ? (
+          <ChosenScreen
+            routeSet={workspace!.routeProposalSets.find((set) => set.ref === acceptedHypothesis.originatingRouteSetRef) ?? latestRouteSet}
+            hypothesis={acceptedHypothesis}
+            receiptLine={receiptLine}
+            busy={busy}
+            statusMessage={statusMessage}
+            onReopen={() => void reopenExploring()}
+            onExport={exportRoom}
+            onStartOver={() => setStartOverOpen(true)}
+          />
+        ) : (
+          <WelcomeScreen
+            canResume={false}
+            onStart={() => moveTo("shape")}
+            onResume={() => syncFromWorkspace()}
+            onStartOver={() => setStartOverOpen(true)}
+          />
+        )}
       </div>
 
+      <ActivityDrawer open={drawer === "activity"} lines={activityLines} onClose={() => setDrawer("none")} />
+      <AgentViewPanel
+        open={drawer === "agent-view"}
+        json={orientation ? JSON.stringify(orientation, null, 2) : "{}"}
+        onClose={() => setDrawer("none")}
+      />
+
+      <ConfirmDialog
+        open={startOverOpen}
+        title="Start over on this device?"
+        confirmLabel="Clear and start over"
+        onConfirm={() => void startOver()}
+        onCancel={() => setStartOverOpen(false)}
+      >
+        <p>This removes your words, limits, routes, receipts, and private notes from this browser. Nothing else is stored anywhere.</p>
+      </ConfirmDialog>
+
       <footer className="site-footer">
-        <p>Direction through small tests, not career prediction.</p>
-        <p>Local to this browser.</p>
+        <p>Direction through small tests, not prediction.</p>
+        <p>{COPY.privacy}</p>
       </footer>
     </main>
   );
 }
 
-interface QuestionStepProps {
-  draft: JourneyDraft;
-  question: ReturnType<typeof questionsFor>[number] | undefined;
-  total: number;
-  statusMessage: string;
-  onAnswer: (id: string, value: string) => void;
-  onBack: () => void;
-  onSkip: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+// ---- helpers -------------------------------------------------------------------------------
+
+function createRuntime(): JourneyRuntime {
+  const store = new LocalWorkspaceStore(localStorage, createEmptyWorkspace(), navigator.locks);
+  const kernel = new CommandKernel(store);
+  return {
+    store,
+    kernel,
+    adapter: createParticipantCommandAdapter(kernel),
+    webMcpAdapter: createWebMcpCommandAdapter(kernel),
+    embeddedAdapter: createEmbeddedCommandAdapter(kernel),
+    reader: new WorkspaceReader(store),
+  };
 }
 
-function QuestionStep({ draft, question, total, statusMessage, onAnswer, onBack, onSkip, onSubmit }: QuestionStepProps) {
-  if (!question) return null;
-  return (
-    <StepShell
-      eyebrow={question.eyebrow}
-      title={question.prompt}
-      description={question.hint}
-      progress={<ProgressTrack current={draft.questionIndex} total={total} label="Questions answered" />}
-    >
-      <form className="answer-form" onSubmit={onSubmit}>
-        <label htmlFor={`answer-${question.id}`}>Your words</label>
-        <textarea
-          id={`answer-${question.id}`}
-          autoFocus
-          maxLength={500}
-          placeholder={question.placeholder}
-          required={!question.skippable}
-          value={draft.answers[question.id] ?? ""}
-          onChange={(event) => onAnswer(question.id, event.target.value)}
-        />
-        <div className="field-meta">
-          <span>{question.skippable ? "Optional" : "Write at least one sentence"}</span>
-          <span className="number">{(draft.answers[question.id] ?? "").length}/500</span>
-        </div>
-        <div className="status-region" role="status" aria-live="polite" aria-atomic="true">{statusMessage}</div>
-        <div className="step-actions">
-          <ActionButton onClick={onBack}>{JOURNEY_COPY.back}</ActionButton>
-          <div className="step-actions__forward">
-            {question.skippable ? <ActionButton onClick={onSkip} tone="quiet">{JOURNEY_COPY.skip}</ActionButton> : null}
-            <ActionButton tone="primary" type="submit">{JOURNEY_COPY.continue}</ActionButton>
-          </div>
-        </div>
-      </form>
-    </StepShell>
-  );
+function resolveScreen(workspace: Workspace, draft: JourneyDraft): JourneyScreen {
+  if (workspace.hypotheses.some((hypothesis) => hypothesis.status === "accepted")) return "chosen";
+  if (workspace.routeProposalSets.some((set) => set.status === "proposed")) return "room";
+  if (workspace.followUpQuestions.some((question) => question.status === "proposed")) return "room";
+  const hasWords = workspace.reflections.some((reflection) => reflection.status === "confirmed");
+  if (hasWords) return draft.screen === "workshop" ? "workshop" : "handoff";
+  if (["handoff", "workshop", "room", "chosen"].includes(draft.screen)) return "welcome";
+  return draft.screen;
 }
 
-interface ConfirmStepProps {
-  answer: [string, string] | undefined;
-  current: number;
-  total: number;
-  statusMessage: string;
-  onBack: () => void;
-  onChange: (id: string, value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}
-
-function ConfirmStep({ answer, current, total, statusMessage, onBack, onChange, onSubmit }: ConfirmStepProps) {
-  if (!answer) return null;
-  return (
-    <StepShell
-      eyebrow="Check your source wording"
-      title="Does this still sound like you?"
-      description="Edit anything that feels too neat or not quite true. Your routes may quote these exact words."
-      progress={<ProgressTrack current={Math.max(0, current - 1)} total={total} label="Sources confirmed" />}
-    >
-      <form className="answer-form answer-form--confirm" onSubmit={onSubmit}>
-        <label htmlFor={`confirm-${answer[0]}`}>Words routes may quote</label>
-        <textarea
-          id={`confirm-${answer[0]}`}
-          autoFocus
-          maxLength={500}
-          required
-          value={answer[1]}
-          onChange={(event) => onChange(answer[0], event.target.value)}
-        />
-        <p className="source-note">Only text you confirm here can appear as a quote in a route.</p>
-        <div className="status-region" role="status" aria-live="polite" aria-atomic="true">{statusMessage}</div>
-        <div className="step-actions">
-          <ActionButton onClick={onBack}>{JOURNEY_COPY.back}</ActionButton>
-          <ActionButton tone="primary" type="submit">{current === total ? "Use these words" : JOURNEY_COPY.continue}</ActionButton>
-        </div>
-      </form>
-    </StepShell>
-  );
-}
-
-function BoundariesStep({
-  caps,
-  onBack,
-  onSubmit,
-}: {
-  caps: JourneyCaps | undefined;
-  onBack: () => void;
-  onSubmit: (caps: JourneyCaps) => void;
-}) {
-  const [hours, setHours] = useState(caps?.hoursPerWeek ? String(caps.hoursPerWeek) : "");
-  const [money, setMoney] = useState(caps ? String(caps.money) : "0");
-  const [currency, setCurrency] = useState(caps?.currency ?? "");
-  const [error, setError] = useState("");
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsedHours = Number(hours);
-    const parsedMoney = Number(money);
-    const parsedCurrency = currency.trim().toUpperCase();
-    if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
-      setError("Enter at least a small amount of time you could protect each week.");
-      return;
-    }
-    if (!Number.isFinite(parsedMoney) || parsedMoney < 0) {
-      setError("Enter zero or a positive money limit.");
-      return;
-    }
-    if (!/^[A-Z]{3}$/.test(parsedCurrency)) {
-      setError("Use a three-letter currency code such as INR, USD, or GBP.");
-      return;
-    }
-    onSubmit({ hoursPerWeek: parsedHours, money: parsedMoney, currency: parsedCurrency });
-  }
-
-  return (
-    <StepShell
-      eyebrow="Keep the routes realistic"
-      title="What limits should every small test respect?"
-      description="These are hard ceilings, not targets. The Route Room will keep every starter test inside them."
-    >
-      <form className="answer-form boundary-form" onSubmit={submit}>
-        <label htmlFor="hours-per-week">Time available each week</label>
-        <div className="field-with-suffix">
-          <input
-            id="hours-per-week"
-            inputMode="decimal"
-            min="0.25"
-            onChange={(event) => setHours(event.target.value)}
-            required
-            step="0.25"
-            type="number"
-            value={hours}
-          />
-          <span>hours</span>
-        </div>
-        <label htmlFor="money-limit">Maximum money for one test</label>
-        <input
-          id="money-limit"
-          inputMode="decimal"
-          min="0"
-          onChange={(event) => setMoney(event.target.value)}
-          required
-          step="0.01"
-          type="number"
-          value={money}
-        />
-        <label htmlFor="currency-code">Currency</label>
-        <input
-          autoCapitalize="characters"
-          id="currency-code"
-          maxLength={3}
-          onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-          placeholder="INR"
-          required
-          value={currency}
-        />
-        <div className="status-region" role="status" aria-live="polite">{error}</div>
-        <div className="step-actions">
-          <ActionButton onClick={onBack}>{JOURNEY_COPY.back}</ActionButton>
-          <ActionButton tone="primary" type="submit">Use these limits</ActionButton>
-        </div>
-      </form>
-    </StepShell>
-  );
-}
-
-function ChosenStep({ routeSet, statusMessage }: { routeSet: RouteProposalSet; statusMessage: string }) {
-  const route = routeSet.routes.find((candidate) => candidate.ref === routeSet.selectedRouteRef);
-  if (!route) return null;
-  return (
-    <StepShell
-      eyebrow="One direction moves forward"
-      title={`You chose “${route.title}” to test`}
-      description="This is a direction to learn from, not a promise about your career. The other two routes remain ideas you did not choose."
-    >
-      <article className="completion-card">
-        <p className="route-kind">Your small test</p>
-        <h2>{route.test.action}</h2>
-        <dl>
-          <div><dt>What it should help you learn</dt><dd>{route.learningQuestion}</dd></div>
-          <div><dt>Your boundary</dt><dd>{route.constraint}</dd></div>
-          <div><dt>Grounded in your words</dt><dd>“{route.sourceQuotes[0]?.quote}”</dd></div>
-        </dl>
-      </article>
-      <div className="status-region" role="status" aria-live="polite" aria-atomic="true">{statusMessage}</div>
-      <p className="completion-note">Choosing saved this direction. Running and reviewing the test comes next.</p>
-    </StepShell>
-  );
+function sameLimits(left: JourneyLimits, right: JourneyLimits): boolean {
+  return left.hoursPerWeek === right.hoursPerWeek && left.money === right.money && left.currency === right.currency;
 }
 
 function createRouteRefs(): [string, string, string] {
@@ -845,99 +890,60 @@ function createRouteRefs(): [string, string, string] {
   return ROUTE_KINDS.map((kind) => `route-${kind}-${suffix}`) as [string, string, string];
 }
 
-function createManualRoutes(
-  sources: ConfirmedSource[],
-  refs: [string, string, string],
+function manualRoutes(
+  draft: JourneyDraft,
+  words: WordSlip[],
   workspace: Workspace,
-  routeDrafts: JourneyDraft["routeDrafts"],
 ): [RouteProposalInput, RouteProposalInput, RouteProposalInput] {
-  const quoteSources = sources.slice(0, 5).map((source) => ({
-    reflectionRef: source.reflectionRef,
-    quote: source.text,
-  }));
-  const hours = workspace.participant.costCaps.hoursPerWeek;
-  const money = workspace.participant.costCaps.money;
-  const currency = workspace.participant.costCaps.currency;
-  const boundary = `Keep the test within ${hours} hours a week and ${money} ${currency}, reversible, and small enough to stop within one week.`;
-  const common = {
-    sourceQuotes: quoteSources,
-    constraint: boundary,
-    strengthensWhen: "The test creates energy and a clear wish to learn more.",
-    weakensWhen: "The test feels draining or teaches little worth pursuing.",
+  const refs = draft.routeRefs!;
+  const caps = workspace.participant.costCaps;
+  const hours = caps.hoursPerWeek;
+  const quoteFor = (index: number) => {
+    const word = words[index % Math.max(1, words.length)] ?? words[0];
+    return [{ reflectionRef: word.ref, quote: word.text }];
   };
-  return [
-    {
-      ...common,
-      ref: refs[0],
-      kind: "closest",
-      title: routeDrafts[0].title.trim(),
-      premise: routeDrafts[0].premise.trim(),
-      learningQuestion: routeDrafts[0].learningQuestion.trim(),
-      test: {
-        action: routeDrafts[0].testAction.trim(),
-        maximumDays: 3,
-        maximumHours: Math.min(hours, 1),
-        maximumMoney: 0,
-        currency,
-      },
-    },
-    {
-      ...common,
-      ref: refs[1],
-      kind: "bridge",
-      title: routeDrafts[1].title.trim(),
-      premise: routeDrafts[1].premise.trim(),
-      learningQuestion: routeDrafts[1].learningQuestion.trim(),
-      test: {
-        action: routeDrafts[1].testAction.trim(),
-        maximumDays: 5,
-        maximumHours: Math.min(hours, 2),
-        maximumMoney: 0,
-        currency,
-      },
-    },
-    {
-      ...common,
-      ref: refs[2],
-      kind: "probe",
-      title: routeDrafts[2].title.trim(),
-      premise: routeDrafts[2].premise.trim(),
-      learningQuestion: routeDrafts[2].learningQuestion.trim(),
-      test: {
-        action: routeDrafts[2].testAction.trim(),
-        maximumDays: 7,
-        maximumHours: Math.min(hours, 3),
-        maximumMoney: 0,
-        currency,
-      },
-    },
+  const plans = [
+    { days: 3, hours: Math.min(hours, 1), boundary: `One session, within ${Math.min(hours, 1)} hours, no spend, stop any time.` },
+    { days: 5, hours: Math.min(hours, 2), boundary: `Within ${Math.min(hours, 2)} hours and ${caps.money} ${caps.currency}, private until you decide otherwise.` },
+    { days: 7, hours: Math.min(hours, 3), boundary: `Within ${Math.min(hours, 3)} hours, no commitment, and reversible within a week.` },
   ];
-}
-
-function replaceRouteDraft(
-  drafts: JourneyDraft["routeDrafts"],
-  index: number,
-  changes: Partial<JourneyDraft["routeDrafts"][number]>,
-): JourneyDraft["routeDrafts"] {
-  return drafts.map((draft, currentIndex) =>
-    currentIndex === index ? { ...draft, ...changes } : draft,
-  ) as JourneyDraft["routeDrafts"];
-}
-
-function createInitialWorkspace(caps?: JourneyCaps): Workspace {
-  const workspace = createEmptyWorkspace();
-  if (!caps) return workspace;
-  return {
-    ...workspace,
-    participant: {
-      ...workspace.participant,
-      costCaps: caps,
+  const strengthens = [
+    "You want to repeat it the next day.",
+    "The combination feels more useful than either half alone.",
+    "The taste leaves you curious rather than relieved it is over.",
+  ];
+  const weakens = [
+    "It drains you even when it goes well.",
+    "Both halves feel forced together.",
+    "You feel relief when the sample is finished.",
+  ];
+  return draft.routeDrafts.map((item, index) => ({
+    ref: refs[index],
+    kind: ROUTE_KINDS[index],
+    title: item.title.trim(),
+    premise: item.premise.trim(),
+    sourceQuotes: quoteFor(index),
+    constraint: plans[index].boundary,
+    learningQuestion: item.learningQuestion.trim(),
+    test: {
+      action: item.testAction.trim(),
+      maximumDays: plans[index].days,
+      maximumHours: plans[index].hours,
+      maximumMoney: 0,
+      currency: caps.currency,
     },
-  };
+    strengthensWhen: strengthens[index],
+    weakensWhen: weakens[index],
+  })) as [RouteProposalInput, RouteProposalInput, RouteProposalInput];
 }
 
-function sameCaps(left: JourneyCaps, right: JourneyCaps): boolean {
-  return left.hoursPerWeek === right.hoursPerWeek &&
-    left.money === right.money &&
-    left.currency === right.currency;
+function latestReceiptLine(workspace: Workspace | null): string {
+  const latest = workspace?.operations.at(-1);
+  if (!latest) return "";
+  return `Saved with receipt ${latest.afterVersion} · version ${latest.beforeVersion} to ${latest.afterVersion}`;
+}
+
+function plainReason(what: string | undefined): string {
+  if (!what) return "something did not line up. Try again.";
+  return what.replace(/\b(route-set-\d+|reflection-\d+|question-\d+)\b/g, "that item");
 }

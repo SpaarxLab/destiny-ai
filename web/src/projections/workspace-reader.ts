@@ -1,5 +1,10 @@
-import { availableActions } from "../domain/affordances";
 import {
+  availableActions,
+  openFollowUp,
+  proposalAvailability,
+} from "../domain/affordances";
+import {
+  CONFIRMED_WORDS_LIMIT,
   ORIENTATION_ESTIMATED_TOKEN_BUDGET,
   ORIENTATION_MAX_SERIALIZED_CHARS,
   PUBLIC_CHANGED_REF_LIMIT,
@@ -12,12 +17,14 @@ import {
   workingSetProjectionSchema,
   type ChangeSummary,
   type OrientationProjection,
+  type ProposalAvailabilityProjection,
   type PublicReadEntity,
   type ReadWorkspaceResult,
   type WorkspaceIdentity,
 } from "../domain/reads";
 import type {
   AvailableAction,
+  FollowUpQuestion,
   Hypothesis,
   OperationRecord,
   Reflection,
@@ -226,19 +233,52 @@ function omittedEntityRefsPage(
   };
 }
 
+function proposalProjection(workspace: Workspace): ProposalAvailabilityProjection {
+  const availability = proposalAvailability(workspace);
+  if (!availability.available) {
+    return { available: false, reason: availability.reason };
+  }
+  const latest = workspace.routeProposalSets.at(-1);
+  if (availability.mode === "replace_rejected") {
+    const proposed = workspace.routeProposalSets.find((set) => set.ref === availability.routeSetRef);
+    const routes = proposed?.routes ?? [];
+    return {
+      available: true,
+      mode: "replace_rejected",
+      reason: availability.reason,
+      supersedesRouteSetRef: availability.routeSetRef,
+      carryRouteRefs: routes.filter((route) => route.status !== "rejected").map((route) => route.ref),
+      replaceKinds: routes.filter((route) => route.status === "rejected").map((route) => route.kind),
+    };
+  }
+  return {
+    available: true,
+    mode: "fresh",
+    reason: availability.reason,
+    supersedesRouteSetRef: latest?.ref ?? null,
+    carryRouteRefs: [],
+    replaceKinds: ["closest", "bridge", "probe"],
+  };
+}
+
 function orientationFor(
   workspace: Workspace,
   cursor: string,
   changes: OrientationProjection["changes"],
 ): OrientationProjection {
   const proposed = workspace.reflections.filter((reflection) => reflection.status === "proposed");
-  const confirmedCount = workspace.reflections.length - proposed.length;
+  const confirmed = workspace.reflections.filter((reflection) => reflection.status === "confirmed");
+  const confirmedCount = confirmed.length;
   const currentRouteSet = [...workspace.routeProposalSets]
     .reverse()
     .find((routeSet) => routeSet.status !== "superseded") ?? null;
   const acceptedHypothesis = [...workspace.hypotheses]
     .reverse()
     .find((hypothesis) => hypothesis.status === "accepted") ?? null;
+  const currentFollowUp = [...workspace.followUpQuestions]
+    .reverse()
+    .find((question) => question.status !== "withdrawn") ?? null;
+  const open = openFollowUp(workspace) ?? null;
   const routeDecisionPending = currentRouteSet?.status === "proposed";
   const routePendingItem = routeDecisionPending
     ? [{
@@ -247,46 +287,71 @@ function orientationFor(
         excerpt: excerpt(`Three routes await participant review: ${currentRouteSet.routes.map((route) => route.title).join(", ")}`),
       }]
     : [];
+  const followUpPendingItem = open
+    ? [{
+        ref: open.ref,
+        kind: "ANSWER_FOLLOW_UP" as const,
+        excerpt: excerpt(open.question),
+      }]
+    : [];
   const reflectionPendingItems = proposed.map((reflection) => ({
     ref: reflection.ref,
     kind: "CONFIRM_REFLECTION" as const,
     excerpt: excerpt(reflection.text),
   }));
-  const allPendingItems = [...routePendingItem, ...reflectionPendingItems];
+  const allPendingItems = [...routePendingItem, ...followUpPendingItem, ...reflectionPendingItems];
   const pendingItems = allPendingItems.slice(0, PENDING_INTERACTION_LIMIT);
   const nextHumanDecision: OrientationProjection["nextHumanDecision"] = routeDecisionPending
     ? {
         kind: "CHOOSE_OR_REVISE_ROUTE_SET",
         targetRefs: [currentRouteSet.ref],
-        guidance: "Only the participant may edit, reject, or choose one of these three route proposals.",
+        guidance: "Only the participant may edit, set aside, or choose one of these three route proposals.",
       }
-    : proposed.length
+    : open
       ? {
-          kind: "REVIEW_PROPOSED_REFLECTION",
-          targetRefs: [proposed[0].ref],
-          guidance: "Confirm, edit, or reject the visible agent transcription before relying on it.",
+          kind: "ANSWER_FOLLOW_UP",
+          targetRefs: [open.ref],
+          guidance: "The participant answers or skips the agent's follow-up question in the Route Room before any routes are proposed.",
         }
-      : acceptedHypothesis
+      : proposed.length
         ? {
-            kind: "NO_PENDING_DECISION",
-            targetRefs: [acceptedHypothesis.ref],
-            guidance: "The participant choice is recorded; executing its test belongs to the next product packet.",
+            kind: "REVIEW_PROPOSED_REFLECTION",
+            targetRefs: [proposed[0].ref],
+            guidance: "Confirm, edit, or reject the visible agent transcription before relying on it.",
           }
-        : currentRouteSet?.status === "resolved"
+        : acceptedHypothesis && workspace.phase === "TESTING"
           ? {
-              kind: "NO_PENDING_DECISION",
-              targetRefs: [currentRouteSet.ref],
-              guidance: "No route choice remains pending; a replacement proposal may follow the resolved set.",
+              kind: "REOPEN_OR_CONTINUE",
+              targetRefs: [acceptedHypothesis.ref],
+              guidance: "The participant chose a direction. Running its test is the next product step; only they may reopen exploring.",
             }
-          : {
-              kind: "ADD_REFLECTION",
-              targetRefs: [workspace.id],
-              guidance: "Add a participant reflection or prepare a transcription for human review.",
-            };
+          : acceptedHypothesis
+            ? {
+                kind: "NO_PENDING_DECISION",
+                targetRefs: [acceptedHypothesis.ref],
+                guidance: "The participant choice is recorded; executing its test belongs to the next product packet.",
+              }
+            : currentRouteSet?.status === "resolved"
+              ? {
+                  kind: "NO_PENDING_DECISION",
+                  targetRefs: [currentRouteSet.ref],
+                  guidance: "No route choice remains pending; a replacement proposal may follow the resolved set.",
+                }
+              : {
+                  kind: "ADD_REFLECTION",
+                  targetRefs: [workspace.id],
+                  guidance: "Add a participant reflection or prepare a transcription for human review.",
+                };
   const constraints = [
     `Time cap: ${workspace.participant.costCaps.hoursPerWeek} hours/week`,
     `Money cap: ${workspace.participant.costCaps.money} ${workspace.participant.costCaps.currency}`,
   ];
+  const confirmedWordsAll = confirmed.map((reflection) => ({
+    ref: reflection.ref,
+    text: reflection.text,
+    answersFollowUpRef: reflection.answersFollowUpRef ?? null,
+  }));
+  const confirmedWords = confirmedWordsAll.slice(-CONFIRMED_WORDS_LIMIT);
 
   const projection: OrientationProjection = {
     view: "orientation",
@@ -295,11 +360,15 @@ function orientationFor(
       question: workspace.participant.focusQuestion || null,
       costCaps: workspace.participant.costCaps,
     },
+    confirmedWords,
+    confirmedWordsTruncated: confirmedWordsAll.length > confirmedWords.length,
     active: {
       routeSet: currentRouteSet ? routeSetSummary(workspace, currentRouteSet) : null,
       hypothesis: acceptedHypothesis ? hypothesisSummary(acceptedHypothesis) : null,
+      followUp: currentFollowUp ? followUpSummary(currentFollowUp) : null,
       experiment: null,
     },
+    proposal: proposalProjection(workspace),
     nextHumanDecision,
     constraints,
     teachings: [],
@@ -382,6 +451,7 @@ function changesSince(
 function publicChange(operation: OperationRecord): ChangeSummary {
   return {
     operationRef: operation.operationRef,
+    actor: operation.actor,
     command: operation.command,
     effect: operation.effect,
     afterVersion: operation.afterVersion,
@@ -422,6 +492,17 @@ function hypothesisSummary(hypothesis: Hypothesis): OrientationProjection["activ
   };
 }
 
+function followUpSummary(question: FollowUpQuestion): OrientationProjection["active"]["followUp"] {
+  return {
+    ref: question.ref,
+    status: question.status,
+    question: question.question,
+    reasonRefs: question.reasonRefs,
+    askedBy: question.askedBy,
+    answerReflectionRef: question.answerReflectionRef ?? null,
+  };
+}
+
 function publicReflection(reflection: Reflection): PublicReadEntity {
   return {
     ...reflection,
@@ -452,6 +533,14 @@ function publicHypothesis(hypothesis: Hypothesis): PublicReadEntity {
   };
 }
 
+function publicFollowUp(question: FollowUpQuestion): PublicReadEntity {
+  return {
+    ...question,
+    entityType: "follow_up_question",
+    availableActions: agentActions(question.availableActions),
+  };
+}
+
 function publicReceipt(operation: OperationRecord): PublicReadEntity {
   return { ...publicChange(operation), entityType: "operation_receipt" };
 }
@@ -460,6 +549,9 @@ function addressableEntities(workspace: Workspace): Map<string, PublicReadEntity
   const entries: [string, PublicReadEntity][] = [];
   for (const reflection of workspace.reflections) {
     entries.push([reflection.ref, publicReflection(reflection)]);
+  }
+  for (const question of workspace.followUpQuestions) {
+    entries.push([question.ref, publicFollowUp(question)]);
   }
   for (const routeSet of workspace.routeProposalSets) {
     entries.push([routeSet.ref, publicRouteSet(workspace, routeSet)]);
@@ -481,12 +573,16 @@ function currentWorkingEntities(workspace: Workspace): PublicReadEntity[] {
     .filter((hypothesis) => hypothesis.status === "accepted")
     .reverse()
     .map(publicHypothesis);
+  const openFollowUps = workspace.followUpQuestions
+    .filter((question) => question.status === "proposed")
+    .reverse()
+    .map(publicFollowUp);
   const currentRouteSets = workspace.routeProposalSets
     .filter((routeSet) => routeSet.status !== "superseded")
     .reverse()
     .map((routeSet) => publicRouteSet(workspace, routeSet));
   const currentReflections = [...workspace.reflections].reverse().map(publicReflection);
-  return [...acceptedHypotheses, ...currentRouteSets, ...currentReflections];
+  return [...acceptedHypotheses, ...openFollowUps, ...currentRouteSets, ...currentReflections];
 }
 
 function entityRef(entity: PublicReadEntity): string {
@@ -526,6 +622,11 @@ function boundOrientationResult(result: ReadWorkspaceResult): void {
   }
 
   const projection = result.data;
+  while (overOrientationBudget(result) && projection.confirmedWords.length) {
+    projection.confirmedWords.shift();
+    projection.confirmedWordsTruncated = true;
+    projection.contentTruncated = true;
+  }
   while (overOrientationBudget(result) && projection.pendingHumanInteractions.items.length) {
     projection.pendingHumanInteractions.items.pop();
     projection.pendingHumanInteractions.truncated = true;
@@ -558,6 +659,17 @@ function boundOrientationResult(result: ReadWorkspaceResult): void {
       projection.focus.question.length > 1
         ? projection.focus.question.slice(0, Math.floor(projection.focus.question.length / 2))
         : null;
+    projection.contentTruncated = true;
+  }
+  while (
+    overOrientationBudget(result) &&
+    projection.active.followUp !== null &&
+    projection.active.followUp.question.length > 1
+  ) {
+    projection.active.followUp.question = projection.active.followUp.question.slice(
+      0,
+      Math.max(1, Math.floor(projection.active.followUp.question.length / 2)),
+    );
     projection.contentTruncated = true;
   }
   while (
@@ -595,6 +707,13 @@ function boundOrientationResult(result: ReadWorkspaceResult): void {
   ) {
     const action = projection.availableActions.find((candidate) => candidate.reason !== undefined);
     if (action) delete action.reason;
+    projection.contentTruncated = true;
+  }
+  while (overOrientationBudget(result) && projection.proposal.reason.length > 1) {
+    projection.proposal.reason = projection.proposal.reason.slice(
+      0,
+      Math.max(1, Math.floor(projection.proposal.reason.length / 2)),
+    );
     projection.contentTruncated = true;
   }
   while (overOrientationBudget(result) && projection.guidance.length > 1) {

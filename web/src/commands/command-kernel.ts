@@ -1,28 +1,43 @@
 import {
   commandRequestIdentity,
   commandSchema,
+  PARTICIPANT_ONLY_COMMANDS,
   type ChooseRouteCommand,
   type Command,
   type CompensateRouteSetCommand,
   type ProposeRouteSetCommand,
+  type ReopenExploringCommand,
   type ReviseRouteSetCommand,
   type RouteEdit,
+  type RouteProposalInput,
   type SaveReflectionCommand,
+  type SetLimitsCommand,
+  type SkipFollowUpCommand,
 } from "../domain/commands";
-import { availableActions, routeSetActions } from "../domain/affordances";
+import {
+  availableActions,
+  followUpActions,
+  openFollowUp,
+  routeSetActions,
+} from "../domain/affordances";
 import type {
   ChooseRouteResult,
   CommandError,
   CommandResult,
   CompensateRouteSetResult,
   ProposeRouteSetResult,
+  ReopenExploringResult,
   ReviseRouteSetResult,
   SaveReflectionResult,
+  SetLimitsResult,
+  SkipFollowUpResult,
 } from "../domain/results";
 import {
   publicReceipt,
+  routeContent,
   workspaceSchema,
   type Actor,
+  type FollowUpQuestion,
   type Hypothesis,
   type OperationRecord,
   type RoutePreview,
@@ -56,10 +71,13 @@ export class CommandKernel {
   ) {}
 
   async execute(context: CommandExecutionContext, commandInput: SaveReflectionCommand): Promise<SaveReflectionResult>;
+  async execute(context: CommandExecutionContext, commandInput: SetLimitsCommand): Promise<SetLimitsResult>;
   async execute(context: CommandExecutionContext, commandInput: ProposeRouteSetCommand): Promise<ProposeRouteSetResult>;
   async execute(context: CommandExecutionContext, commandInput: ReviseRouteSetCommand): Promise<ReviseRouteSetResult>;
   async execute(context: CommandExecutionContext, commandInput: ChooseRouteCommand): Promise<ChooseRouteResult>;
   async execute(context: CommandExecutionContext, commandInput: CompensateRouteSetCommand): Promise<CompensateRouteSetResult>;
+  async execute(context: CommandExecutionContext, commandInput: SkipFollowUpCommand): Promise<SkipFollowUpResult>;
+  async execute(context: CommandExecutionContext, commandInput: ReopenExploringCommand): Promise<ReopenExploringResult>;
   async execute(context: CommandExecutionContext, commandInput: unknown): Promise<CommandResult>;
   async execute(context: CommandExecutionContext, commandInput: unknown): Promise<CommandResult> {
     let workspace: Workspace;
@@ -97,7 +115,8 @@ export class CommandKernel {
     if (command.input.expectedVersion !== workspace.stateVersion) {
       return staleResult(workspace, command.input.expectedVersion, command.actor);
     }
-    if (workspace.phase !== "EXPLORING") {
+    const requiredPhase = command.name === "reopen_exploring" ? "TESTING" : "EXPLORING";
+    if (workspace.phase !== requiredPhase) {
       return failure(workspace, {
         code: "WRONG_PHASE",
         what: `${command.name} is unavailable in ${workspace.phase}.`,
@@ -105,10 +124,15 @@ export class CommandKernel {
         insteadDo: "Do not repeat this request. Submit an action declared for the current phase as a new command with a new operationId.",
       }, "No state changed because the live phase denied this command.", command.actor);
     }
+    if (command.actor !== "participant" && PARTICIPANT_ONLY_COMMANDS.includes(command.name)) {
+      return wrongActor(workspace, command);
+    }
 
     switch (command.name) {
       case "save_reflection":
         return this.saveReflection(workspace, command);
+      case "set_limits":
+        return this.setLimits(workspace, command);
       case "propose_route_set":
         return this.proposeRouteSet(workspace, command);
       case "revise_route_set":
@@ -117,6 +141,10 @@ export class CommandKernel {
         return this.chooseRoute(workspace, command);
       case "compensate_route_set":
         return this.compensateRouteSet(workspace, command);
+      case "skip_follow_up":
+        return this.skipFollowUp(workspace, command);
+      case "reopen_exploring":
+        return this.reopenExploring(workspace, command);
     }
   }
 
@@ -127,6 +155,19 @@ export class CommandKernel {
     const afterVersion = workspace.stateVersion + 1;
     const at = this.environment.now();
     const reflectionRef = nextAvailableRef(workspace, "reflection", afterVersion);
+    let answered: FollowUpQuestion | undefined;
+    if (command.input.answersFollowUpRef !== undefined) {
+      if (command.actor !== "participant") {
+        return failure(workspace, policyDenied("Only the participant can answer a follow-up question."),
+          "No state changed because an agent cannot answer on the participant's behalf.", command.actor);
+      }
+      const question = workspace.followUpQuestions.find((candidate) => candidate.ref === command.input.answersFollowUpRef);
+      if (!question) return failure(workspace, unknownRef(command.input.answersFollowUpRef), "No state changed.", command.actor);
+      if (question.status !== "proposed") {
+        return failure(workspace, lifecycleError(question.ref, question.status), "No state changed.", command.actor);
+      }
+      answered = { ...question, status: "answered", answerReflectionRef: reflectionRef, availableActions: [] };
+    }
     const reflection = {
       id: this.environment.createId(),
       ref: reflectionRef,
@@ -135,19 +176,64 @@ export class CommandKernel {
       text: command.input.text,
       recordedBy: command.actor === "participant" ? "participant" as const : "agent_transcribed" as const,
       createdAt: at,
+      ...(answered ? { answersFollowUpRef: answered.ref } : {}),
     };
-    const operation = operationFor(workspace, command, afterVersion, at, [reflection.ref],
+    const changedRefs = answered ? [reflection.ref, answered.ref] : [reflection.ref];
+    const operation = operationFor(workspace, command, afterVersion, at, changedRefs,
       command.actor === "participant" ? "APPLIED" : "PROPOSED");
     const next = workspaceSchema.parse({
       ...workspace,
       stateVersion: afterVersion,
       reflections: [...workspace.reflections, reflection],
+      followUpQuestions: workspace.followUpQuestions.map((question) =>
+        answered && question.ref === answered.ref ? answered : question),
       operations: [...workspace.operations, operation],
     });
-    return this.commit(workspace, command, next, operation, { reflection },
-      command.actor === "participant"
-        ? "The participant reflection is confirmed and visible in the workspace."
-        : "The agent transcription is a visible proposal awaiting participant review.");
+    return this.commit(workspace, command, next, operation,
+      answered ? { reflection, answeredFollowUp: answered } : { reflection },
+      answered
+        ? "The participant answered the follow-up question; the answer is a confirmed reflection the agent may quote."
+        : command.actor === "participant"
+          ? "The participant reflection is confirmed and visible in the workspace."
+          : "The agent transcription is a visible proposal awaiting participant review.");
+  }
+
+  private async setLimits(
+    workspace: Workspace,
+    command: Authorized<SetLimitsCommand>,
+  ): Promise<CommandResult> {
+    const caps = command.input.costCaps;
+    const proposed = workspace.routeProposalSets.find((set) => set.status === "proposed");
+    const breaking = proposed?.routes.find((route) =>
+      route.test.maximumHours > caps.hoursPerWeek ||
+      route.test.maximumMoney > caps.money ||
+      route.test.currency !== caps.currency);
+    if (proposed && breaking) {
+      return failure(workspace, {
+        ...policyDenied(`Route ${breaking.ref} in the proposed set would exceed the new limits.`),
+        changedRefs: [proposed.ref],
+      }, "No state changed because proposed routes must stay inside the current limits.", command.actor);
+    }
+    const participant = {
+      ...workspace.participant,
+      costCaps: caps,
+      ...(command.input.focusQuestion !== undefined ? { focusQuestion: command.input.focusQuestion } : {}),
+    };
+    if (JSON.stringify(participant) === JSON.stringify(workspace.participant)) {
+      return failure(workspace, policyDenied("The limits are already recorded exactly like this."),
+        "No state changed because no-op limit updates do not create receipts.", command.actor);
+    }
+    const afterVersion = workspace.stateVersion + 1;
+    const at = this.environment.now();
+    const operation = operationFor(workspace, command, afterVersion, at, [workspace.id], "APPLIED");
+    const next = workspaceSchema.parse({
+      ...workspace,
+      stateVersion: afterVersion,
+      participant,
+      operations: [...workspace.operations, operation],
+    });
+    return this.commit(workspace, command, next, operation, { participant },
+      "The participant limits are recorded. Every proposal must now stay inside them.");
   }
 
   private async proposeRouteSet(
@@ -155,31 +241,63 @@ export class CommandKernel {
     command: Authorized<ProposeRouteSetCommand>,
   ): Promise<CommandResult> {
     const input = command.input;
+    const proposed = workspace.routeProposalSets.find((set) => set.status === "proposed");
+    const open = openFollowUp(workspace);
+
     if (input.outcome === "insufficient_signal") {
+      if (command.actor !== "agent") {
+        return failure(workspace, policyDenied("Only an agent can ask a follow-up question."),
+          "No state changed because the participant supplies words directly.", command.actor);
+      }
       const badRef = input.reasonRefs.find((ref) =>
         !workspace.reflections.some((reflection) => reflection.ref === ref && reflection.status === "confirmed"));
       if (badRef) {
         return failure(workspace, unknownOrUnconfirmedRef(badRef),
           "No state changed because insufficient-signal reasons must cite confirmed reflections.", command.actor);
       }
-      return {
-        ok: true,
-        data: {
-          outcome: "insufficient_signal",
-          followUpQuestion: input.followUpQuestion,
-          reasonRefs: input.reasonRefs,
-        },
-        nextActions: availableActions(workspace, command.actor),
-        stateVersion: workspace.stateVersion,
-        guidance: "INSUFFICIENT_SIGNAL returned without a workspace mutation or receipt.",
+      if (proposed) {
+        return failure(workspace, {
+          ...lifecycleError(proposed.ref, "proposed"),
+          what: `Route set ${proposed.ref} is still waiting for the participant; a follow-up question cannot be asked now.`,
+          changedRefs: [proposed.ref],
+        }, "No state changed because a proposed route set must be resolved first.", command.actor);
+      }
+      if (open) {
+        return failure(workspace, {
+          ...lifecycleError(open.ref, "proposed"),
+          what: `Follow-up ${open.ref} is still open; wait for the participant to answer or skip it.`,
+          changedRefs: [open.ref],
+        }, "No state changed because only one follow-up question may be open.", command.actor);
+      }
+      const afterVersion = workspace.stateVersion + 1;
+      const at = this.environment.now();
+      const ref = nextAvailableRef(workspace, "question", afterVersion);
+      const followUp: FollowUpQuestion = {
+        id: this.environment.createId(),
+        ref,
+        availableActions: followUpActions(ref),
+        status: "proposed",
+        question: input.followUpQuestion,
+        reasonRefs: input.reasonRefs,
+        askedBy: command.proposalSource,
+        createdAt: at,
       };
+      const operation = operationFor(workspace, command, afterVersion, at, [followUp.ref], "PROPOSED");
+      const next = workspaceSchema.parse({
+        ...workspace,
+        stateVersion: afterVersion,
+        followUpQuestions: [...workspace.followUpQuestions, followUp],
+        operations: [...workspace.operations, operation],
+      });
+      return this.commit(workspace, command, next, operation, { outcome: "insufficient_signal", followUp },
+        "The follow-up question is visible to the participant. Reread after they answer or skip it; do not propose routes until then.");
     }
 
     const predecessor = workspace.routeProposalSets.at(-1);
     if (predecessor && input.supersedesRouteSetRef !== predecessor.ref) {
       return failure(workspace, {
         code: "WRONG_LIFECYCLE",
-        what: `Route set ${predecessor.ref} is the latest proposal history and must be cited as predecessor.`,
+        what: `Route set ${predecessor.ref} is the latest proposal history and must be cited as supersedesRouteSetRef.`,
         retry: "NEVER",
         insteadDo: "Do not repeat this request. Cite the latest route set in a new command with a new operationId.",
         changedRefs: [predecessor.ref],
@@ -187,6 +305,7 @@ export class CommandKernel {
     }
 
     let supersededIndex = -1;
+    let liveSupersession: RouteProposalSet | undefined;
     if (input.supersedesRouteSetRef) {
       const predecessorIndex = workspace.routeProposalSets.findIndex(
         (set) => set.ref === input.supersedesRouteSetRef,
@@ -200,11 +319,63 @@ export class CommandKernel {
         return failure(workspace, lifecycleError(superseded.ref, superseded.status),
           "No state changed because this historical set cannot be a direct predecessor.", command.actor);
       }
-      supersededIndex = superseded.status === "proposed" ? predecessorIndex : -1;
+      if (superseded.status === "proposed") {
+        supersededIndex = predecessorIndex;
+        liveSupersession = superseded;
+      }
+    }
+
+    const carries = input.routes.filter((slot): slot is { carryRouteRef: string } => "carryRouteRef" in slot);
+    const fresh = input.routes.filter((slot): slot is RouteProposalInput => !("carryRouteRef" in slot));
+    if (liveSupersession) {
+      const kept = liveSupersession.routes.filter((route) => route.status !== "rejected");
+      const rejected = liveSupersession.routes.filter((route) => route.status === "rejected");
+      if (rejected.length === 0) {
+        return failure(workspace, {
+          ...policyDenied(`Route set ${liveSupersession.ref} still has three live routes; the participant must edit, set aside, or choose before any replacement.`),
+          changedRefs: [liveSupersession.ref],
+        }, "No state changed because the participant has not set any route aside.", command.actor);
+      }
+      const keptRefs = kept.map((route) => route.ref);
+      const carriedRefs = carries.map((carry) => carry.carryRouteRef);
+      const missingCarry = keptRefs.find((ref) => !carriedRefs.includes(ref));
+      if (missingCarry) {
+        return failure(workspace, {
+          ...policyDenied(`Route ${missingCarry} was kept by the participant and must be carried over unchanged with carryRouteRef.`),
+          changedRefs: keptRefs,
+        }, "No state changed because only routes the participant set aside may be replaced.", command.actor);
+      }
+      const badCarry = carriedRefs.find((ref) => !keptRefs.includes(ref));
+      if (badCarry) {
+        return failure(workspace, {
+          ...policyDenied(`Route ${badCarry} cannot be carried: it is not a kept route of ${liveSupersession.ref}.`),
+          changedRefs: [liveSupersession.ref],
+        }, "No state changed because carried routes must be kept routes of the superseded set.", command.actor);
+      }
+      const rejectedKinds = rejected.map((route) => route.kind).sort();
+      const freshKinds = fresh.map((route) => route.kind).sort();
+      if (JSON.stringify(rejectedKinds) !== JSON.stringify(freshKinds)) {
+        return failure(workspace, {
+          ...policyDenied(`Replacement routes must cover exactly the set-aside kinds: ${rejectedKinds.join(", ")}.`),
+          changedRefs: rejected.map((route) => route.ref),
+        }, "No state changed because each set-aside route needs one replacement of the same kind.", command.actor);
+      }
+    } else if (carries.length > 0) {
+      return failure(workspace, policyDenied("carryRouteRef is only valid when replacing set-aside routes of a still-proposed set."),
+        "No state changed because there is no live route set to carry routes from.", command.actor);
     }
 
     const afterVersion = workspace.stateVersion + 1;
-    const routes = input.routes.map((route) => ({ ...route, status: "proposed" as const })) as [RoutePreview, RoutePreview, RoutePreview];
+    const reserved = fresh.map((route) => route.ref);
+    const routes = input.routes.map((slot) => {
+      if ("carryRouteRef" in slot) {
+        const origin = liveSupersession!.routes.find((route) => route.ref === slot.carryRouteRef)!;
+        const ref = nextAvailableRef(workspace, origin.ref, undefined, reserved);
+        reserved.push(ref);
+        return { ...origin, ref, carriedFromRouteRef: origin.ref };
+      }
+      return { ...slot, status: "proposed" as const };
+    }) as [RoutePreview, RoutePreview, RoutePreview];
     const routeError = validateRoutes(workspace, routes, { allowExistingRefs: false });
     if (routeError) return failure(workspace, routeError, "No state changed because route validation failed.", command.actor);
     const at = this.environment.now();
@@ -229,9 +400,12 @@ export class CommandKernel {
     const sets = workspace.routeProposalSets.map((set, index) =>
       index === supersededIndex ? { ...set, status: "superseded" as const, availableActions: [] } : set);
     sets.push(routeSet);
-    const changedRefs = supersededIndex >= 0 && input.supersedesRouteSetRef
-      ? [input.supersedesRouteSetRef, routeSet.ref]
-      : [routeSet.ref];
+    const withdrawn = open ? { ...open, status: "withdrawn" as const, availableActions: [] } : undefined;
+    const changedRefs = [
+      ...(withdrawn ? [withdrawn.ref] : []),
+      ...(supersededIndex >= 0 && input.supersedesRouteSetRef ? [input.supersedesRouteSetRef] : []),
+      routeSet.ref,
+    ];
     const operation = operationFor(
       workspace,
       command,
@@ -244,18 +418,21 @@ export class CommandKernel {
     const next = workspaceSchema.parse({
       ...workspace,
       stateVersion: afterVersion,
+      followUpQuestions: workspace.followUpQuestions.map((question) =>
+        withdrawn && question.ref === withdrawn.ref ? withdrawn : question),
       routeProposalSets: sets,
       operations: [...workspace.operations, operation],
     });
     return this.commit(workspace, command, next, operation, { outcome: "routes", routeSet },
-      "Three grounded route previews are visible and await participant revision or choice.");
+      liveSupersession
+        ? "The set-aside route(s) were replaced and the kept routes carried over. The participant decides next."
+        : "Three grounded route previews are visible and await participant revision or choice.");
   }
 
   private async reviseRouteSet(
     workspace: Workspace,
     command: Authorized<ReviseRouteSetCommand>,
   ): Promise<CommandResult> {
-    if (command.actor !== "participant") return wrongActor(workspace, command);
     const index = workspace.routeProposalSets.findIndex((set) => set.ref === command.input.routeSetRef);
     const current = workspace.routeProposalSets[index];
     if (!current) return failure(workspace, unknownRef(command.input.routeSetRef), "No state changed.", command.actor);
@@ -286,7 +463,7 @@ export class CommandKernel {
     }
     const unchangedEdit = edits.find((edit) => {
       const route = current.routes.find((candidate) => candidate.ref === edit.routeRef);
-      return route !== undefined && sameRouteContent(route, applyRouteEdit(route, edit));
+      return route !== undefined && routeContent(route) === routeContent(applyRouteEdit(route, edit));
     });
     if (unchangedEdit) {
       return failure(workspace, policyDenied(`Edit for ${unchangedEdit.routeRef} does not change route content.`),
@@ -323,7 +500,7 @@ export class CommandKernel {
     });
     return this.commit(workspace, command, next, operation, { routeSet },
       allRejected
-        ? "All routes were rejected. The set is resolved and no hypothesis was created."
+        ? "All routes were set aside. The set is resolved and no hypothesis was created."
         : "Participant edits and rejections were applied; the route set remains awaiting a choice.");
   }
 
@@ -331,7 +508,6 @@ export class CommandKernel {
     workspace: Workspace,
     command: Authorized<ChooseRouteCommand>,
   ): Promise<CommandResult> {
-    if (command.actor !== "participant") return wrongActor(workspace, command);
     const index = workspace.routeProposalSets.findIndex((set) => set.ref === command.input.routeSetRef);
     const current = workspace.routeProposalSets[index];
     if (!current) return failure(workspace, unknownRef(command.input.routeSetRef), "No state changed.", command.actor);
@@ -373,14 +549,18 @@ export class CommandKernel {
       availableActions: [],
     };
     const at = this.environment.now();
+    const open = openFollowUp(workspace);
+    const withdrawn = open ? { ...open, status: "withdrawn" as const, availableActions: [] } : undefined;
     const operation = operationFor(workspace, command, afterVersion, at,
-      [routeSet.ref, hypothesis.ref], "APPLIED");
+      [routeSet.ref, hypothesis.ref, ...(withdrawn ? [withdrawn.ref] : [])], "APPLIED");
     const sets = [...workspace.routeProposalSets];
     sets[index] = routeSet;
     const next = workspaceSchema.parse({
       ...workspace,
       stateVersion: afterVersion,
       phase: "TESTING",
+      followUpQuestions: workspace.followUpQuestions.map((question) =>
+        withdrawn && question.ref === withdrawn.ref ? withdrawn : question),
       routeProposalSets: sets,
       hypotheses: [...workspace.hypotheses, hypothesis],
       operations: [...workspace.operations, operation],
@@ -393,7 +573,6 @@ export class CommandKernel {
     workspace: Workspace,
     command: Authorized<CompensateRouteSetCommand>,
   ): Promise<CommandResult> {
-    if (command.actor !== "participant") return wrongActor(workspace, command);
     const index = workspace.routeProposalSets.findIndex((set) => set.ref === command.input.routeSetRef);
     const current = workspace.routeProposalSets[index];
     if (!current) return failure(workspace, unknownRef(command.input.routeSetRef), "No state changed.", command.actor);
@@ -429,6 +608,55 @@ export class CommandKernel {
     });
     return this.commit(workspace, command, next, operation, { routeSet },
       "The proposal was resolved by a compensating operation; proposal and receipt history remain intact.");
+  }
+
+  private async skipFollowUp(
+    workspace: Workspace,
+    command: Authorized<SkipFollowUpCommand>,
+  ): Promise<CommandResult> {
+    const index = workspace.followUpQuestions.findIndex((question) => question.ref === command.input.followUpRef);
+    const current = workspace.followUpQuestions[index];
+    if (!current) return failure(workspace, unknownRef(command.input.followUpRef), "No state changed.", command.actor);
+    if (current.status !== "proposed") return failure(workspace, lifecycleError(current.ref, current.status), "No state changed.", command.actor);
+    const followUp: FollowUpQuestion = { ...current, status: "skipped", availableActions: [] };
+    const afterVersion = workspace.stateVersion + 1;
+    const at = this.environment.now();
+    const operation = operationFor(workspace, command, afterVersion, at, [followUp.ref], "APPLIED");
+    const questions = [...workspace.followUpQuestions];
+    questions[index] = followUp;
+    const next = workspaceSchema.parse({
+      ...workspace,
+      stateVersion: afterVersion,
+      followUpQuestions: questions,
+      operations: [...workspace.operations, operation],
+    });
+    return this.commit(workspace, command, next, operation, { followUp },
+      "The participant skipped the follow-up question. The agent may propose from the confirmed words as they stand.");
+  }
+
+  private async reopenExploring(
+    workspace: Workspace,
+    command: Authorized<ReopenExploringCommand>,
+  ): Promise<CommandResult> {
+    const index = workspace.hypotheses.findIndex((hypothesis) => hypothesis.ref === command.input.hypothesisRef);
+    const current = workspace.hypotheses[index];
+    if (!current) return failure(workspace, unknownRef(command.input.hypothesisRef), "No state changed.", command.actor);
+    if (current.status !== "accepted") return failure(workspace, lifecycleError(current.ref, current.status), "No state changed.", command.actor);
+    const hypothesis: Hypothesis = { ...current, status: "parked" };
+    const afterVersion = workspace.stateVersion + 1;
+    const at = this.environment.now();
+    const operation = operationFor(workspace, command, afterVersion, at, [hypothesis.ref], "APPLIED");
+    const hypotheses = [...workspace.hypotheses];
+    hypotheses[index] = hypothesis;
+    const next = workspaceSchema.parse({
+      ...workspace,
+      stateVersion: afterVersion,
+      phase: "EXPLORING",
+      hypotheses,
+      operations: [...workspace.operations, operation],
+    });
+    return this.commit(workspace, command, next, operation, { hypothesis },
+      "The chosen direction is parked, not erased. The workspace is exploring again and a new proposal must cite the last route set.");
   }
 
   private async commit(
@@ -482,37 +710,30 @@ function validateRoutes(
     return policyDenied("Every route must propose a distinct test.");
   }
 
-  const existingRefs = new Set([
-    workspace.id,
-    ...workspace.reflections.map((reflection) => reflection.ref),
-    ...workspace.routeProposalSets.map((set) => set.ref),
-    ...workspace.routeProposalSets.flatMap((set) => set.routes.map((route) => route.ref)),
-    ...workspace.hypotheses.map((hypothesis) => hypothesis.ref),
-    ...workspace.operations.map((operation) => operation.operationRef),
-  ]);
+  const existingRefs = workspaceRefs(workspace);
   if (!options.allowExistingRefs) {
     const collision = refs.find((ref) => existingRefs.has(ref));
-    if (collision) return policyDenied(`Route ref ${collision} is already in use.`);
+    if (collision) return policyDenied(`Route ref ${collision} is already in use. Choose a new ref for every new route.`);
   }
 
   for (const route of routes) {
     const sourceIdentities = route.sourceQuotes.map((source) =>
-      `${source.reflectionRef}\u0000${source.quote}`);
+      `${source.reflectionRef} ${source.quote}`);
     if (new Set(sourceIdentities).size !== sourceIdentities.length) {
       return policyDenied(`${route.ref} repeats the same quote source.`);
     }
     if (route.test.maximumHours > workspace.participant.costCaps.hoursPerWeek) {
-      return policyDenied(`${route.ref} exceeds the recorded weekly time cap.`);
+      return policyDenied(`${route.ref} exceeds the recorded weekly time limit of ${workspace.participant.costCaps.hoursPerWeek} hours.`);
     }
     if (route.test.maximumMoney > workspace.participant.costCaps.money ||
       route.test.currency !== workspace.participant.costCaps.currency) {
-      return policyDenied(`${route.ref} exceeds or changes the recorded money cap.`);
+      return policyDenied(`${route.ref} exceeds or changes the recorded money limit of ${workspace.participant.costCaps.money} ${workspace.participant.costCaps.currency}.`);
     }
     for (const source of route.sourceQuotes) {
       const reflection = workspace.reflections.find((candidate) => candidate.ref === source.reflectionRef);
       if (!reflection) return unknownRef(source.reflectionRef);
       if (reflection.status !== "confirmed" || !reflection.text.includes(source.quote)) {
-        return policyDenied(`Quote for ${source.reflectionRef} must be an exact substring of a confirmed reflection.`);
+        return policyDenied(`Quote for ${source.reflectionRef} must be an exact substring of that confirmed reflection.`);
       }
     }
   }
@@ -523,14 +744,6 @@ function applyRouteEdit(route: RoutePreview, edit: RouteEdit): RoutePreview {
   const { routeRef, ...changes } = edit;
   void routeRef;
   return { ...route, ...changes };
-}
-
-function sameRouteContent(left: RoutePreview, right: RoutePreview): boolean {
-  const { status: leftStatus, ...leftContent } = left;
-  const { status: rightStatus, ...rightContent } = right;
-  void leftStatus;
-  void rightStatus;
-  return JSON.stringify(leftContent) === JSON.stringify(rightContent);
 }
 
 function operationFor(
@@ -582,14 +795,20 @@ function replayResult(workspace: Workspace, command: AuthorizedCommand): Command
   switch (existing.command) {
     case "save_reflection": {
       const reflection = workspace.reflections.find((item) => existing.changedRefs.includes(item.ref));
-      if (reflection) data = { reflection };
+      const answered = workspace.followUpQuestions.find((item) => existing.changedRefs.includes(item.ref));
+      if (reflection) data = answered ? { reflection, answeredFollowUp: answered } : { reflection };
+      break;
+    }
+    case "set_limits": {
+      data = { participant: workspace.participant };
       break;
     }
     case "propose_route_set": {
-      const routeSet = workspace.routeProposalSets.find(
-        (set) => set.ref === existing.changedRefs.at(-1),
-      );
+      const target = existing.changedRefs.at(-1);
+      const routeSet = workspace.routeProposalSets.find((set) => set.ref === target);
+      const followUp = workspace.followUpQuestions.find((question) => question.ref === target);
       if (routeSet) data = { outcome: "routes", routeSet };
+      else if (followUp) data = { outcome: "insufficient_signal", followUp };
       break;
     }
     case "revise_route_set":
@@ -608,6 +827,16 @@ function replayResult(workspace: Workspace, command: AuthorizedCommand): Command
         (item) => item.ref === existing.changedRefs[1],
       );
       if (routeSet && hypothesis) data = { routeSet, hypothesis };
+      break;
+    }
+    case "skip_follow_up": {
+      const followUp = workspace.followUpQuestions.find((item) => item.ref === existing.changedRefs[0]);
+      if (followUp) data = { followUp };
+      break;
+    }
+    case "reopen_exploring": {
+      const hypothesis = workspace.hypotheses.find((item) => item.ref === existing.changedRefs[0]);
+      if (hypothesis) data = { hypothesis };
       break;
     }
   }
@@ -666,7 +895,7 @@ function wrongActor(workspace: Workspace, command: AuthorizedCommand): CommandRe
     code: "WRONG_ACTOR",
     what: `${command.name} is participant-only.`,
     retry: "NEVER",
-    insteadDo: "Do not repeat this request. Prepare the visible interaction and let the participant submit a new command with a new operationId.",
+    insteadDo: "Do not repeat this request. Tell the participant what is waiting for them in the Route Room and reread after they act.",
   }, "No state changed because the participant-only boundary denied this command.", command.actor);
 }
 
@@ -689,15 +918,15 @@ function policyDenied(what: string): CommandError {
 function nextAvailableRef(
   workspace: Workspace,
   prefix: string,
-  afterVersion: number,
+  afterVersion: number | undefined,
   reserved: string[] = [],
 ): string {
   const used = workspaceRefs(workspace);
   for (const ref of reserved) used.add(ref);
-  const base = `${prefix}-${afterVersion}`;
-  if (!used.has(base)) return base;
+  const base = afterVersion === undefined ? prefix : `${prefix}-${afterVersion}`;
+  if (afterVersion !== undefined && !used.has(base)) return base;
   for (let suffix = 2; ; suffix += 1) {
-    const candidate = `${base}-${suffix}`;
+    const candidate = afterVersion === undefined ? `${base}-v${suffix}` : `${base}-${suffix}`;
     if (!used.has(candidate)) return candidate;
   }
 }
@@ -706,6 +935,7 @@ function workspaceRefs(workspace: Workspace): Set<string> {
   return new Set([
     workspace.id,
     ...workspace.reflections.map((reflection) => reflection.ref),
+    ...workspace.followUpQuestions.map((question) => question.ref),
     ...workspace.routeProposalSets.map((set) => set.ref),
     ...workspace.routeProposalSets.flatMap((set) => set.routes.map((route) => route.ref)),
     ...workspace.hypotheses.map((hypothesis) => hypothesis.ref),

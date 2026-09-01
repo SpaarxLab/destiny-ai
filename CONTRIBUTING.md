@@ -8,6 +8,7 @@
 | Lane A — domain/commands/persistence | Devarsh (`Devarsh009`) | invariants, command kernel, migrations, receipts |
 | Lane B — human board/collaboration | Tirth (`Tirth262830`) | interaction design, accessibility, browser journeys |
 | Lane C — agent surface/evals/runtime | Harsh | WebMCP adapters, method, evals, live runtime proof |
+| Lane D — inference (optional) | Harsh | embedded lab assistant, agent simulator, provider-off evals; never state authority |
 | Safeguarding review | **OWNER INPUT** | distress and referral copy |
 | Participant recruitment | Harsh | five adult participant commitments |
 
@@ -27,7 +28,8 @@ Use Node 24 from `.nvmrc` or `.node-version`.
 ## Before coding
 
 Read `PROJECT_STATE.md`, `SPEC.md`, `docs/DECISIONS.md`, `docs/PLAN.md`, `AGENTS.md`, then
-the active packet in `docs/packets/`. Confirm the packet owner and owned paths.
+the active packet in `docs/packets/`. Confirm the packet owner and owned paths. New to the
+codebase? Start with `docs/HOW_IT_WORKS.md`.
 
 ## Working agreement
 
@@ -68,7 +70,7 @@ A pull request:
 ## Integration and definition of done
 
 Integration order: `domain schema -> command/denial tests -> adapter and UI -> browser
-journey -> docs/receipt`. Harsh integrates dependency-order only; failed or incomplete
+journey -> real-Chrome WebMCP suite -> docs/receipt`. Harsh integrates dependency-order only; failed or incomplete
 packets are parked with a receipt, never partially copied into `main`.
 
 A packet is done when it has: a named operator outcome and owner; satisfied prerequisites;

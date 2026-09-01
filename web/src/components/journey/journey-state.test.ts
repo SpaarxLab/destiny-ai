@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { STUCK_CHOICES, questionsFor } from "../../content/journey";
 import { answeredEntries, emptyJourneyDraft, parseJourneyDraft } from "./journey-state";
+import { highlightSegments } from "../room/words-panel";
 
 describe("Destiny Journey configuration", () => {
   it.each(STUCK_CHOICES.map((choice) => [choice.id]))(
@@ -18,8 +19,7 @@ describe("Destiny Journey configuration", () => {
   it("restores a saved screen and preserves only written answers as sources", () => {
     const saved = {
       ...emptyJourneyDraft(),
-      screen: "saved" as const,
-      resumeScreen: "questions" as const,
+      screen: "questions" as const,
       shape: "own-words" as const,
       questionIndex: 1,
       answers: {
@@ -29,12 +29,7 @@ describe("Destiny Journey configuration", () => {
     };
 
     const restored = parseJourneyDraft(JSON.stringify(saved));
-    expect(restored).toMatchObject({
-      screen: "saved",
-      resumeScreen: "questions",
-      shape: "own-words",
-      questionIndex: 1,
-    });
+    expect(restored).toMatchObject({ screen: "questions", shape: "own-words", questionIndex: 1 });
     expect(answeredEntries(restored)).toEqual([
       ["own-question", "What work lets me think and help?"],
     ]);
@@ -43,5 +38,17 @@ describe("Destiny Journey configuration", () => {
   it("falls back safely when local draft bytes are malformed", () => {
     expect(parseJourneyDraft("not-json")).toEqual(emptyJourneyDraft());
     expect(parseJourneyDraft(JSON.stringify({ screen: "routes" }))).toEqual(emptyJourneyDraft());
+  });
+});
+
+describe("grounding highlights", () => {
+  it("marks every exact quoted substring and merges overlaps", () => {
+    const text = "I keep returning to making complicated work easier to understand.";
+    expect(highlightSegments(text, ["making complicated work", "complicated work easier"])).toEqual([
+      { text: "I keep returning to ", marked: false },
+      { text: "making complicated work easier", marked: true },
+      { text: " to understand.", marked: false },
+    ]);
+    expect(highlightSegments(text, ["not present"])).toEqual([{ text, marked: false }]);
   });
 });

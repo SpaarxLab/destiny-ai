@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   METHOD_VERSION,
+  agentCapabilityCopy,
   methodGuideResultSchema,
   webMcpReadWorkspaceResultSchema,
 } from "./contracts";
@@ -9,10 +10,12 @@ import { agentStatusCopy } from "./registrar";
 import { detectModelContext } from "./runtime";
 import { FakeWebMcpRuntime, createWebMcpHarness } from "./testing/fake-runtime";
 import { READ_WORKSPACE_INPUT_SCHEMA } from "./tools";
+import type { AgentActivityEvent } from "./activity";
 import {
   READ_ENTITY_LIMIT,
   ORIENTATION_ESTIMATED_TOKEN_BUDGET,
   ORIENTATION_MAX_SERIALIZED_CHARS,
+  type OrientationProjection,
 } from "../domain/reads";
 import { CONTRACT_VERSION, createEmptyWorkspace, workspaceSchema } from "../domain/workspace";
 import { WorkspaceReader } from "../projections/workspace-reader";
@@ -44,9 +47,13 @@ describe("P8A native WebMCP foundation", () => {
     const { reader } = setup();
     const manager = new WebMcpRegistrationManager(() => null);
     await expect(manager.replace(reader)).resolves.toEqual({ status: "unsupported" });
-    expect(agentStatusCopy({ status: "unsupported" })).toBe(
-      "Agent tools not detected · Human mode",
-    );
+    expect(agentStatusCopy({ status: "unsupported" })).toBe("Human mode");
+    expect(agentCapabilityCopy(null, { status: "unsupported" })).toBe("Human mode: no agent connected.");
+  });
+
+  it("describes browser capability without claiming that ChatGPT has connected", () => {
+    expect(agentStatusCopy({ status: "registered", toolNames: ["read_workspace"] }))
+      .toBe("Agent tools ready");
   });
 
   it("registers the exact read-only catalogue with strict input schemas", async () => {
@@ -63,15 +70,9 @@ describe("P8A native WebMCP foundation", () => {
       untrustedContentHint: true,
     });
     expect(runtime.latest("get_method_guide").annotations).toEqual({ readOnlyHint: true });
-    expect(runtime.latest("read_workspace").description).toContain(
-      "Use orientation for identity, proof summary",
-    );
-    expect(runtime.latest("read_workspace").description).toContain(
-      "use working_set for current reflections, route sets, and accepted hypotheses",
-    );
-    expect(runtime.latest("read_workspace").description).toContain(
-      "individual routes, hypotheses, and public receipt summaries",
-    );
+    expect(runtime.latest("read_workspace").description).toContain("confirmedWords");
+    expect(runtime.latest("read_workspace").description).toContain("proposal availability");
+    expect(runtime.latest("read_workspace").description).toContain("follow-up questions");
     expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf).toHaveLength(3);
     expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf.every((schema) =>
       schema.additionalProperties === false)).toBe(true);
@@ -240,7 +241,7 @@ describe("P8A native WebMCP foundation", () => {
     expect(malformed).toMatchObject({ ok: false, error: { code: "MALFORMED_INPUT" } });
   });
 
-  it("returns the versioned method guide and rejects extra input", async () => {
+  it("returns the operational versioned method guide and rejects extra input", async () => {
     const base = createEmptyWorkspace();
     const workspace = workspaceSchema.parse({
       ...base,
@@ -266,6 +267,12 @@ describe("P8A native WebMCP foundation", () => {
       methodVersion: METHOD_VERSION,
       contractVersion: CONTRACT_VERSION,
     });
+    expect(guide.data.steps.length).toBeGreaterThanOrEqual(8);
+    expect(guide.data.steps.join(" ")).toContain("exact substring");
+    expect(guide.data.steps.join(" ")).toContain("carryRouteRef");
+    expect(guide.data.steps.join(" ")).toContain("insufficient_signal");
+    expect(guide.data.steps.join(" ")).toContain("STALE_STATE");
+    expect(guide.data.exampleInput).toMatchObject({ outcome: "routes" });
     expect(guide.stateVersion).toBe(7);
     expect(await runtime.invoke("get_method_guide", { hidden: true })).toMatchObject({
       ok: false,
@@ -283,5 +290,36 @@ describe("P8A native WebMCP foundation", () => {
 
     await expect(manager.replace(reader)).resolves.toMatchObject({ status: "registered" });
     expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
+  });
+
+  it("emits one participant-readable activity event per read invocation", async () => {
+    const { reader } = setup();
+    const runtime = new FakeWebMcpRuntime();
+    const manager = new WebMcpRegistrationManager(() => runtime);
+    const events: AgentActivityEvent[] = [];
+    await manager.replace(reader, { onAgentActivity: (event) => events.push(event) });
+
+    await runtime.invoke("read_workspace", { view: "orientation" });
+    await runtime.invoke("get_method_guide", {});
+    await runtime.invoke("read_workspace", { view: "orientation", hidden: true });
+
+    expect(events.map((event) => [event.tool, event.outcome, event.effect])).toEqual([
+      ["read_workspace", "ok", "READ"],
+      ["get_method_guide", "ok", "READ"],
+      ["read_workspace", "denied", "NONE"],
+    ]);
+    for (const event of events) {
+      expect(event.summary).not.toMatch(/read_workspace|get_method_guide|propose_route_set/);
+      expect(event.id).toBeTruthy();
+      expect(event.at).toBeTruthy();
+    }
+  });
+
+  it("describes capability from the same orientation the agent reads", () => {
+    const { reader } = setup();
+    const result = reader.read({ view: "orientation" });
+    const orientation = result.data as OrientationProjection;
+    expect(agentCapabilityCopy(orientation, { status: "registered" })).toBe("ChatGPT can read your room.");
+    expect(agentCapabilityCopy(orientation, { status: "failed" })).toContain("could not connect");
   });
 });

@@ -1,9 +1,11 @@
 import type {
   AvailableAction,
+  FollowUpQuestion,
   Hypothesis,
   OperationReceipt,
   Reflection,
   RouteProposalSet,
+  Workspace,
 } from "./workspace";
 
 export type RetryInstruction =
@@ -42,7 +44,12 @@ export interface ToolResult<T> {
   guidance: string;
 }
 
-export type SaveReflectionResult = ToolResult<{ reflection: Reflection }>;
+export type SaveReflectionResult = ToolResult<{
+  reflection: Reflection;
+  answeredFollowUp?: FollowUpQuestion;
+}>;
+
+export type SetLimitsResult = ToolResult<{ participant: Workspace["participant"] }>;
 
 export type ProposeRouteSetResult =
   | (ToolResult<{ outcome: "routes"; routeSet: RouteProposalSet }> & {
@@ -53,16 +60,14 @@ export type ProposeRouteSetResult =
     })
   | (ToolResult<{
       outcome: "insufficient_signal";
-      followUpQuestion: string;
-      reasonRefs: string[];
+      followUp: FollowUpQuestion;
     }> & {
       ok: true;
       data: {
         outcome: "insufficient_signal";
-        followUpQuestion: string;
-        reasonRefs: string[];
+        followUp: FollowUpQuestion;
       };
-      receipt?: never;
+      receipt: OperationReceipt;
       error?: never;
     })
   | (ToolResult<never> & {
@@ -81,9 +86,16 @@ export type ChooseRouteResult = ToolResult<{
 
 export type CompensateRouteSetResult = ToolResult<{ routeSet: RouteProposalSet }>;
 
+export type SkipFollowUpResult = ToolResult<{ followUp: FollowUpQuestion }>;
+
+export type ReopenExploringResult = ToolResult<{ hypothesis: Hypothesis }>;
+
 export type CommandResult =
   | SaveReflectionResult
+  | SetLimitsResult
   | ProposeRouteSetResult
   | ReviseRouteSetResult
   | ChooseRouteResult
-  | CompensateRouteSetResult;
+  | CompensateRouteSetResult
+  | SkipFollowUpResult
+  | ReopenExploringResult;

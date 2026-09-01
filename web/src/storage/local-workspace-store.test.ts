@@ -85,6 +85,36 @@ describe("LocalWorkspaceStore", () => {
     expect(firstStore.load().operations).toHaveLength(1);
   });
 
+  it("serializes start-over so an in-flight stale tab cannot resurrect cleared state", async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLockManager();
+    const firstStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const secondStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const first = createParticipantCommandAdapter(new CommandKernel(firstStore));
+    const second = createParticipantCommandAdapter(new CommandKernel(secondStore));
+
+    await first.saveReflection({
+      operationId: operationOne,
+      expectedVersion: 0,
+      text: "Words that should stay deleted after Start over.",
+    });
+
+    const clear = firstStore.clear(1);
+    const staleWrite = second.saveReflection({
+      operationId: operationTwo,
+      expectedVersion: 1,
+      text: "A stale tab must not bring the room back.",
+    });
+
+    await expect(clear).resolves.toBeUndefined();
+    await expect(staleWrite).resolves.toMatchObject({
+      ok: false,
+      error: { code: "STALE_STATE" },
+    });
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBeNull();
+    expect(firstStore.load()).toEqual(createEmptyWorkspace());
+  });
+
   it("returns an operation conflict when two tabs reuse one id for different intent", async () => {
     const storage = new MemoryStorage();
     const locks = new SerialLockManager();
@@ -354,3 +384,61 @@ class MemoryStorage implements Storage {
     this.values.set(key, value);
   }
 }
+
+describe("schema v2 to v3 migration", () => {
+  it("migrates stored v2 bytes with a route set in memory without overwriting them", async () => {
+    const storage = new MemoryStorage();
+    const base = p3Workspace();
+    const v2 = {
+      ...base,
+      schemaVersion: 2,
+      contractVersion: "1.1.0",
+      stateVersion: 1,
+      routeProposalSets: [{
+        id: "00000000-0000-4000-8000-000000000760",
+        ref: "route-set-1",
+        availableActions: [],
+        status: "proposed",
+        routes: validRoutes().map((route) => ({ ...route, status: "proposed" })),
+        createdBy: "chatgpt_webmcp",
+        createdAt: "2026-09-01T10:00:00.000Z",
+      }],
+      operations: [{
+        operationId: operationOne,
+        operationRef: "operation-1",
+        actor: "agent",
+        command: "propose_route_set",
+        effect: "PROPOSED",
+        beforeVersion: 0,
+        afterVersion: 1,
+        changedRefs: ["route-set-1"],
+        at: "2026-09-01T10:00:00.000Z",
+        requestIdentity: "internal-v2",
+      }],
+    };
+    const { followUpQuestions: _omit, ...v2Bytes } = v2;
+    void _omit;
+    const originalBytes = JSON.stringify(v2Bytes);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, createEmptyWorkspace(), new SerialLockManager());
+
+    const loaded = store.load();
+    expect(loaded).toMatchObject({
+      schemaVersion: WORKSPACE_SCHEMA_VERSION,
+      contractVersion: CONTRACT_VERSION,
+      followUpQuestions: [],
+      stateVersion: 1,
+    });
+    expect(loaded.routeProposalSets[0].routes.map((route) => route.ref)).toEqual(["route-closest", "route-bridge", "route-probe"]);
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+
+    const result = await createParticipantCommandAdapter(new CommandKernel(store)).reviseRouteSet({
+      operationId: operationTwo,
+      expectedVersion: 1,
+      routeSetRef: "route-set-1",
+      rejectRouteRefs: ["route-probe"],
+    });
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(storage.getItem(LOCAL_WORKSPACE_KEY)!).schemaVersion).toBe(WORKSPACE_SCHEMA_VERSION);
+  });
+});

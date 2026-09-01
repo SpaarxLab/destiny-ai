@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  costCapsSchema,
   quoteSourceSchema,
   routeKindSchema,
   routeTestSchema,
@@ -15,6 +16,7 @@ export const writeControlSchema = z.strictObject({
 
 export const saveReflectionInputSchema = writeControlSchema.extend({
   text: z.string().trim().min(1).max(2_000),
+  answersFollowUpRef: refSchema.optional(),
 });
 export type SaveReflectionInput = z.infer<typeof saveReflectionInputSchema>;
 
@@ -23,6 +25,22 @@ export const saveReflectionCommandSchema = z.strictObject({
   input: saveReflectionInputSchema,
 });
 export type SaveReflectionCommand = z.infer<typeof saveReflectionCommandSchema>;
+
+export const setLimitsInputSchema = writeControlSchema.extend({
+  costCaps: costCapsSchema.extend({
+    hoursPerWeek: z.number().positive().max(168),
+    money: z.number().nonnegative().max(1_000_000),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+  }),
+  focusQuestion: z.string().trim().max(500).optional(),
+});
+export type SetLimitsInput = z.infer<typeof setLimitsInputSchema>;
+
+export const setLimitsCommandSchema = z.strictObject({
+  name: z.literal("set_limits"),
+  input: setLimitsInputSchema,
+});
+export type SetLimitsCommand = z.infer<typeof setLimitsCommandSchema>;
 
 export const routeProposalInputSchema = z.strictObject({
   ref: refSchema,
@@ -38,9 +56,21 @@ export const routeProposalInputSchema = z.strictObject({
 });
 export type RouteProposalInput = z.infer<typeof routeProposalInputSchema>;
 
+/**
+ * When a proposal supersedes a set that is still proposed, every route the participant kept must
+ * be carried over unchanged. Only routes the participant set aside may be replaced.
+ */
+export const carriedRouteInputSchema = z.strictObject({
+  carryRouteRef: refSchema,
+});
+export type CarriedRouteInput = z.infer<typeof carriedRouteInputSchema>;
+
+export const routeSlotInputSchema = z.union([routeProposalInputSchema, carriedRouteInputSchema]);
+export type RouteSlotInput = z.infer<typeof routeSlotInputSchema>;
+
 const proposeRoutesInputSchema = writeControlSchema.extend({
   outcome: z.literal("routes"),
-  routes: z.tuple([routeProposalInputSchema, routeProposalInputSchema, routeProposalInputSchema]),
+  routes: z.tuple([routeSlotInputSchema, routeSlotInputSchema, routeSlotInputSchema]),
   supersedesRouteSetRef: refSchema.optional(),
 });
 
@@ -122,14 +152,49 @@ export const compensateRouteSetCommandSchema = z.strictObject({
 });
 export type CompensateRouteSetCommand = z.infer<typeof compensateRouteSetCommandSchema>;
 
+export const skipFollowUpInputSchema = writeControlSchema.extend({
+  followUpRef: refSchema,
+});
+export type SkipFollowUpInput = z.infer<typeof skipFollowUpInputSchema>;
+
+export const skipFollowUpCommandSchema = z.strictObject({
+  name: z.literal("skip_follow_up"),
+  input: skipFollowUpInputSchema,
+});
+export type SkipFollowUpCommand = z.infer<typeof skipFollowUpCommandSchema>;
+
+export const reopenExploringInputSchema = writeControlSchema.extend({
+  hypothesisRef: refSchema,
+});
+export type ReopenExploringInput = z.infer<typeof reopenExploringInputSchema>;
+
+export const reopenExploringCommandSchema = z.strictObject({
+  name: z.literal("reopen_exploring"),
+  input: reopenExploringInputSchema,
+});
+export type ReopenExploringCommand = z.infer<typeof reopenExploringCommandSchema>;
+
 export const commandSchema = z.discriminatedUnion("name", [
   saveReflectionCommandSchema,
+  setLimitsCommandSchema,
   proposeRouteSetCommandSchema,
   reviseRouteSetCommandSchema,
   chooseRouteCommandSchema,
   compensateRouteSetCommandSchema,
+  skipFollowUpCommandSchema,
+  reopenExploringCommandSchema,
 ]);
 export type Command = z.infer<typeof commandSchema>;
+export type CommandName = Command["name"];
+
+export const PARTICIPANT_ONLY_COMMANDS: readonly CommandName[] = [
+  "set_limits",
+  "revise_route_set",
+  "choose_route",
+  "compensate_route_set",
+  "skip_follow_up",
+  "reopen_exploring",
+];
 
 export function commandRequestIdentity(
   command: Command,

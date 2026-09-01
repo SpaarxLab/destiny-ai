@@ -1,28 +1,34 @@
 # Destiny.AI — Product and System Contract
 
-**Status:** Current product/technical authority, revised 2026-09-01.
-**Build admission:** P1, P2, P3A, and P8A are integrated. P3C makes the P3 route lifecycle
-cold-readable through the bounded P8A read surface while P3B owns the participant journey. P8B
-then adds only the admitted route-proposal write adapter and agent evals. Participant research
-remains reviewer- and recruitment-gated.
+**Status:** Current product/technical authority, revised for candidate v2 (D-015).
+**Contract version:** `1.2.0` · **Workspace schema:** `3` · **Read contract:** `read-workspace/3.0.0` ·
+**Method guide:** `destiny-method/2.0.0`.
+**Build admission:** P1, P2, P3A, P3B, P3C, and P8A are integrated on `main`; P8B is committed on
+`codex/spx-10-p8b`; candidate v2 (P11) is built on `codex/spx-18-candidate-v2` and is the candidate
+this contract describes. Participant research remains reviewer- and recruitment-gated.
 **Supersedes:** the original Destiny.AI brainstorm, the red/green whiteboards, the eight
-internal-agent concept, and the pre-review architecture in this file.
+internal-agent concept, the pre-review architecture in this file, and the contract 1.1.0 rules that
+D-015 lists as superseded.
 **Review receipt:** `docs/archive/2026-09-01-foundation/SYSTEM_REVIEW.md`.
 
 ## 1. Product promise
 
-A guided Destiny Journey where a career-stuck adult and ChatGPT turn the person's own words into
-three grounded routes and leave with one participant-approved hypothesis plus a bounded seven-day
-test idea. After submission, the product can run that test and revise direction only from confirmed
-evidence. The website is their shared Route Room.
+A guided Destiny Journey where a career-stuck adult and a visiting agent turn the person's own words
+into three grounded routes and leave with one participant-approved hypothesis plus a bounded
+seven-day test idea. After submission, the product can run that test and revise direction only from
+confirmed evidence. The website is their shared Route Room.
 
 **Thesis:** direction is not predicted and is not found through endless introspection. It is
 reduced through small, reversible experiments against the real world. The agent is a lab
 assistant; the participant owns the question, approvals, evidence, and real-world action.
 
+**Two chairs, one table (D-015):** the person and the agent operate the same Route Room. Every agent
+move is a receipted proposal the person can see. The agent may ask one question before it guesses,
+and it may replace only what the person set aside.
+
 The first useful session is:
 
-`shape of stuck -> focused prompts -> confirmed words -> three route previews -> choose one to test`
+`shape of stuck -> focused prompts -> confirmed words -> limits -> three route previews -> choose one to test`
 
 The smallest complete learning loop is:
 
@@ -36,9 +42,10 @@ The smallest complete learning loop is:
 2. **One state authority.** The MVP workspace is one versioned local document. UI and WebMCP
    invoke the same command kernel; neither writes storage directly.
 3. **The Route Room is the shared object.** Agent-visible facts are inspectable by the participant.
-   Compact summaries are derived projections with provenance, never a hidden second memory.
-4. **Propose before consequence.** Agent hypotheses, experiments, evidence transcriptions,
-   verdicts, and confidence revisions require human acceptance.
+   Compact summaries are derived projections with provenance, never a hidden second memory. The
+   participant can open the exact projection the agent reads ("See what ChatGPT sees").
+4. **Propose before consequence.** Agent hypotheses, follow-up questions, experiments, evidence
+   transcriptions, verdicts, and confidence revisions require human acceptance.
 5. **Schemas are one policy layer, not the whole policy.** Bounded schemas reject malformed
    inputs; the command kernel also enforces current phase, lifecycle, versions, and approval.
 6. **Phase controls discovery and execution.** WebMCP registers only phase-relevant tools;
@@ -55,30 +62,39 @@ The smallest complete learning loop is:
     It does not diagnose, treat distress, or claim a correct career.
 12. **Anything equally good in plain chat is removed.** The differentiator is shared state,
     governed action, human collaboration, and verified after-state.
+13. **The agent replaces only what the person set aside.** A proposal may supersede a live set
+    only when at least one route is set aside, and every kept route must be carried over unchanged.
+14. **Agent affordances never advertise an unregistered tool.** Every `availableActions` entry with
+    `actor: 'agent'` names a tool the page registers in that state.
 
 ## 3. Scope
 
 ### MVP
 
 - one local participant workspace;
-- onboarding, focus question, time/money caps, privacy notice, clear/export/import;
-- early “shape of stuck” branching, one-question steps, editable answers, and resumable progress;
-- one bounded three-route proposal containing Closest, Bridge, and Probe previews;
-- reflections, hypotheses, experiments, evidence, revisions, week plan, outbox, activity;
-- human-only phase gates and real-world sends;
-- visiting-agent WebMCP tools, method guide, compact orientation, typed errors, receipts;
-- explicit human teachings from accept/edit/reject/correct actions;
-- deterministic fixtures, command tests, browser journeys, and live runtime proof.
+- onboarding, shape-of-stuck branch, one-question steps, editable confirmed words, recorded limits,
+  privacy notice, start over, export;
+- one bounded three-route proposal containing Closest, Bridge, and Probe previews, or one receipted
+  follow-up question when the words are too thin;
+- replacement of set-aside routes with kept routes carried over;
+- reflections, follow-up questions, route sets, hypotheses, receipts, activity;
+- human-only phase gates, limits, choice, reopening, and real-world sends;
+- visiting-agent WebMCP tools (imperative and one declarative form), method guide, compact
+  orientation, typed errors, receipts;
+- an optional embedded lab assistant as a replaceable proposal source, disabled by default;
+- deterministic fixtures, command tests, browser journeys, real-Chrome runtime proof, provider-off
+  inference and simulator evals;
 - a complete no-provider baseline: the human journey and visiting-agent WebMCP journey work
   without embedded inference credentials.
 
 ### Deferred
 
+- experiments, evidence, revisions, week plan, outbox, teachings (P4-P7);
+- import with preview (export exists; import is deferred);
 - authentication, server database, multi-person workspaces, sync, background agents;
 - resource/opportunity search, portfolio generation, embedded chatbot, Gmail/Calendar;
 - a career knowledge store, internal reflection/plan agents, automatic nudges;
-- automatic model-written taste summaries that become active without review.
-- optional AI SDK/OpenCode Go Luna inference behind a server-only proposal-source interface;
+- automatic model-written taste summaries that become active without review;
 - durable frameworks such as EVE, evaluated only after a proven orchestration need; neither may
   become state authority.
 
@@ -93,12 +109,18 @@ The smallest complete learning loop is:
 - OpenAI describes the challenge as an app that becomes meaningfully better when people and
   agents use it together, and says ChatGPT's in-app browser supports WebMCP.
 - The current community-group draft exposes imperative tools through
-  `document.modelContext.registerTool()`.
+  `document.modelContext.registerTool()` and lists them through `getTools()`; agents invoke them
+  through `executeTool()`; the list changes fire `toolchange`.
 - Chrome documents an experimental origin trial beginning in Chrome 149 and the
   `#enable-webmcp-testing` flag. This is experimental and may drift.
-- The implementation must feature-detect the runtime, isolate compatibility behavior in one
-  adapter, and retain a deterministic in-page test harness. A passing harness is not live
-  ChatGPT or Chrome proof.
+- Verified on this machine in Chrome 152 with that flag persisted in a throwaway profile:
+  `document.modelContext` exists with `registerTool`, `getTools`, `executeTool`, and
+  `ontoolchange`; `executeTool` returns our structured results serialised as JSON strings;
+  `getTools` lists tools alphabetically and echoes `annotations`; a `<form toolname>` with
+  `toolautosubmit` is synthesised as a tool whose input schema mirrors the named fields, and its
+  submit handler must answer through `event.respondWith()`.
+- The implementation feature-detects the runtime, isolates compatibility behavior in one adapter,
+  and retains a deterministic in-page test harness. A passing harness is not live ChatGPT proof.
 
 Primary sources:
 [OpenAI challenge](https://openai.com/webmcp-challenge/) ·
@@ -125,32 +147,43 @@ The concrete control flow is:
 ```text
 participant UI ─┐
                 ├─> command kernel -> validate -> apply once -> workspace + receipt
-WebMCP tool ────┘                          │
-                                         ├─> UI renders authoritative after-state
-                                         └─> agent receives result + next actions
+WebMCP tool ────┤                          │
+embedded lab ───┘                          ├─> UI renders authoritative after-state
+assistant (optional)                       └─> agent receives result + next actions
 
 workspace + receipts -> deterministic orientation projection -> read_workspace
-human feedback       -> sourced teachings --------------------^
+human feedback       -> sourced teachings (P6) ---------------^
 ```
 
 The WebMCP registry is an adapter. It exposes product-owned commands; it is never an
 independent domain, permission system, or ledger.
 
-An optional inference adapter, if ever admitted, sits outside this tower as a replaceable
-proposal source. It receives bounded projections and returns typed proposals through the same
-commands. Its absence, timeout, quota failure, or removal must not break the product.
+Two pieces sit outside the tower and can be removed without touching it:
+
+- **Embedded lab assistant** (`web/src/inference/`, `web/src/app/api/lab-assistant/`): a
+  server-side, replaceable proposal source behind `LAB_ASSISTANT_PROVIDER` (default `disabled`).
+  It receives a bounded projection (confirmed words, limits, what may be replaced), returns a typed
+  draft that a deterministic grounding validator has already checked, and never persists, logs
+  participant text, or calls the kernel. The browser submits any returned draft through the same
+  `propose_route_set` command with `embedded_inference` provenance, and only after the participant
+  ticks the consent sentence for that request.
+- **Visiting-agent simulator** (`web/src/inference/agent-simulator.ts`): an AI SDK tool loop whose
+  only tools wrap an injected catalogue. It exists for evals and never runs against product state
+  outside the harness.
 
 ## 6. Journey and authority
 
-| Phase | Discoverable tools | Human-only gate |
+| Phase | Discoverable agent tools | Human-only gate |
 |---|---|---|
 | all phases | `read_workspace`, `get_method_guide` | — |
-| `EXPLORING` | `save_reflection`, `propose_route_set` | Participant calls `choose_route` |
-| `TESTING` | `propose_experiment`, `schedule_action`, `draft_outreach`, `log_evidence` | Close cycle after confirmed evidence |
-| `REVIEWING` | `propose_hypothesis_revision`, `propose_verdict` | Accept revision or re-explore |
+| `EXPLORING` before words are confirmed | `draft_words` (declarative form on answer screens) | Participant confirms words and `set_limits` |
+| `EXPLORING` with confirmed words | `propose_route_set` when `proposal.available` | Participant answers or skips a follow-up, then `revise_route_set` / `choose_route` |
+| `TESTING` | none | `reopen_exploring` parks the hypothesis and returns to `EXPLORING` |
+| `REVIEWING` | `propose_hypothesis_revision`, `propose_verdict` (P5) | Accept revision or re-explore |
 
 Registration helps an agent discover what is relevant. The command kernel is authoritative:
-it rejects wrong-phase, wrong-resource, stale, replay-conflict, and unconfirmed-evidence use.
+it rejects wrong-phase, wrong-actor, wrong-resource, stale, replay-conflict, and unconfirmed-evidence
+use.
 
 Agent work has three effect classes:
 
@@ -161,43 +194,62 @@ Agent work has three effect classes:
 Direct committed mutations are reserved for explicit participant UI commands and internal
 bookkeeping performed atomically with an accepted command.
 
-`propose_route_set` is a replay-safe `PROPOSE` command shared by the participant UI, ChatGPT
-WebMCP adapter, and any optional inference adapter. Its input is either
-`{ outcome: 'routes', routes: [RoutePreview, RoutePreview, RoutePreview] }` or
-`{ outcome: 'insufficient_signal', followUpQuestion: string, reasonRefs: string[] }`. The kernel
-validates bounds, exact references, caps, and structural distinction; it does not pretend to judge
-career sufficiency itself. The insufficient branch stores no route set. A replacement proposal
-includes `supersedesRouteSetRef`; the older set stays in history.
+**Participant commands** (`web/src/domain/commands.ts`, all replay-safe, all receipted):
 
-`insufficient_signal` is a successful, non-mutating diagnostic outcome: the result has `ok: true`,
-typed `outcome`, `followUpQuestion`, and `reasonRefs` data, no `error`, no receipt, and the unchanged
-`stateVersion`. It is not a successful write. Every successful write still creates and returns a
-receipt.
+- `save_reflection` confirms the participant's words; with `answersFollowUpRef` it also marks an
+  open follow-up question `answered` in the same receipt.
+- `set_limits` records `costCaps` (hours per week, money, three-letter currency) and optionally the
+  focus question. Limits never enter state through an initial snapshot. It is denied while a
+  proposed route's test would exceed the new limits.
+- `revise_route_set` owns bounded pre-choice edits and individual or all-route rejection.
+  Rejecting all routes resolves the set without creating a hypothesis.
+- `choose_route` is the single acceptance gate. It may include final edits, atomically creates the
+  accepted hypothesis and receipt, withdraws any open follow-up, and moves the phase to `TESTING`.
+- `compensate_route_set` resolves an untouched proposal as a compensating operation.
+- `skip_follow_up` marks an open follow-up question `skipped`.
+- `reopen_exploring` parks the accepted hypothesis and returns to `EXPLORING`; the next proposal
+  must cite the resolved set as its predecessor.
 
-`revise_route_set` is replay-safe and participant-only. It owns bounded pre-choice edits and
-individual or all-route rejection. Rejecting all routes resolves the set without creating a
-hypothesis. Revision, rejection, and supersession preserve receipts and proposal history.
+**Agent commands:**
 
-`choose_route` is a participant-only command and the single acceptance gate. It may include final
-participant edits, atomically creates the accepted hypothesis and receipt, and leaves the other two
-routes as non-authoritative proposal history. There is no second accept step.
+- `propose_route_set` is a replay-safe `PROPOSE` command shared by the participant UI, the WebMCP
+  adapter, and the optional embedded assistant. Its input is either
+  `{ outcome: 'routes', routes: [slot, slot, slot], supersedesRouteSetRef? }` where each slot is a
+  full `RouteProposalInput` or `{ carryRouteRef }`, or
+  `{ outcome: 'insufficient_signal', followUpQuestion, reasonRefs }`.
+- `insufficient_signal` is a receipted `PROPOSED` write. It creates one visible `FollowUpQuestion`
+  and returns `data.followUp` with a receipt. It is denied while a route set is proposed or another
+  question is open, and it is agent-only. A later routes proposal or choice withdraws an open
+  question in the same receipt.
+- A routes proposal must cite the latest route set as `supersedesRouteSetRef` when any exists.
+  Superseding a set that is still proposed is allowed only when the participant has set at least
+  one route aside: every kept route must appear as `{ carryRouteRef }`, the kernel copies it with a
+  fresh ref and `carriedFromRouteRef` preserving its status and edits, and the fresh routes must
+  cover exactly the set-aside kinds. Superseding a resolved (all-rejected or reopened) set takes
+  three fresh routes. The older set stays in history as `superseded` or `resolved`.
+- `draft_words` is a declarative WebMCP form tool on the answer, confirm, and follow-up screens. The
+  browser synthesises it from the participant's own `<form>`. When an agent executes it, the text is
+  staged into the participant's box and the form answers `AWAITING_HUMAN` through `respondWith`;
+  nothing is saved until the participant confirms. It is the `PREPARE_UI` class made native.
 
 ## 7. Canonical nouns and data
 
 Internal identity and agent legibility are separate:
 
 - `id`: stable opaque internal identity;
-- `ref`: short unique human/agent reference such as `hyp-analytical-01`;
+- `ref`: short unique human/agent reference such as `reflection-3`, `route-set-4`,
+  `route-closest-a1`, `question-5`, `hypothesis-7`, `operation-4`;
 - display title: editable participant-facing text.
 
 ```ts
 type Phase = 'EXPLORING' | 'TESTING' | 'REVIEWING';
 type GhostStatus = 'proposed' | 'accepted' | 'rejected' | 'superseded';
+type ProposalSource = 'chatgpt_webmcp' | 'participant' | 'embedded_inference';
 
 interface Workspace {
   id: string;
-  schemaVersion: number;
-  contractVersion: string;
+  schemaVersion: 3;
+  contractVersion: '1.2.0';
   stateVersion: number;
   phase: Phase;
   participant: {
@@ -206,14 +258,15 @@ interface Workspace {
     costCaps: { hoursPerWeek: number; money: number; currency: string };
   };
   reflections: Reflection[];
+  followUpQuestions: FollowUpQuestion[];
   routeProposalSets: RouteProposalSet[];
   hypotheses: Hypothesis[];
-  experiments: Experiment[];
-  evidence: Evidence[];
-  revisions: HypothesisRevision[];
-  planItems: PlanItem[];
-  outbox: OutreachDraft[];
-  teachings: HumanTeaching[];
+  experiments: Experiment[];          // empty until P4
+  evidence: Evidence[];               // empty until P5
+  revisions: HypothesisRevision[];    // empty until P5
+  planItems: PlanItem[];              // empty until P7
+  outbox: OutreachDraft[];            // empty until P7
+  teachings: HumanTeaching[];         // empty until P6
   operations: OperationRecord[];
 }
 
@@ -228,6 +281,16 @@ interface Reflection extends AgentAddressable {
   text: string;
   recordedBy: 'participant' | 'agent_transcribed';
   createdAt: string;
+  answersFollowUpRef?: string;        // set when this reflection answers a follow-up
+}
+
+interface FollowUpQuestion extends AgentAddressable {
+  status: 'proposed' | 'answered' | 'skipped' | 'withdrawn';
+  question: string;                   // <= 300 chars
+  reasonRefs: string[];               // confirmed reflections that were too thin, 1..5
+  askedBy: 'chatgpt_webmcp' | 'embedded_inference';
+  createdAt: string;
+  answerReflectionRef?: string;       // only when answered
 }
 
 type RouteKind = 'closest' | 'bridge' | 'probe';
@@ -250,6 +313,7 @@ interface RoutePreview {
   strengthensWhen: string;
   weakensWhen: string;
   status: 'proposed' | 'edited' | 'rejected' | 'selected';
+  carriedFromRouteRef?: string;       // copied unchanged from the superseded set
 }
 
 interface RouteProposalSet extends AgentAddressable {
@@ -257,7 +321,7 @@ interface RouteProposalSet extends AgentAddressable {
   routes: [RoutePreview, RoutePreview, RoutePreview];
   selectedRouteRef?: string;
   supersedesRouteSetRef?: string;
-  createdBy: 'chatgpt_webmcp' | 'participant' | 'embedded_inference';
+  createdBy: ProposalSource;
   createdAt: string;
 }
 
@@ -318,22 +382,27 @@ interface OperationRecord extends OperationReceipt {
 Route previews are durable proposal state, not accepted career facts. Selecting one route creates
 one accepted `Hypothesis` that copies its exact quote sources and preserves the originating route
 reference. The other routes remain proposal history and never become silently accepted. Every quote
-must equal a substring of its referenced confirmed reflection. Every route respects recorded time
-and money caps and proposes a test idea of no more than seven days.
+must equal a substring of its referenced confirmed reflection. Every proposed route respects the
+current time and money limits and proposes a test idea of no more than seven days.
 
-Workspace validation independently rechecks those caps and lifecycle relationships on load/import.
-Workspace identity, entity refs, route refs, hypothesis refs, and operation refs are globally unique;
-every receipt `changedRef` resolves to an addressable workspace object. Operation IDs are unique and
-the ordered ledger forms a contiguous `beforeVersion -> afterVersion` chain ending at
-`stateVersion`. A compensation may point only to one earlier, uncompensated `PROPOSED`
-`propose_route_set` operation for the same route set, with no intervening operation that changed
-that set, and only a `COMPENSATED`
-`compensate_route_set` record may carry that link.
+Workspace validation (`web/src/domain/workspace.ts`) independently rechecks these relationships on
+load/import: globally unique addressable refs (workspace id, reflections, follow-up questions, route
+sets, routes, hypotheses, operation refs); every receipt `changedRef` resolves; unique operation IDs
+and a contiguous `beforeVersion -> afterVersion` chain ending at `stateVersion`; at most one
+proposed route set and at most one open follow-up; answered follow-ups and their answer reflections
+point at each other; carried routes copy a same-kind route of the superseded set unchanged; proposed
+sets stay inside the current limits (historical sets were validated when created); selected-route
+cardinality; accepted-hypothesis lineage; `TESTING` holds exactly one accepted hypothesis and
+`EXPLORING` holds none; and the compensation rules below.
+
+A compensation may point only to one earlier, uncompensated `PROPOSED` `propose_route_set`
+operation for the same route set, with no intervening operation that changed that set, and only a
+`COMPENSATED` `compensate_route_set` record may carry that link.
 
 The workspace snapshot is canonical for current state. Operation receipts are canonical for
 what happened. A stored operation record adds the canonical request identity needed to
 distinguish a retry from reuse of an operation id for a different intent; that internal value
-is not returned in the public receipt. Orientation, counts, “story so far,” and collaboration
+is not returned in the public receipt. Orientation, counts, "story so far," and collaboration
 patterns are deterministic projections and can always be rebuilt.
 
 ## 8. Agent driver's-seat contract
@@ -351,37 +420,46 @@ type ReadWorkspaceInput =
 
 `orientation` is the default and returns:
 
-- workspace identity: schema, contract, state and phase versions;
-- focus question, caps, active hypothesis/experiment, and next human decision;
-- active constraints and sourced human teachings;
-- unresolved conflicts and pending human interactions;
-- changes since the optional cursor and a new cursor;
-- available actions with target refs;
+- workspace identity: schema, contract, read-contract, state and phase versions;
+- focus question and `costCaps`;
+- `confirmedWords`: the exact confirmed participant text with refs (newest last, at most six,
+  with `confirmedWordsTruncated`); every quote in a proposal must be an exact substring of one of
+  these texts;
+- active route set summary, accepted hypothesis summary, and the latest follow-up question;
+- `proposal`: whether and how the agent may propose right now (`available`, `mode: 'fresh' |
+  'replace_rejected'`, `reason`, `supersedesRouteSetRef`, `carryRouteRefs`, `replaceKinds`);
+- the next human decision (`ADD_REFLECTION`, `REVIEW_PROPOSED_REFLECTION`, `ANSWER_FOLLOW_UP`,
+  `CHOOSE_OR_REVISE_ROUTE_SET`, `REOPEN_OR_CONTINUE`, `NO_PENDING_DECISION`);
+- active constraints and sourced human teachings (teachings are empty until P6);
+- unresolved conflicts and pending human interactions (confirm reflection, answer follow-up,
+  choose or revise);
+- changes since the optional cursor (each with `actor`) and a new cursor;
+- available agent actions with target refs;
 - the highest relevant proof/confirmation status;
 - concise guidance.
 
-For the P3 collaboration it also returns the latest non-superseded route set as a compact
-three-route summary, route status and predecessor/successor lineage, the accepted hypothesis and
-its originating selected route, the latest public receipt summary, and an explicit participant
-decision when a proposed set still needs edit/reject/choice. Participant-only commands appear only
-as pending human interactions; they are never projected in callable `availableActions`.
+Participant-only commands appear only as pending human interactions; they are never projected in
+callable `availableActions`. The `proposal` field and the visible room header derive from the same
+function (`proposalAvailability` in `web/src/domain/affordances.ts`), so both chairs see one truth.
 
 It does not return the full ledger by default. Every successful projection identifies the explicit
-`read-workspace/2.0.0` projection contract. `working_set` preserves the P2 `reflections` field for
-compatible consumers and returns current public reflections, route sets, and accepted hypotheses
-within one shared entity limit. It names omitted refs in bounded pages and returns a state-bound
-omission cursor until every omitted ref is enumerable. `entities` performs bounded targeted reads across reflections, route sets, individual
-route previews, hypotheses, and public operation-receipt summaries; unknown refs are returned in
-`missingRefs`. There is no ambiguous “since last read”
-stored globally; the caller supplies a cursor, while a cold caller receives current truth.
+`read-workspace/3.0.0` projection contract. `working_set` preserves the P2 `reflections` field for
+compatible consumers and returns current hypotheses, open follow-up questions, route sets, and
+reflections within one shared entity limit. It names omitted refs in bounded pages and returns a
+state-bound omission cursor until every omitted ref is enumerable. `entities` performs bounded
+targeted reads across reflections, follow-up questions, route sets, individual route previews,
+hypotheses, and public operation-receipt summaries; unknown refs are returned in `missingRefs`.
+There is no ambiguous "since last read" stored globally; the caller supplies a cursor, while a cold
+caller receives current truth.
 
-The P2 implementation fixes those bounds at 20 public change summaries and 20 working-set or
-targeted entities per read. Internal replay identities are never projected. Truncated change
-pages advance only through the last returned operation, so callers can continue without
-stranding older changes. The complete orientation tool result is capped at 6,000 serialized
-characters and 3,000 UTF-8 bytes; the byte count is used as a conservative upper bound on
-token pieces without assuming an English-only four-characters-per-token ratio. Every successful
-view labels participant-authored strings as untrusted content rather than agent instructions.
+Bounds (`web/src/domain/reads.ts`): 20 public change summaries and 20 working-set or targeted
+entities per read; 5 changed refs per public change summary; the complete orientation tool result
+is capped at 8,000 serialized characters and 4,000 UTF-8 bytes, used as a conservative upper bound
+on token pieces. When over budget the projection drops the oldest confirmed words first, then
+pending interactions, then change items (advancing the cursor only through the last returned
+operation so nothing is stranded), then halves free text. Internal replay identities are never
+projected. Every successful view labels participant-authored strings as untrusted content rather
+than agent instructions.
 
 ### 8.2 Affordances
 
@@ -398,9 +476,11 @@ interface AvailableAction {
 }
 ```
 
-Agent projections expose only actions with `actor: 'agent'`. Participant actions such as
-`revise_route_set` and `choose_route` appear in `pendingHumanActions`, never as callable WebMCP
-tools. Descriptions never advertise unavailable actions.
+Agent projections expose only actions with `actor: 'agent'`, and the only agent action in the
+candidate is `propose_route_set` (with a `reason` that says whether to propose fresh or replace
+set-aside routes). Participant actions such as `revise_route_set`, `choose_route`,
+`skip_follow_up`, `set_limits`, and `reopen_exploring` appear in `pendingHumanActions`, never as
+callable WebMCP tools. Descriptions never advertise unavailable actions.
 
 ### 8.3 Writes and receipts
 
@@ -444,16 +524,22 @@ On a lost response, the agent retries with the same `operationId`. The command l
 returns the original receipt. On `STALE_STATE`, it re-reads and creates a new operation only
 after reconsidering the new state.
 
-After a WebMCP-authored route proposal changes catalogue availability, `propose_route_set` remains
-registered for exact same-operation replay. The command kernel returns the original receipt for
-that replay and denies every new proposal while the unresolved set remains. UI projection refresh
-is a separate notification: its failure is visible in the human surface but cannot replace or hide
-the already committed command result.
+A proposal receipt carries up to three `changedRefs`, in order: the withdrawn follow-up question if
+any, the superseded predecessor if it was still proposed, and the new route set last. A follow-up
+receipt carries the question ref. A `choose_route` receipt carries the set, the hypothesis, and any
+withdrawn question.
+
+While a ChatGPT-authored set or question is unresolved, `propose_route_set` stays registered so an
+exact same-operation replay can recover its receipt after any refresh; eligibility is derived from
+the ledger-backed projection, never from page memory, and the kernel decides between replay,
+`OPERATION_CONFLICT`, and lifecycle denial. UI projection refresh is a separate notification: its
+failure is visible in the human surface but cannot replace or hide the already committed command
+result.
 
 Actor and proposal provenance are trusted execution context, not caller-shaped command input. The
-participant adapter supplies participant authority; a WebMCP write adapter can supply only agent
-authority with `chatgpt_webmcp` provenance; an optional inference adapter supplies agent authority
-with `embedded_inference` provenance. Extra payload fields that attempt to self-assert actor or
+participant adapter supplies participant authority; the WebMCP write adapter supplies agent
+authority with `chatgpt_webmcp` provenance; the embedded adapter supplies agent authority with
+`embedded_inference` provenance. Extra payload fields that attempt to self-assert actor or
 provenance are malformed. Replay identity remains bound to the trusted actor and, for route
 proposals, the trusted proposal source.
 
@@ -481,41 +567,49 @@ Rules:
 - model eval outputs never write participant memory;
 - no acceptance/rejection count automatically grants authority.
 
-This is agent-accretive because useful human instruction survives model/session replacement.
-It is resource-efficient because the agent reads a compact active projection, not the entire
-history.
+Teachings are admitted in P6. In the candidate, the visible accretion is the ledger itself: edits,
+set-asides, answers, and carried routes are receipts the next proposal must respect.
 
 ## 9. WebMCP tool catalogue
 
 All tool annotations are discovery hints only. Product policy is enforced in commands.
 All collection outputs are bounded; entity reads are ref-targeted.
 
-| Tool | Mode | Effect | Human boundary | Receipt |
-|---|---|---|---|---|
-| `read_workspace` | all | READ | none | no |
-| `get_method_guide` | all | READ | none | no |
-| `save_reflection` | exploring | PROPOSE when agent-transcribed | confirm/edit text | yes |
-| `propose_route_set` | exploring | PROPOSE | participant edits/rejects/chooses | yes |
-| `propose_experiment` | testing | PROPOSE | accept/edit/reject | yes |
-| `schedule_action` | testing | PROPOSE | confirm day/duration | yes |
-| `draft_outreach` | testing | PROPOSE | edit/copy/send manually | yes |
-| `log_evidence` | testing | PROPOSE | confirm observation/relation | yes |
-| `propose_hypothesis_revision` | reviewing | PROPOSE | accept/edit/reject | yes |
-| `propose_verdict` | reviewing | PROPOSE | confirm outcome | yes |
+| Tool | Kind | Mode | Effect | Human boundary | Receipt |
+|---|---|---|---|---|---|
+| `read_workspace` | imperative | all | READ | none | no |
+| `get_method_guide` | imperative | all | READ | none | no |
+| `propose_route_set` | imperative | exploring, when `proposal.available` or replay-eligible | PROPOSE | participant answers/skips, edits/rejects/chooses | yes |
+| `draft_words` | declarative form | answer, confirm, and follow-up screens | PREPARE_UI | participant edits and confirms | no |
+| `propose_experiment` | imperative | testing (P4) | PROPOSE | accept/edit/reject | yes |
+| `schedule_action` | imperative | testing (P4) | PROPOSE | confirm day/duration | yes |
+| `draft_outreach` | imperative | testing (P7) | PROPOSE | edit/copy/send manually | yes |
+| `log_evidence` | imperative | testing (P5) | PROPOSE | confirm observation/relation | yes |
+| `propose_hypothesis_revision` | imperative | reviewing (P5) | PROPOSE | accept/edit/reject | yes |
+| `propose_verdict` | imperative | reviewing (P5) | PROPOSE | confirm outcome | yes |
 
 Catalogue rules:
 
-- every state-changing or preparing tool includes `WriteControl`;
-- `get_method_guide` returns `methodVersion` and the current `contractVersion`;
+- every state-changing tool includes `WriteControl`;
+- `get_method_guide` returns `methodVersion` (`destiny-method/2.0.0`), `contractVersion`,
+  `promise`, ordered `steps`, `boundaries`, and a complete `exampleInput` for `propose_route_set`;
+- `propose_route_set`'s input schema is derived mechanically from the canonical Zod command schema
+  (`web/src/webmcp/catalogue/propose-route-set-schema.ts`); its description states every rule that
+  causes a denial: exact quotes, limits, distinct kinds/questions/tests, fresh refs, predecessor
+  citation, `carryRouteRef` for kept routes, and the `insufficient_signal` path;
 - proposal inputs use refs, bounded strings/enums/numbers, and `additionalProperties: false`;
 - every proposal declares which accepted entity it extends;
 - only confirmed evidence belonging to the hypothesis's experiments can support a revision;
 - `draft_outreach` has no send counterpart anywhere in the product;
 - `propose_route_set` returns a visible proposal and cannot select or accept a route for the
-  participant; `choose_route` is intentionally absent from the WebMCP catalogue;
-- public write results are runtime-validated; nested participant affordances are represented as
-  pending human interactions, never agent `availableActions`;
-- a phase change aborts old registrations, but cached invocations are still command-denied.
+  participant; `choose_route`, `revise_route_set`, `set_limits`, `skip_follow_up`, and
+  `reopen_exploring` are intentionally absent from the WebMCP catalogue;
+- public write results are runtime-validated, expose only agent affordances, and represent
+  participant affordances as pending human interactions;
+- every invocation, including reads and denials, emits one plain-language activity event for the
+  visible room; summaries never contain tool names;
+- a state change aborts old registrations, but cached invocations are still command-denied
+  (`STALE_REGISTRATION`).
 
 Tool handlers are mechanically thin:
 
@@ -524,6 +618,7 @@ async function executeWebMcpTool(input: unknown) {
   const command = parseToolInput(input);
   const result = await commandKernel.execute(command);
   renderAuthoritativeState(result.stateVersion);
+  emitActivity(participantSentenceFor(result));
   return toWebMcpResult(result);
 }
 ```
@@ -531,73 +626,92 @@ async function executeWebMcpTool(input: unknown) {
 ## 10. Human workspace
 
 1. **Journey:** one focused question at a time, early branching, honest progress, Back, safe Skip,
-   save/exit, resume, and an equal free-writing route.
-2. **Route Room:** confirmed quote slips, three equally weighted route previews, comparison, repair,
-   and one participant-chosen accepted hypothesis.
-3. **Week:** accepted plan items and honest pending/confirmed/done/missed states.
-4. **Outbox:** drafts with edit/copy/mailto; no automated send.
-5. **Activity:** plain-language history; versions and operation details stay under a disclosure.
-6. **Agent status:** small, honest connected/human-only/reconnect state.
-7. **Teach agent:** card/workspace correction that becomes a sourced teaching only after the
-   participant confirms it.
-8. **Privacy:** local-only explanation, export, import preview, clear, and recovery guidance.
-9. **No-agent mode:** the complete core loop remains usable by hand.
+   save-as-you-go, resume, and an equal free-writing route. Limits are entered once and recorded
+   through `set_limits`.
+2. **Handoff:** the confirmed words and limits, one capability line derived from the same
+   projection the agent reads, and three equal paths: ask ChatGPT, draft by hand, or (when
+   enabled) ask the lab assistant after ticking a consent sentence.
+3. **Route Room:** provenance chip on the set (Proposed by ChatGPT, Drafted by you, Drafted by the
+   lab assistant); three equally weighted route cards with Edit, Set aside, and Choose; tags for
+   "Kept from your last set", "Replaced by ChatGPT", and "Set aside"; grounding highlights that mark
+   the exact quoted words in the words panel when a card is hovered or focused; private notes behind
+   a disclosure that no projection ever contains.
+4. **Follow-up card:** the agent's question, the words it reasoned from, an answer box (also a
+   declarative draft form), Answer and Skip.
+5. **Activity ("What happened"):** plain sentences built from the ledger with receipt lines, plus
+   this session's agent reads and denials; denials also surface as a dismissible notice.
+6. **Agent view ("See what ChatGPT sees"):** the exact orientation projection, with the note that
+   private notes are not in it.
+7. **Agent status:** small, honest badge (Human mode, Agent connected, Agent tools unavailable).
+8. **Chosen:** the direction to test, its receipt, the unchosen routes as history, Reopen exploring,
+   Export my room (JSON download), and Start over.
+9. **Privacy:** local-only explanation, export, start over with an explicit confirmation that says
+   what is removed, and recovery guidance. Import with preview is deferred.
+10. **No-agent mode:** the complete core loop remains usable by hand.
 
-The UI may use “You” in participant-facing copy. Canonical schema/tool nouns remain stable;
-the metaphor must not make the product harder for a distressed or uncertain person.
+The UI may use "You" in participant-facing copy. Canonical schema/tool nouns remain stable;
+the metaphor must not make the product harder for a distressed or uncertain person. Primary copy
+never exposes command names, versions beyond the receipt line, or "best".
 
 ## 11. Persistence and recovery
 
 - Next.js + TypeScript; shared Zod schemas; one client command kernel.
-- One versioned local workspace in localStorage for the challenge MVP.
+- One versioned local workspace in localStorage (`destiny-ai.workspace.v1`) for the challenge
+  MVP; the journey draft (screen, answers, idempotent operation ids, private notes) lives in
+  `destiny-ai.journey.v2` and is presentation state, never authority.
 - Each accepted command atomically writes the next snapshot and receipt. Browser writes are
   serialized across same-origin tabs with the Web Locks API; a command whose expected version
   became stale while waiting for the lock is denied before persistence.
 - Reading an absent workspace returns the validated initial snapshot without creating an
   unreceipted persistence write. The first accepted command persists the first authoritative
   snapshot and receipt together.
-- Startup validates and migrates `schemaVersion`; migration failure preserves the original
-  bytes and offers export/reset rather than guessing.
-- Import validates into a preview before replacement.
-- Clear requires explicit participant action and reports what was removed.
-- No analytics or remote career-content storage by default.
+- Startup validates and migrates `schemaVersion` through the chain v1 -> v2 -> v3 in memory
+  (`migrateWorkspace` in `web/src/storage/local-workspace-store.ts`); the next accepted write
+  persists v3. Migration failure preserves the original bytes and reports a typed storage failure.
+- Start over requires explicit participant confirmation and reports what was removed.
+- No analytics or remote career-content storage by default. The embedded assistant sends confirmed
+  words only when the participant ticks the consent sentence for that request; the server stores
+  and logs nothing.
 - Server persistence, auth, and sync require a separate architecture packet. They are not a
-  drop-in “upgrade” during the MVP.
+  drop-in "upgrade" during the MVP.
 
 ## 12. Evaluation and proof
 
 ### Deterministic contract suite
 
-- malformed/extra fields, bounds, wrong phase, wrong lifecycle, unknown/cross-resource refs;
+- malformed/extra fields, bounds, wrong phase, wrong actor, wrong lifecycle, unknown/cross-resource
+  refs;
 - stale version, same-id replay, same-id/different-payload conflict;
-- proposal accepted/rejected/superseded and compensation;
-- unconfirmed or unrelated evidence denied for revision;
-- storage migration, corrupt/quota failure, export/import and clear.
+- proposal accepted/rejected/superseded and compensation; follow-up asked/answered/skipped/withdrawn;
+  carry-over supersession and its denials; limits and reopening;
+- unconfirmed or unrelated evidence denied for revision (P5);
+- storage migration v1/v2/v3, corrupt/quota failure, export, start over.
 
 ### Agent behaviour suite
 
-Use at least 15 scripted sessions across:
+- WebMCP evals (`web/src/webmcp/evals/`): catalogue completeness and schema parity, never
+  registering participant-only commands, proposal with receipt, quote fidelity, caps, distinctness,
+  stale/replay/conflict, injection-like text as untrusted content, follow-up round trip, replace
+  only what was set aside, denial of replacing a kept route, isolated contexts, and a UI-shaped
+  fixture (limits then words, exactly as the journey writes them);
+- the visiting-agent simulator (`web/src/inference/agent-simulator.ts`) runs a scripted mock model
+  through discovery -> method guide -> grounded proposal, proves that tools outside the catalogue
+  are refused, and proves that an instruction hidden in participant text is quoted, not obeyed;
+- the lab assistant provider-off suite proves grounding denials (fabricated quote, cap breach,
+  duplicate kinds), timeout and provider failure paths, and the 403 when disabled.
 
-- cold orientation and mid-journey handoff;
-- quote fidelity and no fabricated source;
-- load-bearing hypothesis selection;
-- cost/deadline/falsifiability constraints;
-- unavailable-tool avoidance;
-- stale/retry recovery;
-- human correction and contradictory teaching;
-- distress redirect without diagnosis;
-- bounded reads and token cost.
-
-For accretion, replay the same fixture before and after an accepted teaching. The next
+For accretion (P6), replay the same fixture before and after an accepted teaching. The next
 proposal must respect the teaching; the available authority must remain identical.
 
 ### Human journey proof
 
-- solo board first, then visiting-agent collaboration;
-- empty, error, rejected, stale, conflict, offline/corrupt, and recovery states;
-- participant can explain why confidence changed and identify the confirming evidence;
-- accessibility and clear/export/delete are part of the journey, not release polish.
-- after safeguarding and recruitment gates clear, report how many moderated adults can identify
+- `web/tests/journey.spec.ts` (Playwright, Desktop Chrome): every shape reaches the handoff with
+  `set_limits` recorded before any `save_reflection`; manual drafts quote different answers; edit,
+  set aside, choose, reload, reopen, re-draft; start over clears both keys; the agent view shows
+  confirmed words and no notes; keyboard and focus; 390px, 200% text, reduced motion, forced
+  colours; and a simulated visiting agent (injected `document.modelContext`) that proposes, asks
+  first, is denied visibly, replaces only what was set aside, and reads the decision back.
+- After safeguarding and recruitment gates clear, report how many moderated adults can identify
   their quoted words, state that routes are not predictions, distinguish proposed routes from the
   accepted hypothesis, and explain what choosing changed. Make no comprehension claim before then.
 
@@ -605,39 +719,41 @@ proposal must respect the teaching; the available authority must remain identica
 
 Verify the same immutable candidate separately in:
 
-1. deterministic adapter harness;
-2. Chrome with the required experimental access;
-3. ChatGPT in-app browser;
-4. deployed URL readback with candidate SHA/contract/schema identity and rollback.
+1. the deterministic adapter harness (vitest);
+2. real Google Chrome with the `enable-webmcp-testing` flag persisted in a throwaway profile
+   (`web/tests/webmcp-live.spec.ts`, `npx playwright test -c playwright.live.config.ts`), driving
+   `document.modelContext.getTools()` and `executeTool()` for discovery, typed reads, the method
+   guide, malformed denial, declarative `respondWith`, proposal with receipt persisted to
+   localStorage, replay, denial, follow-up, and reread;
+3. the ChatGPT in-app browser (human step; record the screen with receipts visible);
+4. a deployed URL readback with candidate SHA/contract/schema identity and rollback.
 
-The deadline-sized competition story is:
+The competition story is:
 
-`guided answers -> ChatGPT proposes three grounded routes -> participant chooses one -> accepted hypothesis and receipt -> ChatGPT rereads`
+`guided answers -> limits -> ChatGPT asks one question or proposes three grounded routes -> participant edits or sets aside -> ChatGPT replaces only what was set aside -> participant chooses -> receipt -> ChatGPT rereads`
 
-For that story, capture tool discovery, invocation, human approval, authoritative after-state,
-typed denial/retry behavior, and the resulting receipt. Run the same story with no embedded
-model provider configured. State clearly that experiments, evidence, and revisions are the
+Capture tool discovery, invocation, human approval, authoritative after-state, typed
+denial/retry behavior, and the resulting receipt. Run the same story with no embedded model
+provider configured. State clearly that experiments, evidence, and revisions are the
 post-submission product path. Optional inference quality is a separate post-candidate claim.
 
-The candidate may display a bounded seven-day test idea contained in the chosen route. It does not
-schedule, execute, or evaluate that test; those capabilities start in P4.
-
 Report the highest proof actually observed. Local tests are not browser, deployed, user,
-competition, or production proof.
+competition, or production proof; a real-Chrome run is not a ChatGPT in-app browser run.
 
 ## 13. Delivery authority
 
 The dependency-ordered team programme, ownership lanes, packet gates, and daily sequence live
 in `docs/PLAN.md`. It is intentionally separate from this product/system contract.
 
-The repository-root conflict is resolved and P1/P2 are integrated. P3A defines route-set and
-participant-only selection authority while P8A independently establishes WebMCP feature detection,
-registration, read-only tools, and the deterministic harness. P3B builds the human journey on the
-frozen P3A contract. P8B joins those paths for ChatGPT collaboration; P8C admits the immutable
-candidate. P4-P7 and P10 complete the product after submission. P9 optional AI SDK/OpenCode Go Luna
-inference is not part of candidate completion; EVE has no admitted packet.
+P1/P2/P3/P8A are integrated. P8B joined read and write paths. P11 (candidate v2, D-015) realises
+the ChatGPT collaboration, hardening, and live-Chrome proof in one packet across Lanes A-D. P8C
+admits the immutable candidate, deploys it, opens the source, and records the ChatGPT run. P4-P7
+and P10 complete the product after submission. P9's optional inference is now the embedded lab
+assistant admitted in D-015, disabled by default; EVE has no admitted packet.
 
 ## 14. Open decisions
 
 1. Who is the named qualified reviewer for distress copy?
 2. Which five adults commit to testing?
+3. Which OpenAI-compatible endpoint and model, if any, back the lab assistant for the demo, and who
+   holds the key?
