@@ -94,8 +94,8 @@ appear during the packet.
 
 ## Closeout receipt
 
-- branch/SHA: `codex/p1-command-spine` / implementation commit
-  `009b7f999c3b8b99740f465058bdedba6f403ca1`
+- branch/SHA: `codex/p1-command-spine` / hardened candidate
+  `9ad1883b33e4c65153acacde6ac1a8df747a5262`
 - verified: Node 24 `npm run check`; 12 focused contract tests; strict schema, wrong-phase,
   stale, replay, conflict, cross-tab serialization, bootstrap, receipt, and
   persistence-failure proof; local production-browser

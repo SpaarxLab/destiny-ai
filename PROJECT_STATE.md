@@ -8,7 +8,8 @@
 - **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
   (accepted choices), and `PLAN.md` (approved delivery programme; P1 admitted).
   `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
-- **Canonical repo/worktree:** `/Users/harsh/career-lab`, branch `main`; foundation
+- **Canonical repo/worktree:** `/Users/harsh/career-lab`; integration branch `main`; active P1
+  branch `codex/p1-command-spine`; foundation
   baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
   Original nested-repository history and dirty-overlay recovery are preserved at the path
   documented in `RECOVERY.md`; nothing was deleted.
@@ -42,10 +43,12 @@
   participant commitments before participant testing. Separately, Harsh must choose whether
   to keep Linear Free with all three users as admins or authorize a paid upgrade so Devarsh
   and Tirth can become members.
-- **Last verified evidence:** on P1 implementation commit
-  `009b7f999c3b8b99740f465058bdedba6f403ca1` on `codex/p1-command-spine`, Node 24
-  `web/npm run check` passed 9 focused
-  command tests, ESLint, generated route types, TypeScript, and the Next.js production build.
+- **Last verified evidence:** on P1 hardening commit
+  `9ad1883b33e4c65153acacde6ac1a8df747a5262` on `codex/p1-command-spine`, Node 24
+  `web/npm run check` passed 12 focused
+  command and storage tests, ESLint, generated route types, TypeScript, and the Next.js
+  production build. Cross-tab writes are serialized and an absent workspace read no longer
+  creates an unreceipted bootstrap write.
   A local production-browser journey saved one participant reflection and rendered one
   `APPLIED` receipt with state version `0 -> 1`; browser error logs were empty. P0A remote CI
   evidence remains GitHub Actions run `33497218996`. This is local/static journey proof—not

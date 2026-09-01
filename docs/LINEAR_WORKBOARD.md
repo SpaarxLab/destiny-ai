@@ -27,8 +27,11 @@ stop and ask Harsh to resolve the conflict before implementation.
 
 Verified board balance: eight packets; two per milestone; Devarsh owns four, Tirth two, and
 Harsh two. Only SPX-1 is `In Progress`; dependent packets remain in `Backlog` so work cannot
-outrun the command-spine contract. Linear records the start signal, but no P1 implementation
-SHA, test receipt, or pull request has been verified yet.
+outrun the command-spine contract. P1 candidate
+`9ad1883b33e4c65153acacde6ac1a8df747a5262` is under integration review in
+[PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1); its local `npm run check` receipt
+contains 12 passing command and storage tests plus lint, typecheck, and production build.
+This is not yet CI, `main`, deployed, live WebMCP, or participant proof.
 
 Native Linear blocker relationships mirror the plan: SPX-2 is blocked by SPX-1; SPX-3 by
 SPX-2; SPX-4 by SPX-3; SPX-5 by SPX-4; SPX-6 and SPX-7 by SPX-5; and SPX-8 by both SPX-6

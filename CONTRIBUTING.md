@@ -17,8 +17,10 @@ active packet. Confirm the packet owner and owned paths.
 
 ## Branches and worktrees
 
-Use `packet/<id>-<short-outcome>`, for example `packet/p1-command-spine`. One lane owns the
-branch. Do not mix packets or repair unrelated files.
+Include the Linear identifier in the branch name, for example
+`packet/spx-1-command-spine`. One lane owns the branch. Do not mix packets or repair
+unrelated files. Existing published packet branches may retain their names when the linked
+pull request and commits carry the identifier.
 
 ## Pull requests
 
