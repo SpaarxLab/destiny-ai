@@ -1,6 +1,6 @@
 # Packet P11 — Candidate v2: two chairs, one table
 
-**Status:** BUILT, AWAITING COMMIT AND CLOSEOUT · **Owner:** Harsh (integration) with Lane A/B/C/D execution
+**Status:** INTEGRATED, RELEASE GATES OPEN · **Owner:** Harsh (integration) with Lane A/B/C/D execution
 **Linear:** SPX-18 · **Integration destination:** `main` · **Depends on:** integrated P8B (`44fcf23`)
 **Authority:** D-015, `SPEC.md` contract 1.2.0
 
@@ -66,14 +66,15 @@ failure. Local data can be cleared from the welcome screen.
 
 ## Closeout receipt
 
-- base/head SHA and dirty state: base `44fcf23` (codex/spx-10-p8b); code commit `4b25498`; docs
-  commit follows; worktree clean after the docs commit.
-- paths changed: see `git show --stat 4b25498` (web/src domain, commands, storage, adapters,
+- base/head/merge: PR base `79e1031`; application candidate `7909cc7`; evidence head `0134a6e`;
+  merged by PR #10 at `3d814a6` after exact-head CI.
+- paths changed: see `git diff 79e1031...0134a6e --stat` (web/src domain, commands, storage, adapters,
   projections, webmcp, components, content, styles, inference, app/api, tests; docs).
-- commands and exact results: `docs/proof/p11/local-proof.md` (npm run check: 180 tests, lint,
-  types, build; journey suite 10/10; isolation spec 1/1; real-Chrome live suite 6/6).
+- commands and exact results: `docs/proof/p11/local-proof.md` (`npm run check`: 182 tests, lint,
+  types, build; browser suite 11/11; real-Chrome live suite 6/6).
 - harness/Chrome/ChatGPT proof reached: harness and real Chrome 152 with the WebMCP flag. ChatGPT
   in-app browser, deployment, live provider: not reached (human steps in the handoff tickets).
 - remaining unknowns: ChatGPT runtime behaviour with declarative forms and annotations; deployed
   header/permissions-policy behaviour; participant usefulness.
-- disposition: READY FOR REVIEW (INTEGRATE after PR review by Devarsh and Tirth).
+- disposition: INTEGRATED; Devarsh and Tirth review the live product on `main` while Harsh owns the
+  separate deployment, ChatGPT, public-source/video, and submission gates.

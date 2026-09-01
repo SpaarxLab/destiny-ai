@@ -13,11 +13,11 @@ The product does not predict a career.
 - **Contract:** `SPEC.md` (contract 1.2.0, schema 3, read contract 3.0.0, method 2.0.0)
 - **Accepted decisions:** `docs/DECISIONS.md`, through D-015
 - **Delivery programme:** `docs/PLAN.md`
-- **Active packet:** `docs/packets/P11-candidate-v2.md`
+- **Active packet:** `docs/packets/P11-handoff-tickets.md` (release and team-review gates)
 - **Canonical repo:** `/Users/harsh/career-lab`; Next.js app in `web/`; integration branch `main`
-- **Working worktree and branch for the candidate:** `/Users/harsh/.codex/worktrees/fbf7/career-lab`
-  on `codex/spx-18-candidate-v2` (stacked on `codex/spx-10-p8b` at `44fcf23`). Integration
-  destination is `main` through a pull request.
+- **Integrated candidate:** `main` at merge commit `3d814a6` through PR
+  [#10](https://github.com/SpaarxLab/destiny-ai/pull/10); application candidate `7909cc7`,
+  evidence head `0134a6e`.
 - **Learning guide:** `docs/HOW_IT_WORKS.md`
 - **Execution tracker:** [Linear — Destiny.AI Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)
 
@@ -30,8 +30,8 @@ status. A task is not complete because a ticket says so; its packet and PR must 
 |---|---|---|
 | P0A, P1, P2 (command spine, cold orientation) | integrated | `main` (PR #1, PR #2) |
 | P3A route domain, P3B journey, P3C route projections, P8A WebMCP reads | integrated | `main` (PR #5-#8) |
-| P8B `propose_route_set` WebMCP write tool and evals | committed, not integrated | `codex/spx-10-p8b` (`945ff0f`, `44fcf23`) |
-| P11 candidate v2 (D-015): follow-up questions, replace-what-you-set-aside, limits and reopen commands, declarative draft form, rebuilt Route Room, activity and agent view, embedded lab assistant, simulator, real-Chrome suite | application candidate `7909cc7` after five-reviewer landing fixes; evidence docs follow on the same branch | `codex/spx-18-candidate-v2` |
+| P8B `propose_route_set` WebMCP write tool and evals | integrated | `main` (PR #9 and candidate closeout in PR #10) |
+| P11 candidate v2 (D-015): follow-up questions, replace-what-you-set-aside, limits and reopen commands, declarative draft form, rebuilt Route Room, activity and agent view, embedded lab assistant, simulator, real-Chrome suite | integrated after five independent Luna review lanes and exact-head CI | `main` at `3d814a6` (PR #10) |
 
 ## Accepted experience
 
@@ -44,9 +44,9 @@ status. A task is not complete because a ticket says so; its packet and PR must 
 - Inference: the embedded lab assistant is optional, server-side, consent-gated, disabled by
   default, and replaceable. EVE is deferred.
 
-## Verified evidence on this branch
+## Verified evidence for the integrated candidate
 
-All local, on the worktree above, with no inference provider configured:
+All local and exact-head CI, with no inference provider configured:
 
 - `npx tsc --noEmit`: clean.
 - `npx vitest run`: 14 files, 182 tests pass (domain, kernel, storage, reader, adapters, WebMCP
@@ -69,21 +69,21 @@ public-source, video, or submission proof.
 
 ## Remaining gates
 
-1. Open the pull request from `codex/spx-18-candidate-v2` to `main` and integrate after review.
-2. Mirror `docs/packets/P11-handoff-tickets.md` into Linear.
-3. Deploy the candidate SHA to a public URL and read back contract 1.2.0 / schema 3 through
+1. Mirror `docs/packets/P11-handoff-tickets.md` into Linear.
+2. Deploy the candidate SHA to a public URL and read back contract 1.2.0 / schema 3 through
    `read_workspace`.
-4. Run the story in the ChatGPT in-app browser and record it with receipts visible on screen.
-5. Optionally configure the lab assistant (`LAB_ASSISTANT_PROVIDER=openai_compatible` plus base URL,
+3. Run the story in the ChatGPT in-app browser and record it with receipts visible on screen.
+4. Optionally configure the lab assistant (`LAB_ASSISTANT_PROVIDER=openai_compatible` plus base URL,
    key, model) and capture one live proposal, one `insufficient_signal`, and one provider-failure
-   receipt showing the WebMCP path unaffected.
-6. Public repository with a visible MIT license, English description covering WebMCP fit, UX
+   receipt showing the WebMCP path unaffected. Do not enable it publicly without authenticated,
+   rate-limited infrastructure.
+5. Public repository with a visible MIT license, English description covering WebMCP fit, UX
    improvement, new human-agent capabilities, and implementation approach, testing instructions,
    public YouTube video under three minutes with audio, Devpost submission.
-7. Name the qualified safeguarding reviewer for distress copy.
-8. Record five adult participant commitments using pseudonymous IDs only.
+6. Name the qualified safeguarding reviewer for distress copy.
+7. Record five adult participant commitments using pseudonymous IDs only.
 
-Gates 3-6 are human steps for Harsh. Gates 7-8 do not block synthetic-fixture implementation or
+Gates 2-5 are human steps for Harsh. Gates 6-7 do not block synthetic-fixture implementation or
 deterministic testing.
 
 ## Supersession receipt
@@ -94,3 +94,5 @@ seeding. D-014's Destiny Journey, three-route reveal, and replaceable-inference 
 current. The earlier statement in this file that P3 and WebMCP registration were not implemented
 was stale and is withdrawn. Pre-2026-09-01 whiteboards, the student seven-day-plan MVP, and the
 eight-internal-agent concept remain archived under `docs/archive/2026-09-01-foundation/`.
+P11 candidate implementation and review are current on `main`; `docs/packets/P11-candidate-v2.md`
+is its build receipt, while `docs/packets/P11-handoff-tickets.md` now governs the remaining gates.

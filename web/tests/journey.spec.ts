@@ -128,9 +128,9 @@ test("start over clears both keys after an explicit confirmation", async ({ page
   await page.getByRole("button", { name: "Start over" }).click();
   await expect(page.getByRole("dialog", { name: "Start over on this device?" })).toBeVisible();
   await page.getByRole("button", { name: "Clear and start over" }).click();
+  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
   const keys = await page.evaluate(() => [localStorage.getItem("destiny-ai.workspace.v1"), localStorage.getItem("destiny-ai.journey.v2")]);
   expect(keys).toEqual([null, null]);
-  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
 });
 
 test("see what ChatGPT sees shows the exact orientation with confirmed words", async ({ page }) => {
