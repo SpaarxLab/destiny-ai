@@ -1,5 +1,5 @@
-import { CommandSpineDemo } from "../components/command-spine-demo";
+import { DestinyJourney } from "../components/journey/destiny-journey";
 
 export default function Home() {
-  return <CommandSpineDemo />;
+  return <DestinyJourney />;
 }
