@@ -18,7 +18,7 @@ export interface JourneyQuestion {
 export const COPY = {
   promise: "Find one direction worth testing next.",
   intro: "Three questions in your own words. Three routes to compare. One small test you choose.",
-  privacy: "Everything stays in this browser.",
+  privacy: "Your room is stored only in this browser. It is shared with an agent only when you open this page through one or explicitly ask the optional lab assistant.",
   start: "Start",
   continue: "Continue",
   back: "Back",

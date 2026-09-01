@@ -85,6 +85,36 @@ describe("LocalWorkspaceStore", () => {
     expect(firstStore.load().operations).toHaveLength(1);
   });
 
+  it("serializes start-over so an in-flight stale tab cannot resurrect cleared state", async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLockManager();
+    const firstStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const secondStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const first = createParticipantCommandAdapter(new CommandKernel(firstStore));
+    const second = createParticipantCommandAdapter(new CommandKernel(secondStore));
+
+    await first.saveReflection({
+      operationId: operationOne,
+      expectedVersion: 0,
+      text: "Words that should stay deleted after Start over.",
+    });
+
+    const clear = firstStore.clear(1);
+    const staleWrite = second.saveReflection({
+      operationId: operationTwo,
+      expectedVersion: 1,
+      text: "A stale tab must not bring the room back.",
+    });
+
+    await expect(clear).resolves.toBeUndefined();
+    await expect(staleWrite).resolves.toMatchObject({
+      ok: false,
+      error: { code: "STALE_STATE" },
+    });
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBeNull();
+    expect(firstStore.load()).toEqual(createEmptyWorkspace());
+  });
+
   it("returns an operation conflict when two tabs reuse one id for different intent", async () => {
     const storage = new MemoryStorage();
     const locks = new SerialLockManager();

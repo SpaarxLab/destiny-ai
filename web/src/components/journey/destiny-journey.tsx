@@ -374,6 +374,7 @@ export function DestinyJourney() {
     setStatusMessage("Asking the lab assistant…");
     try {
       const proposal = orientation.proposal;
+      const requestStateVersion = orientation.identity.stateVersion;
       const response = await fetch("/api/lab-assistant/propose", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -394,6 +395,11 @@ export function DestinyJourney() {
         return;
       }
       const ws = runtime.current.store.load();
+      if (ws.stateVersion !== requestStateVersion) {
+        setWorkspace(ws);
+        setStatusMessage("Your room changed while the lab assistant was drafting. Review the latest room, then ask again.");
+        return;
+      }
       const predecessor = proposal.available ? proposal.supersedesRouteSetRef : null;
       const result = body.outcome === "insufficient_signal"
         ? await runtime.current.embeddedAdapter.proposeRouteSet({
@@ -588,21 +594,32 @@ export function DestinyJourney() {
     setStatusMessage("Your room was exported as a file.");
   }
 
-  function startOver() {
-    localStorage.removeItem(LOCAL_WORKSPACE_KEY);
-    localStorage.removeItem(JOURNEY_DRAFT_KEY);
-    const created = createRuntime();
-    runtime.current = created;
-    const fresh = emptyJourneyDraft();
-    draftRef.current = fresh;
-    setDraft(fresh);
-    setWorkspace(created.store.load());
-    setReader(created.reader);
-    setWebMcpAdapter(created.webMcpAdapter);
-    setAgentEvents([]);
-    setStartOverOpen(false);
-    setDrawer("none");
-    setStatusMessage("");
+  async function startOver() {
+    if (!runtime.current || busy) return;
+    setBusy(true);
+    try {
+      const current = runtime.current.store.load();
+      await runtime.current.store.clear(current.stateVersion);
+      localStorage.removeItem(JOURNEY_DRAFT_KEY);
+      const created = createRuntime();
+      runtime.current = created;
+      const fresh = emptyJourneyDraft();
+      draftRef.current = fresh;
+      setDraft(fresh);
+      setWorkspace(created.store.load());
+      setReader(created.reader);
+      setWebMcpAdapter(created.webMcpAdapter);
+      setAgentEvents([]);
+      setStartOverOpen(false);
+      setDrawer("none");
+      setStatusMessage("");
+    } catch {
+      setStartOverOpen(false);
+      setStatusMessage("Your room changed before it could be cleared. Review the latest room, then try Start over again.");
+      setWorkspace(runtime.current.store.load());
+    } finally {
+      setBusy(false);
+    }
   }
 
   // ---- derived view state --------------------------------------------------------------------
@@ -644,6 +661,7 @@ export function DestinyJourney() {
             <>
               <ActionButton
                 aria-expanded={drawer === "activity"}
+                aria-controls="activity-drawer"
                 onClick={() => setDrawer(drawer === "activity" ? "none" : "activity")}
                 tone="quiet"
               >
@@ -651,6 +669,7 @@ export function DestinyJourney() {
               </ActionButton>
               <ActionButton
                 aria-expanded={drawer === "agent-view"}
+                aria-controls="agent-view-drawer"
                 onClick={() => setDrawer(drawer === "agent-view" ? "none" : "agent-view")}
                 tone="quiet"
               >
@@ -823,7 +842,7 @@ export function DestinyJourney() {
         open={startOverOpen}
         title="Start over on this device?"
         confirmLabel="Clear and start over"
-        onConfirm={startOver}
+        onConfirm={() => void startOver()}
         onCancel={() => setStartOverOpen(false)}
       >
         <p>This removes your words, limits, routes, receipts, and private notes from this browser. Nothing else is stored anywhere.</p>

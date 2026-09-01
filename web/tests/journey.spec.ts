@@ -97,12 +97,14 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(page.locator(".room__state")).toContainText("You set Bridge aside");
 
   await page.getByRole("button", { name: "What happened" }).click();
+  await expect(page.getByRole("heading", { name: "Every change, in order" })).toBeFocused();
   const drawer = page.getByRole("dialog", { name: "Every change, in order" });
   await expect(drawer.getByText("You set aside Bridge")).toBeVisible();
   await expect(drawer.getByText("You edited Closest")).toBeVisible();
   await expect(drawer.getByText("You drafted three routes")).toBeVisible();
   await expect(drawer.getByText(/receipt \d+ · version \d+ to \d+/).first()).toBeVisible();
   await drawer.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("button", { name: "What happened" })).toBeFocused();
 
   await probe.getByRole("button", { name: "Choose this to test" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /You chose “/ })).toBeVisible();
@@ -133,13 +135,18 @@ test("start over clears both keys after an explicit confirmation", async ({ page
 
 test("see what ChatGPT sees shows the exact orientation with confirmed words", async ({ page }) => {
   await completeToHandoff(page, SHAPES[0][0], SHAPES[0][1]);
-  await page.getByRole("button", { name: "See what ChatGPT sees" }).click();
+  const trigger = page.getByRole("button", { name: "See what ChatGPT sees" });
+  await trigger.click();
+  await expect(page.getByRole("heading", { name: "Everything the agent can read" })).toBeFocused();
   const json = await page.getByTestId("agent-view-json").innerText();
   const parsed = JSON.parse(json);
   expect(parsed.view).toBe("orientation");
   expect(parsed.confirmedWords.map((word: { text: string }) => word.text)).toContain(SHAPES[0][1]);
   expect(parsed.proposal.available).toBe(true);
   expect(json).not.toContain("draws");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("agent-view-json")).not.toBeVisible();
+  await expect(trigger).toBeFocused();
 });
 
 test("keyboard flow and focus management", async ({ page }) => {

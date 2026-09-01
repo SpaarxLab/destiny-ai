@@ -59,6 +59,29 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     });
   }
 
+  async clear(expectedVersion: number): Promise<void> {
+    await this.locks.request(`${this.key}.write`, async () => {
+      const current = this.load();
+      if (current.stateVersion !== expectedVersion) {
+        throw new WorkspaceStoreError(
+          "STALE_WRITE",
+          "The workspace changed before it could be cleared.",
+          current.stateVersion,
+        );
+      }
+
+      try {
+        this.storage.removeItem(this.key);
+      } catch {
+        throw new WorkspaceStoreError(
+          "PERSISTENCE_FAILED",
+          "The browser could not clear the workspace.",
+          current.stateVersion,
+        );
+      }
+    });
+  }
+
   private persist(workspace: Workspace): void {
     try {
       this.storage.setItem(this.key, JSON.stringify(workspace));

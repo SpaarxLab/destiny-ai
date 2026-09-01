@@ -97,7 +97,7 @@ export function WebMcpRegistrar({
 
 export function agentStatusCopy(state: WebMcpRegistrationState): string {
   return state.status === "registered"
-    ? "Agent connected"
+    ? "Agent tools ready"
     : state.status === "failed"
       ? "Agent tools unavailable"
       : "Human mode";

@@ -51,7 +51,7 @@ export function HandoffScreen({
             <h2 id="path-chatgpt">Ask ChatGPT for three routes</h2>
             <p>
               {agentConnected
-                ? "ChatGPT is connected to this page. Ask it to read your room and propose three routes. The room updates by itself."
+                ? "This browser can share the room with an agent. Ask ChatGPT to read it and propose three routes; the room updates after a tool call."
                 : "Open this page in ChatGPT's browser and ask it to read your room and propose three routes. The room updates by itself."}
             </p>
             <p className="capability-line" data-testid="capability-line">{capabilityLine}</p>

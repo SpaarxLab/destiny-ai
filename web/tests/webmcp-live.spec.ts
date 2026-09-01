@@ -146,7 +146,7 @@ function routesFrom(orientation: Record<string, unknown>, suffix: string) {
 }
 
 test.describe("live WebMCP in real Chrome", () => {
-  test("first load registers only read tools and the badge reports the connection", async ({ chromePage: page }) => {
+  test("first load registers only read tools and the badge reports capability", async ({ chromePage: page }) => {
     await page.waitForSelector('[data-webmcp-status="registered"]');
     const tools = await listTools(page);
     expect(tools).toEqual(expect.arrayContaining(["get_method_guide", "read_workspace"]));

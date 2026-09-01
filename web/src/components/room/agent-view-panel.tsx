@@ -13,15 +13,32 @@ export function AgentViewPanel({
   onClose: () => void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const close = useRef(onClose);
 
   useEffect(() => {
-    if (open) requestAnimationFrame(() => heading.current?.focus());
+    close.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const returnFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close.current();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    requestAnimationFrame(() => heading.current?.focus());
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (returnFocus?.isConnected) requestAnimationFrame(() => returnFocus.focus());
+    };
   }, [open]);
 
   if (!open) return null;
 
   return (
-    <aside className="drawer drawer--wide" role="dialog" aria-modal="false" aria-labelledby="agent-view-title">
+    <aside id="agent-view-drawer" className="drawer drawer--wide" role="dialog" aria-modal="false" aria-labelledby="agent-view-title">
       <div className="drawer__head">
         <div>
           <p className="eyebrow">See what ChatGPT sees</p>
