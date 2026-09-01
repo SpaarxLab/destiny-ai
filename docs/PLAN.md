@@ -4,6 +4,17 @@
 **Deadline:** 3 September 2026, 1:00 p.m. Pacific / 4 September, 1:30 a.m. IST.
 **Authority:** `PROJECT_STATE.md` · `SPEC.md` · `docs/DECISIONS.md`.
 
+## Candidate v2 status (P11)
+
+The competition candidate is now `docs/packets/P11-candidate-v2.md` under D-015, built on
+`codex/spx-18-candidate-v2` across Lanes A-D. P11 realises the C1 (ChatGPT collaboration and evals)
+and C2 (human and candidate hardening) outcomes below in one dependency-closed packet: receipted
+follow-up questions, replace-only-what-was-set-aside, `set_limits` and `reopen_exploring`, the
+declarative `draft_words` form, the rebuilt Route Room with activity and agent view, the optional
+embedded lab assistant, the visiting-agent simulator, and a real-Chrome WebMCP suite. C3 / P8C
+(deploy, public source, video, ChatGPT in-app run, submission) remains the next gate. The sections
+below are kept as the approved programme and are not rewritten.
+
 ## What we are shipping
 
 ### Competition candidate

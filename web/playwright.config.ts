@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: "journey.spec.ts",
+  testMatch: ["journey.spec.ts", "p8b-browser-context-isolation.spec.ts"],
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
