@@ -30,27 +30,29 @@ Built for the OpenAI WebMCP Challenge.
 4. Only confirmed evidence can support a proposed revision. Every success returns a receipt.
 5. Speak through the board. One traceable real-world learning loop is success.
 
-## Documents
+## Where things live
 
-| File | Audience | Role |
-|---|---|---|
-| `README.md` | everyone | this — the short notes |
-| `SPEC.md` | Harsh + team/build agents | current product and system contract |
-| `PLAN.md` | team | approved ownership, gates, dependency packets, and four-week sequence |
-| `SYSTEM_REVIEW.md` | Harsh + team | specialist verdict, findings, recent-chat connection, and doubts |
-| `DECISIONS.md` | everyone | accepted defaults and the few remaining owner choices |
-| `TEAM.md` | team | lane ownership, integration order, and working agreement |
-| `SAFETY_AND_PRIVACY.md` | team + reviewer | adult-only, local-only, distress, and privacy boundary |
-| `CONTRIBUTING.md` | contributors | setup, branch, PR, and integration workflow |
-| `METHOD.md` | the visiting runtime agent | served verbatim by `get_method_guide` — the skill layer |
-| `VOCABULARY.md` | everyone | canonical contract language and naming rules |
-| `boards.html` | humans | historical visual explainer; revised text follows this contract |
+Four living documents at the root, reference material in `docs/`, history in `docs/archive/`.
+
+| Read this | When you want |
+|---|---|
+| `README.md` | the vision — this file |
+| `PROJECT_STATE.md` | what is current, what is next, what is blocked |
+| `SPEC.md` | the product and system contract (the authority) |
+| `AGENTS.md` | rules for build agents working in this repository |
+| `CONTRIBUTING.md` | team lanes, workflow, setup, and definition of done |
+| `docs/PLAN.md` | the approved delivery programme and packet sequence |
+| `docs/DECISIONS.md` | accepted decisions and the few remaining owner choices |
+| `docs/METHOD.md` | the visiting agent's operating method (served by `get_method_guide`) |
+| `docs/VOCABULARY.md` | canonical contract nouns and naming rules |
+| `docs/SAFETY_AND_PRIVACY.md` | adult-only, local-only, distress, and privacy boundary |
+| `docs/packets/` | one receipt per delivery packet |
+| `docs/archive/` | superseded history — never current authority |
+
+Live execution status (tickets, owners, blockers) lives in
+[Linear](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview),
+not in repository markdown.
 
 ## Status
 
-The system contract and foundation plan are approved. One canonical repository now contains
-the plans and the application; the previous nested history is preserved in `RECOVERY.md`.
-P1 Command Spine is implemented on its packet branch and is undergoing integration review.
-It proves one governed `save_reflection` path through the participant UI and deterministic
-test adapter. Participant testing remains blocked until Harsh names the safeguarding reviewer
-and records five adult commitments.
+See `PROJECT_STATE.md` — the only file that answers "where are we right now."

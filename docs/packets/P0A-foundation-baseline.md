@@ -44,7 +44,7 @@ Repository metadata and foundation files only. No product implementation.
 
 ## Rollback or compensation
 
-Follow `RECOVERY.md` to reconstruct the old nested repository in isolation. Do not replace
+Follow `docs/archive/2026-09-01-foundation/RECOVERY.md` to reconstruct the old nested repository in isolation. Do not replace
 the active root repository without an explicit recovery decision.
 
 ## Dirty-state boundary

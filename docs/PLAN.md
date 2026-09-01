@@ -1,11 +1,13 @@
 # Destiny.AI — Team Build Plan
 
-**Status:** APPROVED. P1 implementation is admitted with Devarsh, Tirth, and Harsh owning
-separate lanes. Participant research remains separately reviewer- and recruitment-gated.
+**Status:** APPROVED. Foundation decisions are recorded in `docs/DECISIONS.md`; live packet
+status lives in Linear and `PROJECT_STATE.md`. Participant research remains separately
+reviewer- and recruitment-gated.
 **Product contract:** `SPEC.md`.
-**Review receipt:** `SYSTEM_REVIEW.md`.
+**Review receipt:** `docs/archive/2026-09-01-foundation/SYSTEM_REVIEW.md`.
 **Decision already made (Harsh, 2026-09-01):** build the complete learning vehicle,
-skip the 2026-09-03 submission, and target a later submission window.
+skip the 2026-09-03 submission, and target a later submission window
+(internal candidate 2026-09-29, contingency 2026-10-06).
 
 ## Outcome
 
@@ -29,25 +31,6 @@ agent an unusually capable lab assistant rather than a chatbot.
 6. Only human-confirmed evidence can revise a hypothesis.
 7. Each packet ends with a visible journey proof, denial/retry proof, and a receipt.
 8. No lane starts a dependent packet while its contract is unsettled.
-
-## Gate 0 — foundation decisions
-
-The meeting must record all of these in `PROJECT_STATE.md`:
-
-| Decision | Current state | Required answer |
-|---|---|---|
-| Repository root | **DECIDED:** `/Users/harsh/career-lab`; app stays in `web/` | preserve old nested history, create clean root baseline |
-| Team ownership | **DECIDED:** Devarsh = A, Tirth = B, Harsh = C + integration | invite teammates to private GitHub repo |
-| Participant boundary | **DECIDED:** adults 18+ only | enforce in recruitment and copy |
-| User access | target accepted, people unconfirmed | record five pseudonymous commitments |
-| Target window | **DECIDED:** internal candidate 2026-09-29 | contingency through 2026-10-06 |
-| Distress copy | draft exists | name reviewer and approve before participant use |
-| Runtime access | **DECIDED:** Harsh owns live proof | verify ChatGPT and Chrome separately |
-| Data policy | **DECIDED:** local-only candidate | export/import/clear; no analytics |
-
-Foundation setup is admitted and all implementation owners are recorded. P1 is the only
-`In Progress` packet; P2-P8 remain dependency-ordered in the Linear backlog. Participant
-sessions wait for the safeguarding reviewer and recruitment commitments.
 
 ## Three team lanes
 
@@ -165,24 +148,6 @@ proof class. Local tests are not submission or production proof.
 - automatic career prediction, therapy claims, agent-sent outreach, silent preference
   inference, automatic permission earning, and any mutation path that bypasses commands.
 
-## Team operating rhythm
-
-- 15-minute daily contract check: changed nouns, schemas, commands, and blockers only.
-- Each lane keeps one active packet and one writable worktree.
-- Contract changes require a short decision record and simultaneous fixture update.
-- Integration order: domain contract -> command tests -> adapter/UI -> journey proof -> docs.
-- A packet closes with: commit, dirty state, proof commands, rendered receipt, remaining gate,
-  and integrate/defer/reject disposition.
-
-## Team meeting agenda
-
-1. Resolve every Gate 0 row, especially repository authority and participant age boundary.
-2. Name Lane A/B/C owners and the first integration captain.
-3. Walk one state-changing call end to end: tool -> command -> policy -> store -> receipt -> UI.
-4. Approve the must-ship loop and defer list.
-5. Choose the target window and participant recruitment owner.
-6. Approve the distress/data-handling boundary.
-
-Record the remaining owner names and reviewer in `DECISIONS.md` and `PROJECT_STATE.md`.
-Then activate P1 from `docs/packets/TEMPLATE.md`. Do not admit participant sessions or a
-public release merely because local implementation begins.
+The team operating rhythm, working agreement, and packet definition of done live in
+`CONTRIBUTING.md`. Do not admit participant sessions or a public release merely because
+local implementation begins.

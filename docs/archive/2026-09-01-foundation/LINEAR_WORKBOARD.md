@@ -1,5 +1,8 @@
 # Destiny.AI — Linear Workboard Receipt
 
+> **ARCHIVED 2026-09-01.** One-time board/integration setup receipt. Live ticket status,
+> owners, and blockers are read directly in Linear; do not mirror them back into markdown.
+
 **Verified:** 2026-09-01  
 **Project:** [Destiny.AI — Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)  
 **Team:** SpaarxLab (`SPX`)  

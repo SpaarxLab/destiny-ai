@@ -5,7 +5,7 @@
 lanes. Participant research remains reviewer- and recruitment-gated.
 **Supersedes:** the original Destiny.AI brainstorm, the red/green whiteboards, the eight
 internal-agent concept, and the pre-review architecture in this file.
-**Review receipt:** `SYSTEM_REVIEW.md`.
+**Review receipt:** `docs/archive/2026-09-01-foundation/SYSTEM_REVIEW.md`.
 
 ## 1. Product promise
 
@@ -487,7 +487,7 @@ competition, or production proof.
 ## 13. Delivery authority
 
 The dependency-ordered team programme, ownership lanes, packet gates, and daily sequence live
-in `PLAN.md`. It is intentionally separate from this product/system contract.
+in `docs/PLAN.md`. It is intentionally separate from this product/system contract.
 
 The repository-root conflict is resolved and P1 is admitted. The first product outcome remains
 the command spine and cold orientation—not the whole catalogue.
