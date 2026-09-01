@@ -10,13 +10,28 @@ interface RegisteredTool {
   signal: AbortSignal;
 }
 
+type RegistrationHook = (
+  tool: WebMcpToolDefinition,
+  index: number,
+  signal: AbortSignal,
+) => Promise<void>;
+
 export class FakeWebMcpRuntime implements WebMcpModelContext {
   private readonly registrations: RegisteredTool[] = [];
+  private registrationAttempts = 0;
 
-  registerTool(
+  constructor(
+    private readonly beforeRegistration: RegistrationHook = async () => undefined,
+  ) {}
+
+  async registerTool(
     tool: WebMcpToolDefinition,
     { signal }: Readonly<{ signal: AbortSignal }>,
-  ): void {
+  ): Promise<void> {
+    const index = this.registrationAttempts;
+    this.registrationAttempts += 1;
+    await this.beforeRegistration(tool, index, signal);
+    if (signal.aborted) throw signal.reason;
     this.registrations.push({ tool, signal });
   }
 
@@ -47,9 +62,9 @@ export class FakeWebMcpRuntime implements WebMcpModelContext {
   }
 }
 
-export function createWebMcpHarness(reader: WorkspaceReader) {
+export async function createWebMcpHarness(reader: WorkspaceReader) {
   const runtime = new FakeWebMcpRuntime();
   const manager = new WebMcpRegistrationManager(() => runtime);
-  const registration = manager.replace(reader);
+  const registration = await manager.replace(reader);
   return { runtime, manager, registration };
 }

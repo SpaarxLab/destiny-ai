@@ -8,16 +8,19 @@ export type WebMcpRegistrationState =
   | { status: "failed"; message: string };
 
 type RuntimeResolver = () => WebMcpModelContext | null;
+type WebMcpRegistrationOutcome = WebMcpRegistrationState | null;
 
 export class WebMcpRegistrationManager {
   private activeController: AbortController | null = null;
+  private generation = 0;
 
   constructor(
     private readonly resolveRuntime: RuntimeResolver = () => detectModelContext(),
   ) {}
 
-  replace(reader: WorkspaceReader): WebMcpRegistrationState {
-    this.stop();
+  async replace(reader: WorkspaceReader): Promise<WebMcpRegistrationOutcome> {
+    const generation = ++this.generation;
+    this.abortActive();
     const runtime = this.resolveRuntime();
     if (!runtime) return { status: "unsupported" };
 
@@ -26,11 +29,13 @@ export class WebMcpRegistrationManager {
     const tools = createWebMcpTools(reader, controller.signal);
 
     try {
-      for (const tool of tools) {
-        runtime.registerTool(tool, { signal: controller.signal });
-      }
+      await Promise.all(
+        tools.map((tool) => runtime.registerTool(tool, { signal: controller.signal })),
+      );
+      if (!this.isCurrent(generation, controller)) return null;
       return { status: "registered", toolNames: tools.map((tool) => tool.name) };
     } catch (error) {
+      if (!this.isCurrent(generation, controller)) return null;
       controller.abort();
       this.activeController = null;
       return {
@@ -41,8 +46,19 @@ export class WebMcpRegistrationManager {
   }
 
   stop(): void {
+    this.generation += 1;
+    this.abortActive();
+  }
+
+  private abortActive(): void {
     this.activeController?.abort();
     this.activeController = null;
+  }
+
+  private isCurrent(generation: number, controller: AbortController): boolean {
+    return this.generation === generation &&
+      this.activeController === controller &&
+      !controller.signal.aborted;
   }
 }
 

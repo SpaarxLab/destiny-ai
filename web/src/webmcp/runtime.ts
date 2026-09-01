@@ -6,6 +6,7 @@ export interface WebMcpToolDefinition {
   inputSchema: JsonSchema;
   annotations: Readonly<{
     readOnlyHint: true;
+    untrustedContentHint?: true;
   }>;
   execute(input: unknown): unknown | Promise<unknown>;
 }
@@ -14,7 +15,7 @@ export interface WebMcpModelContext {
   registerTool(
     tool: WebMcpToolDefinition,
     options: Readonly<{ signal: AbortSignal }>,
-  ): void;
+  ): Promise<void>;
 }
 
 export interface WebMcpDocument {

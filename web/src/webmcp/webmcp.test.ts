@@ -6,7 +6,7 @@ import {
 } from "./contracts";
 import { WebMcpRegistrationManager, runtimeResolverFor } from "./lifecycle";
 import { agentStatusCopy } from "./registrar";
-import { detectModelContext, type WebMcpModelContext } from "./runtime";
+import { detectModelContext } from "./runtime";
 import { FakeWebMcpRuntime, createWebMcpHarness } from "./testing/fake-runtime";
 import { READ_WORKSPACE_INPUT_SCHEMA } from "./tools";
 import {
@@ -24,8 +24,18 @@ function setup(workspace = createEmptyWorkspace()) {
   return { store, reader };
 }
 
+function deferred() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("P8A native WebMCP foundation", () => {
-  it("feature-detects document.modelContext and fails closed when absent", () => {
+  it("feature-detects document.modelContext and fails closed when absent", async () => {
     const runtime = new FakeWebMcpRuntime();
     expect(detectModelContext(undefined)).toBeNull();
     expect(detectModelContext({})).toBeNull();
@@ -33,23 +43,35 @@ describe("P8A native WebMCP foundation", () => {
 
     const { reader } = setup();
     const manager = new WebMcpRegistrationManager(() => null);
-    expect(manager.replace(reader)).toEqual({ status: "unsupported" });
+    await expect(manager.replace(reader)).resolves.toEqual({ status: "unsupported" });
     expect(agentStatusCopy({ status: "unsupported" })).toBe(
       "Agent tools not detected · Human mode",
     );
   });
 
-  it("registers the exact read-only catalogue with strict input schemas", () => {
+  it("registers the exact read-only catalogue with strict input schemas", async () => {
     const { reader } = setup();
-    const { runtime, registration } = createWebMcpHarness(reader);
+    const { runtime, registration } = await createWebMcpHarness(reader);
 
     expect(registration).toEqual({
       status: "registered",
       toolNames: ["read_workspace", "get_method_guide"],
     });
     expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
-    expect(runtime.latest("read_workspace").annotations).toEqual({ readOnlyHint: true });
+    expect(runtime.latest("read_workspace").annotations).toEqual({
+      readOnlyHint: true,
+      untrustedContentHint: true,
+    });
     expect(runtime.latest("get_method_guide").annotations).toEqual({ readOnlyHint: true });
+    expect(runtime.latest("read_workspace").description).toContain(
+      "Use orientation for identity, proof summary",
+    );
+    expect(runtime.latest("read_workspace").description).toContain(
+      "use working_set for recent reflections",
+    );
+    expect(runtime.latest("read_workspace").description).toContain(
+      "use entities for targeted reflection refs",
+    );
     expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf).toHaveLength(3);
     expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf.every((schema) =>
       schema.additionalProperties === false)).toBe(true);
@@ -65,9 +87,9 @@ describe("P8A native WebMCP foundation", () => {
     const runtime = new FakeWebMcpRuntime();
     const manager = new WebMcpRegistrationManager(() => runtime);
 
-    manager.replace(reader);
+    await manager.replace(reader);
     const cachedRead = runtime.cached("read_workspace");
-    manager.replace(reader);
+    await manager.replace(reader);
 
     expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
     expect(await cachedRead.execute({})).toMatchObject({
@@ -78,43 +100,98 @@ describe("P8A native WebMCP foundation", () => {
     expect(await runtime.invoke("read_workspace", {})).toMatchObject({ ok: true });
   });
 
-  it("aborts cleanly across unmount, remount, and navigation-style replacement", () => {
+  it("aborts cleanly across unmount, remount, and navigation-style replacement", async () => {
     const { reader } = setup();
     const runtime = new FakeWebMcpRuntime();
     const firstPage = new WebMcpRegistrationManager(() => runtime);
-    firstPage.replace(reader);
+    await firstPage.replace(reader);
     firstPage.stop();
     expect(runtime.activeToolNames()).toEqual([]);
 
     const nextPage = new WebMcpRegistrationManager(() => runtime);
-    nextPage.replace(reader);
+    await nextPage.replace(reader);
     expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
     nextPage.stop();
     expect(runtime.activeToolNames()).toEqual([]);
   });
 
-  it("aborts the whole batch if native registration fails", () => {
+  it("awaits the whole catalogue and aborts it when the second registration rejects", async () => {
     const { reader } = setup();
-    let calls = 0;
-    const runtime: WebMcpModelContext = {
-      registerTool() {
-        calls += 1;
-        if (calls === 2) throw new Error("fake registration failure");
-      },
-    };
+    const runtime = new FakeWebMcpRuntime(async (_tool, index) => {
+      if (index === 1) throw new Error("fake registration failure");
+    });
     const manager = new WebMcpRegistrationManager(() => runtime);
 
-    expect(manager.replace(reader)).toEqual({
+    await expect(manager.replace(reader)).resolves.toEqual({
       status: "failed",
       message: "fake registration failure",
     });
+    expect(runtime.activeToolNames()).toEqual([]);
+  });
+
+  it("does not report success until every native registration promise resolves", async () => {
+    const { reader } = setup();
+    const gates = [deferred(), deferred()];
+    const runtime = new FakeWebMcpRuntime((_tool, index) => gates[index].promise);
+    const manager = new WebMcpRegistrationManager(() => runtime);
+    let settled = false;
+
+    const pending = manager.replace(reader).then((result) => {
+      settled = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(runtime.activeToolNames()).toEqual([]);
+
+    gates[0].resolve();
+    gates[1].resolve();
+    await expect(pending).resolves.toEqual({
+      status: "registered",
+      toolNames: ["read_workspace", "get_method_guide"],
+    });
+    expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
+  });
+
+  it("suppresses late success after stop while registration is pending", async () => {
+    const { reader } = setup();
+    const gates = [deferred(), deferred()];
+    const runtime = new FakeWebMcpRuntime((_tool, index) => gates[index].promise);
+    const manager = new WebMcpRegistrationManager(() => runtime);
+
+    const pending = manager.replace(reader);
+    await Promise.resolve();
+    manager.stop();
+    gates[0].resolve();
+    gates[1].resolve();
+
+    await expect(pending).resolves.toBeNull();
+    expect(runtime.activeToolNames()).toEqual([]);
+  });
+
+  it("suppresses a superseded registration after its promises resolve late", async () => {
+    const { reader } = setup();
+    const firstGeneration = [deferred(), deferred()];
+    const runtime = new FakeWebMcpRuntime((_tool, index) =>
+      index < 2 ? firstGeneration[index].promise : Promise.resolve());
+    const manager = new WebMcpRegistrationManager(() => runtime);
+
+    const stale = manager.replace(reader);
+    await Promise.resolve();
+    const current = manager.replace(reader);
+    await expect(current).resolves.toMatchObject({ status: "registered" });
+
+    firstGeneration[0].resolve();
+    firstGeneration[1].resolve();
+    await expect(stale).resolves.toBeNull();
+    expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
   });
 
   it("returns the same bounded orientation as the UI reader without mutation", async () => {
     const { store, reader } = setup();
     const before = store.load();
     const uiOrientation = reader.read({ view: "orientation" });
-    const { runtime } = createWebMcpHarness(reader);
+    const { runtime } = await createWebMcpHarness(reader);
     const agentOrientation = await runtime.invoke("read_workspace", { view: "orientation" });
 
     expect(webMcpReadWorkspaceResultSchema.parse(agentOrientation)).toEqual(uiOrientation);
@@ -142,7 +219,9 @@ describe("P8A native WebMCP foundation", () => {
       stateVersion: reflections.length,
       reflections,
     });
-    const { runtime } = createWebMcpHarness(new WorkspaceReader(new MemoryWorkspaceStore(workspace)));
+    const { runtime } = await createWebMcpHarness(
+      new WorkspaceReader(new MemoryWorkspaceStore(workspace)),
+    );
 
     const workingSet = webMcpReadWorkspaceResultSchema.parse(
       await runtime.invoke("read_workspace", { view: "working_set" }),
@@ -160,28 +239,31 @@ describe("P8A native WebMCP foundation", () => {
   });
 
   it("returns the versioned method guide and rejects extra input", async () => {
-    const { reader } = setup();
-    const { runtime } = createWebMcpHarness(reader);
+    const workspace = workspaceSchema.parse({ ...createEmptyWorkspace(), stateVersion: 7 });
+    const { reader } = setup(workspace);
+    const { runtime } = await createWebMcpHarness(reader);
 
     const guide = methodGuideResultSchema.parse(await runtime.invoke("get_method_guide", {}));
     expect(guide.data).toMatchObject({
       methodVersion: METHOD_VERSION,
       contractVersion: CONTRACT_VERSION,
     });
+    expect(guide.stateVersion).toBe(7);
     expect(await runtime.invoke("get_method_guide", { hidden: true })).toMatchObject({
       ok: false,
       error: { code: "MALFORMED_INPUT" },
+      stateVersion: 7,
     });
   });
 
-  it("supports deterministic document injection for the in-page harness", () => {
+  it("supports deterministic document injection for the in-page harness", async () => {
     const { reader } = setup();
     const runtime = new FakeWebMcpRuntime();
     const manager = new WebMcpRegistrationManager(
       runtimeResolverFor({ modelContext: runtime }),
     );
 
-    expect(manager.replace(reader).status).toBe("registered");
+    await expect(manager.replace(reader)).resolves.toMatchObject({ status: "registered" });
     expect(runtime.activeToolNames()).toEqual(["read_workspace", "get_method_guide"]);
   });
 });

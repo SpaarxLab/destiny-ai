@@ -26,9 +26,8 @@ export function WebMcpRegistrar({ reader }: { reader: WorkspaceReader | null }) 
       };
     }
 
-    const nextState = registration.replace(reader);
-    queueMicrotask(() => {
-      if (!cancelled) setState(nextState);
+    void registration.replace(reader).then((nextState) => {
+      if (!cancelled && nextState) setState(nextState);
     });
 
     return () => {

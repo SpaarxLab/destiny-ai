@@ -57,9 +57,9 @@ export function createWebMcpTools(
     {
       name: "read_workspace",
       description:
-        "Read bounded current Destiny.AI workspace truth. Use for cold orientation, the active working set, targeted reflection refs, or changes after a caller-owned cursor. Returns typed state, proof, available actions, and guidance without mutation.",
+        "Read bounded current Destiny.AI workspace truth without mutation. Use orientation for identity, proof summary, available actions, guidance, and cursor-based changes; use working_set for recent reflections; use entities for targeted reflection refs.",
       inputSchema: READ_WORKSPACE_INPUT_SCHEMA,
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute(input: unknown) {
         if (signal.aborted) return staleRegistrationResult();
         return webMcpReadWorkspaceResultSchema.parse(
@@ -75,6 +75,10 @@ export function createWebMcpTools(
       annotations: { readOnlyHint: true },
       execute(input: unknown) {
         if (signal.aborted) return staleRegistrationResult();
+        const identityRead = webMcpReadWorkspaceResultSchema.parse(
+          reader.read({ view: "orientation" }),
+        );
+        if (!identityRead.ok) return identityRead;
         if (!isEmptyRecord(input ?? {})) {
           return webMcpReadWorkspaceResultSchema.parse({
             ok: false,
@@ -85,15 +89,11 @@ export function createWebMcpTools(
               insteadDo: "Call get_method_guide with {}.",
               example: {},
             },
-            nextActions: [],
-            stateVersion: 0,
+            nextActions: identityRead.nextActions,
+            stateVersion: identityRead.stateVersion,
             guidance: "No guide was returned because the request contained unsupported fields.",
           });
         }
-        const identityRead = webMcpReadWorkspaceResultSchema.parse(
-          reader.read({ view: "orientation" }),
-        );
-        if (!identityRead.ok) return identityRead;
         return getMethodGuide(identityRead.stateVersion, identityRead.nextActions);
       },
     },
