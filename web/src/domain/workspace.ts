@@ -127,7 +127,7 @@ export const participantSchema = z.strictObject({
 
 const notImplementedCollectionSchema = z.array(z.never()).length(0);
 
-export const workspaceSchema = z.strictObject({
+const workspaceObjectSchema = z.strictObject({
   id: z.string().uuid(),
   schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
   contractVersion: z.literal(CONTRACT_VERSION),
@@ -144,6 +144,134 @@ export const workspaceSchema = z.strictObject({
   outbox: notImplementedCollectionSchema,
   teachings: notImplementedCollectionSchema,
   operations: z.array(operationRecordSchema),
+});
+
+export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, context) => {
+  const addressableRefs = [
+    { ref: workspace.id, path: ["id"] },
+    ...workspace.reflections.map((entity, index) => ({ ref: entity.ref, path: ["reflections", index, "ref"] })),
+    ...workspace.routeProposalSets.map((entity, index) => ({ ref: entity.ref, path: ["routeProposalSets", index, "ref"] })),
+    ...workspace.routeProposalSets.flatMap((set, setIndex) =>
+      set.routes.map((route, routeIndex) => ({
+        ref: route.ref,
+        path: ["routeProposalSets", setIndex, "routes", routeIndex, "ref"],
+      }))),
+    ...workspace.hypotheses.map((entity, index) => ({ ref: entity.ref, path: ["hypotheses", index, "ref"] })),
+    ...workspace.operations.map((entity, index) => ({ ref: entity.operationRef, path: ["operations", index, "operationRef"] })),
+  ];
+  const seen = new Set<string>();
+  for (const entry of addressableRefs) {
+    if (seen.has(entry.ref)) {
+      context.addIssue({ code: "custom", path: entry.path, message: `Addressable ref ${entry.ref} is not unique.` });
+    }
+    seen.add(entry.ref);
+  }
+  for (const [operationIndex, operation] of workspace.operations.entries()) {
+    for (const [changedRefIndex, changedRef] of operation.changedRefs.entries()) {
+      if (!seen.has(changedRef)) {
+        context.addIssue({
+          code: "custom",
+          path: ["operations", operationIndex, "changedRefs", changedRefIndex],
+          message: `Changed ref ${changedRef} does not point to an addressable workspace entity.`,
+        });
+      }
+    }
+  }
+
+  for (const [setIndex, set] of workspace.routeProposalSets.entries()) {
+    if (set.supersedesRouteSetRef) {
+      const targetIndex = workspace.routeProposalSets.findIndex(
+        (candidate) => candidate.ref === set.supersedesRouteSetRef,
+      );
+      if (targetIndex < 0 || targetIndex >= setIndex) {
+        context.addIssue({
+          code: "custom",
+          path: ["routeProposalSets", setIndex, "supersedesRouteSetRef"],
+          message: "A supersession target must be an earlier route set in this workspace.",
+        });
+      }
+    }
+
+    const selected = set.routes.filter((route) => route.status === "selected");
+    if (set.selectedRouteRef === undefined) {
+      if (selected.length !== 0) {
+        context.addIssue({ code: "custom", path: ["routeProposalSets", setIndex, "routes"], message: "Selected routes require selectedRouteRef." });
+      }
+    } else if (
+      set.status !== "resolved" ||
+      selected.length !== 1 ||
+      selected[0]?.ref !== set.selectedRouteRef
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["routeProposalSets", setIndex, "selectedRouteRef"],
+        message: "A resolved selected set must point to exactly one selected route.",
+      });
+    }
+    if (set.status !== "resolved" && set.selectedRouteRef !== undefined) {
+      context.addIssue({ code: "custom", path: ["routeProposalSets", setIndex, "status"], message: "Only a resolved set may have a selected route." });
+    }
+    if (set.status === "resolved" && set.selectedRouteRef === undefined) {
+      const allRejected = set.routes.every((route) => route.status === "rejected");
+      const compensated = workspace.operations.some(
+        (operation) => operation.effect === "COMPENSATED" && operation.changedRefs.includes(set.ref),
+      );
+      if (!allRejected && !compensated) {
+        context.addIssue({
+          code: "custom",
+          path: ["routeProposalSets", setIndex, "status"],
+          message: "A resolved unselected set must be all-rejected or have a compensation receipt.",
+        });
+      }
+    }
+
+    const kinds = new Set(set.routes.map((route) => route.kind));
+    const questions = new Set(set.routes.map((route) => route.learningQuestion));
+    const tests = new Set(set.routes.map((route) => JSON.stringify(route.test)));
+    if (kinds.size !== 3 || questions.size !== 3 || tests.size !== 3) {
+      context.addIssue({
+        code: "custom",
+        path: ["routeProposalSets", setIndex, "routes"],
+        message: "Stored routes must retain unique kinds, learning questions, and tests.",
+      });
+    }
+    for (const [routeIndex, route] of set.routes.entries()) {
+      for (const source of route.sourceQuotes) {
+        const reflection = workspace.reflections.find(
+          (candidate) => candidate.ref === source.reflectionRef,
+        );
+        if (!reflection || reflection.status !== "confirmed" || !reflection.text.includes(source.quote)) {
+          context.addIssue({
+            code: "custom",
+            path: ["routeProposalSets", setIndex, "routes", routeIndex, "sourceQuotes"],
+            message: "Stored route quotes must exactly cite confirmed reflections.",
+          });
+        }
+      }
+    }
+  }
+
+  for (const [hypothesisIndex, hypothesis] of workspace.hypotheses.entries()) {
+    if (hypothesis.status !== "accepted") continue;
+    const set = workspace.routeProposalSets.find(
+      (candidate) => candidate.ref === hypothesis.originatingRouteSetRef,
+    );
+    const route = set?.routes.find(
+      (candidate) => candidate.ref === hypothesis.originatingRouteRef,
+    );
+    if (
+      !set || !route || set.status !== "resolved" ||
+      set.selectedRouteRef !== route.ref || route.status !== "selected" ||
+      hypothesis.claim !== route.premise ||
+      JSON.stringify(hypothesis.sourceQuotes) !== JSON.stringify(route.sourceQuotes)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["hypotheses", hypothesisIndex],
+        message: "An accepted hypothesis must agree with its selected originating route and set.",
+      });
+    }
+  }
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
 

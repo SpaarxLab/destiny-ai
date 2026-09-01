@@ -7,6 +7,7 @@ import {
   participantSchema,
   phaseSchema,
   workspaceSchema,
+  type OperationRecord,
   type Workspace,
 } from "../domain/workspace";
 import { WorkspaceStoreError, type WorkspaceStore } from "./workspace-store";
@@ -123,7 +124,32 @@ export function migrateWorkspace(input: unknown): Workspace {
         actor: actorSchema.parse("agent"),
       })),
     })),
+    operations: legacy.operations.map(normalizeLegacyOperation),
     routeProposalSets: [],
     hypotheses: [],
   });
+}
+
+function normalizeLegacyOperation(operation: OperationRecord): OperationRecord {
+  if (operation.command !== "save_reflection") {
+    throw new Error(`Unsupported schema-v1 command ${operation.command}.`);
+  }
+  const identity: unknown = JSON.parse(operation.requestIdentity);
+  if (
+    typeof identity !== "object" || identity === null ||
+    Object.keys(identity).sort().join(",") !== "actor,name,text" ||
+    !("name" in identity) || identity.name !== "save_reflection" ||
+    !("actor" in identity) || identity.actor !== operation.actor ||
+    !("text" in identity) || typeof identity.text !== "string"
+  ) {
+    throw new Error("Invalid schema-v1 save_reflection request identity.");
+  }
+  return {
+    ...operation,
+    requestIdentity: JSON.stringify({
+      name: "save_reflection",
+      actor: operation.actor,
+      input: { text: identity.text },
+    }),
+  };
 }

@@ -168,6 +168,11 @@ validates bounds, exact references, caps, and structural distinction; it does no
 career sufficiency itself. The insufficient branch stores no route set. A replacement proposal
 includes `supersedesRouteSetRef`; the older set stays in history.
 
+`insufficient_signal` is a successful, non-mutating diagnostic outcome: the result has `ok: true`,
+typed `outcome`, `followUpQuestion`, and `reasonRefs` data, no `error`, no receipt, and the unchanged
+`stateVersion`. It is not a successful write. Every successful write still creates and returns a
+receipt.
+
 `revise_route_set` is replay-safe and participant-only. It owns bounded pre-choice edits and
 individual or all-route rejection. Rejecting all routes resolves the set without creating a
 hypothesis. Revision, rejection, and supersession preserve receipts and proposal history.
@@ -410,6 +415,13 @@ interface ToolResult<T> {
 On a lost response, the agent retries with the same `operationId`. The command ledger
 returns the original receipt. On `STALE_STATE`, it re-reads and creates a new operation only
 after reconsidering the new state.
+
+Actor and proposal provenance are trusted execution context, not caller-shaped command input. The
+participant adapter supplies participant authority; a WebMCP write adapter can supply only agent
+authority with `chatgpt_webmcp` provenance; an optional inference adapter supplies agent authority
+with `embedded_inference` provenance. Extra payload fields that attempt to self-assert actor or
+provenance are malformed. Replay identity remains bound to the trusted actor and, for route
+proposals, the trusted proposal source.
 
 ### 8.4 Accretion without corruption
 

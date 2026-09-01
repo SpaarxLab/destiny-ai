@@ -191,21 +191,77 @@ describe("LocalWorkspaceStore", () => {
     expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
   });
 
+  it("canonicalizes a schema-v1 save_reflection identity so an identical retry replays", async () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      id: "00000000-0000-4000-8000-000000000001",
+      schemaVersion: 1,
+      contractVersion: "1.0.0",
+      stateVersion: 1,
+      phase: "EXPLORING",
+      participant: { displayName: "", focusQuestion: "", costCaps: { hoursPerWeek: 0, money: 0, currency: "XXX" } },
+      reflections: [{
+        id: "00000000-0000-4000-8000-000000000100",
+        ref: "reflection-1",
+        availableActions: [],
+        status: "confirmed",
+        text: "Retry-safe migrated reflection.",
+        recordedBy: "participant",
+        createdAt: "2026-09-01T10:00:00.000Z",
+      }],
+      hypotheses: [], experiments: [], evidence: [], revisions: [], planItems: [], outbox: [], teachings: [],
+      operations: [{
+        operationId: operationOne,
+        operationRef: "operation-1",
+        actor: "participant",
+        command: "save_reflection",
+        effect: "APPLIED",
+        beforeVersion: 0,
+        afterVersion: 1,
+        changedRefs: ["reflection-1"],
+        at: "2026-09-01T10:00:00.000Z",
+        requestIdentity: JSON.stringify({
+          name: "save_reflection",
+          actor: "participant",
+          text: "Retry-safe migrated reflection.",
+        }),
+      }],
+    };
+    const originalBytes = JSON.stringify(legacy);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, createEmptyWorkspace(), new SerialLockManager());
+    const result = await createParticipantCommandAdapter(new CommandKernel(store)).saveReflection({
+      operationId: operationOne,
+      expectedVersion: 1,
+      text: "Retry-safe migrated reflection.",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      stateVersion: 1,
+      receipt: { operationRef: "operation-1", afterVersion: 1 },
+    });
+    expect(result.guidance).toContain("Replay detected");
+    expect(store.load().operations).toHaveLength(1);
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+  });
+
   it("reloads a persisted P3 route proposal with its receipt intact", async () => {
     const storage = new MemoryStorage();
     const locks = new SerialLockManager();
     const firstStore = new LocalWorkspaceStore(storage, p3Workspace(), locks);
-    const first = await new CommandKernel(firstStore).execute({
+    const first = await new CommandKernel(firstStore).execute(
+      { actor: "agent", proposalSource: "chatgpt_webmcp" },
+      {
       name: "propose_route_set",
-      actor: "agent",
       input: {
         operationId: operationOne,
         expectedVersion: 0,
         outcome: "routes",
         routes: validRoutes(),
-        createdBy: "chatgpt_webmcp",
       },
-    });
+      },
+    );
     const reloaded = new LocalWorkspaceStore(storage, p3Workspace(), locks).load();
 
     expect(first.ok).toBe(true);

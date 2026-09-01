@@ -108,9 +108,8 @@ describe("P1 save_reflection command spine", () => {
     ["oversized text", { operationId: operationOne, expectedVersion: 0, text: "x".repeat(2_001) }],
   ])("rejects %s without mutation", async (_case, input) => {
     const { store, kernel } = setup();
-    const result = await kernel.execute({
+    const result = await kernel.execute({ actor: "participant", proposalSource: "participant" }, {
       name: "save_reflection",
-      actor: "participant",
       input,
     });
 

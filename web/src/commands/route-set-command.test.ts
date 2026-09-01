@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
-import type { Command } from "../domain/commands";
-import { workspaceSchema, type Workspace } from "../domain/workspace";
+import type { Command, ProposeRouteSetCommand } from "../domain/commands";
+import { workspaceSchema, type Reflection, type Workspace } from "../domain/workspace";
 import { MemoryWorkspaceStore } from "../storage/memory-workspace-store";
 import { WorkspaceStoreError, type WorkspaceStore } from "../storage/workspace-store";
-import { CommandKernel, type CommandEnvironment } from "./command-kernel";
+import {
+  CommandKernel,
+  type CommandEnvironment,
+  type CommandExecutionContext,
+} from "./command-kernel";
 import { p3Workspace, validRoutes } from "./fixtures/p3-route-set";
 
 const operationOne = "00000000-0000-4000-8000-000000000011";
 const operationTwo = "00000000-0000-4000-8000-000000000012";
 const operationThree = "00000000-0000-4000-8000-000000000013";
+const agentContext = { actor: "agent", proposalSource: "chatgpt_webmcp" } as const;
+const participantContext = { actor: "participant", proposalSource: "participant" } as const;
+const embeddedContext = { actor: "agent", proposalSource: "embedded_inference" } as const;
 
 function environment(): CommandEnvironment {
   let id = 200;
@@ -23,42 +30,72 @@ function setup(initial = p3Workspace()) {
   return { store, kernel: new CommandKernel(store, environment()) };
 }
 
-function propose(operationId = operationOne, expectedVersion = 0, actor: "agent" | "participant" = "agent"): Command {
+function proposalCommand(
+  operationId = operationOne,
+  expectedVersion = 0,
+): ProposeRouteSetCommand {
   return {
     name: "propose_route_set",
-    actor,
-    input: {
-      operationId,
-      expectedVersion,
-      outcome: "routes",
-      routes: validRoutes(),
-      createdBy: actor === "participant" ? "participant" : "chatgpt_webmcp",
-    },
+    input: { operationId, expectedVersion, outcome: "routes", routes: validRoutes() },
   };
 }
 
-describe("P3A route proposal and participant choice", () => {
-  it.each(["agent", "participant"] as const)("stores one bounded route proposal from the %s actor", async (actor) => {
-    const { store, kernel } = setup();
-    const result = await kernel.execute(propose(operationOne, 0, actor));
+function reflectionWithRef(ref: string): Reflection {
+  return {
+    id: `00000000-0000-4000-8000-${String(ref.length + 500).padStart(12, "0")}`,
+    ref,
+    availableActions: [],
+    status: "confirmed",
+    text: "A separate confirmed reflection for adversarial ref allocation.",
+    recordedBy: "participant",
+    createdAt: "2026-09-01T10:00:00.000Z",
+  };
+}
 
-    expect(result).toMatchObject({ ok: true, data: { outcome: "routes" }, stateVersion: 1 });
-    expect(result.receipt).toMatchObject({ effect: "PROPOSED", changedRefs: ["route-set-1"] });
-    const routeSet = store.load().routeProposalSets[0];
-    expect(routeSet.routes.map((route) => route.kind)).toEqual(["closest", "bridge", "probe"]);
-    expect(routeSet.availableActions.map((action) => [action.tool, action.actor])).toEqual([
-      ["revise_route_set", "participant"],
-      ["choose_route", "participant"],
-      ["compensate_route_set", "participant"],
-    ]);
+async function propose(
+  kernel: CommandKernel,
+  context: CommandExecutionContext = agentContext,
+  operationId = operationOne,
+  expectedVersion = 0,
+) {
+  return kernel.execute(context, proposalCommand(operationId, expectedVersion));
+}
+
+describe("P3A route proposal and participant choice", () => {
+  it.each([
+    [agentContext, "chatgpt_webmcp"],
+    [participantContext, "participant"],
+    [embeddedContext, "embedded_inference"],
+  ] as const)("binds proposal provenance to trusted execution context", async (context, createdBy) => {
+    const { store, kernel } = setup();
+    const result = await propose(kernel, context);
+    expect(result).toMatchObject({ ok: true, data: { outcome: "routes" }, receipt: { effect: "PROPOSED" } });
+    expect(store.load().routeProposalSets[0].createdBy).toBe(createdBy);
   });
 
-  it("returns INSUFFICIENT_SIGNAL with one question and no mutation or receipt", async () => {
+  it("rejects payload attempts to self-assert participant authority or proposal provenance", async () => {
+    const { store, kernel } = setup();
+    const payload = { ...proposalCommand(), actor: "participant", createdBy: "participant" };
+    const result = await kernel.execute(agentContext, payload);
+    expect(result.error?.code).toBe("MALFORMED_INPUT");
+    expect(store.load().stateVersion).toBe(0);
+  });
+
+  it("rejects internally inconsistent adapter context at runtime", async () => {
+    const { store, kernel } = setup();
+    const result = await kernel.execute(
+      { actor: "participant", proposalSource: "chatgpt_webmcp" } as never,
+      proposalCommand(),
+    );
+    expect(result.error?.code).toBe("MALFORMED_INPUT");
+    expect(store.load().stateVersion).toBe(0);
+  });
+
+  it("returns insufficient_signal as a typed successful non-mutation without receipt or error", async () => {
     const { store, kernel } = setup();
     const before = store.load();
-    const result = await kernel.execute({
+    const result = await kernel.execute(agentContext, {
       name: "propose_route_set",
-      actor: "agent",
       input: {
         operationId: operationOne,
         expectedVersion: 0,
@@ -67,8 +104,16 @@ describe("P3A route proposal and participant choice", () => {
         reasonRefs: ["reflection-grounded"],
       },
     });
-
-    expect(result).toMatchObject({ ok: false, error: { code: "INSUFFICIENT_SIGNAL" }, stateVersion: 0 });
+    expect(result).toEqual(expect.objectContaining({
+      ok: true,
+      data: {
+        outcome: "insufficient_signal",
+        followUpQuestion: "Which recent task felt absorbing enough to repeat?",
+        reasonRefs: ["reflection-grounded"],
+      },
+      stateVersion: 0,
+    }));
+    expect(result).not.toHaveProperty("error");
     expect(result).not.toHaveProperty("receipt");
     expect(store.load()).toEqual(before);
   });
@@ -79,18 +124,16 @@ describe("P3A route proposal and participant choice", () => {
     ["same question", (routes: ReturnType<typeof validRoutes>) => { routes[2].learningQuestion = routes[1].learningQuestion; }],
     ["same test", (routes: ReturnType<typeof validRoutes>) => { routes[2].test = routes[1].test; }],
     ["fabricated quote", (routes: ReturnType<typeof validRoutes>) => { routes[0].sourceQuotes[0].quote = "words never said"; }],
-    ["unconfirmed ref", (routes: ReturnType<typeof validRoutes>) => { routes[0].sourceQuotes[0].reflectionRef = "reflection-other-workspace"; }],
+    ["cross-workspace ref", (routes: ReturnType<typeof validRoutes>) => { routes[0].sourceQuotes[0].reflectionRef = "reflection-other"; }],
     ["time cap", (routes: ReturnType<typeof validRoutes>) => { routes[0].test.maximumHours = 7; }],
     ["money cap", (routes: ReturnType<typeof validRoutes>) => { routes[0].test.maximumMoney = 101; }],
     ["currency cap", (routes: ReturnType<typeof validRoutes>) => { routes[0].test.currency = "EUR"; }],
   ] as const)("denies %s without mutation", async (_label, mutate) => {
     const { store, kernel } = setup();
-    const routes = validRoutes();
-    mutate(routes);
-    const command = propose() as Extract<Command, { name: "propose_route_set" }>;
+    const command = proposalCommand();
     if (command.input.outcome !== "routes") throw new Error("fixture error");
-    command.input.routes = routes;
-    const result = await kernel.execute(command);
+    mutate(command.input.routes);
+    const result = await kernel.execute(agentContext, command);
     expect(result.ok).toBe(false);
     expect(["POLICY_DENIED", "UNKNOWN_REF"]).toContain(result.error?.code);
     expect(store.load().stateVersion).toBe(0);
@@ -101,134 +144,208 @@ describe("P3A route proposal and participant choice", () => {
     ["extra field", { hiddenRank: 1 }],
   ])("rejects malformed %s input before policy", async (_label, changes) => {
     const { store, kernel } = setup();
-    const command = propose() as Extract<Command, { name: "propose_route_set" }>;
+    const command = proposalCommand();
     if (command.input.outcome !== "routes") throw new Error("fixture error");
     Object.assign(command.input.routes[0].test, changes);
-    const result = await kernel.execute(command);
+    const result = await kernel.execute(agentContext, command);
     expect(result.error?.code).toBe("MALFORMED_INPUT");
     expect(store.load().stateVersion).toBe(0);
   });
 
-  it("enforces authenticated proposal authorship", async () => {
+  it("keeps participant-only revision and choice unavailable to agent context", async () => {
     const { kernel } = setup();
-    const command = propose() as Extract<Command, { name: "propose_route_set" }>;
-    if (command.input.outcome !== "routes") throw new Error("fixture error");
-    command.input.createdBy = "participant";
-    expect((await kernel.execute(command)).error?.code).toBe("WRONG_ACTOR");
+    await propose(kernel);
+    expect((await kernel.execute(agentContext, {
+      name: "revise_route_set",
+      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", edits: [], rejectRouteRefs: ["route-probe"] },
+    })).error?.code).toBe("WRONG_ACTOR");
+    expect((await kernel.execute(agentContext, {
+      name: "choose_route",
+      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", routeRef: "route-closest" },
+    })).error?.code).toBe("WRONG_ACTOR");
   });
 
-  it("lets only the participant edit and reject routes before choice", async () => {
+  it("applies participant edits and individual rejection", async () => {
     const { store, kernel } = setup();
-    await kernel.execute(propose());
-    const agentDenied = await kernel.execute({
-      name: "revise_route_set", actor: "agent",
-      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", edits: [], rejectRouteRefs: ["route-probe"] },
-    });
-    expect(agentDenied.error?.code).toBe("WRONG_ACTOR");
-
-    const revised = await kernel.execute({
-      name: "revise_route_set", actor: "participant",
+    await propose(kernel);
+    const result = await kernel.execute(participantContext, {
+      name: "revise_route_set",
       input: {
         operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1",
         edits: [{ routeRef: "route-closest", premise: "A participant-edited systems explanation direction." }],
         rejectRouteRefs: ["route-probe"],
       },
     });
-    expect(revised.ok).toBe(true);
+    expect(result.ok).toBe(true);
     expect(store.load().routeProposalSets[0].routes.map((route) => route.status)).toEqual(["edited", "proposed", "rejected"]);
   });
 
-  it("resolves an all-rejected set without creating a hypothesis", async () => {
+  it("denies re-rejection and semantically unchanged edits without version or receipt", async () => {
     const { store, kernel } = setup();
-    await kernel.execute(propose());
-    const result = await kernel.execute({
-      name: "revise_route_set", actor: "participant",
+    await propose(kernel);
+    await kernel.execute(participantContext, {
+      name: "revise_route_set",
+      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", edits: [], rejectRouteRefs: ["route-probe"] },
+    });
+    const before = store.load();
+    const reReject = await kernel.execute(participantContext, {
+      name: "revise_route_set",
+      input: { operationId: operationThree, expectedVersion: 2, routeSetRef: "route-set-1", edits: [], rejectRouteRefs: ["route-probe"] },
+    });
+    expect(reReject).toMatchObject({ ok: false, error: { code: "WRONG_LIFECYCLE" }, stateVersion: 2 });
+    expect(reReject).not.toHaveProperty("receipt");
+    expect(store.load()).toEqual(before);
+
+    const unchanged = await kernel.execute(participantContext, {
+      name: "revise_route_set",
+      input: {
+        operationId: operationThree, expectedVersion: 2, routeSetRef: "route-set-1",
+        edits: [{ routeRef: "route-closest", premise: validRoutes()[0].premise }], rejectRouteRefs: [],
+      },
+    });
+    expect(unchanged.error?.code).toBe("POLICY_DENIED");
+    expect(store.load()).toEqual(before);
+  });
+
+  it("preserves resolved reject-all history as explicit predecessor of a reshaped set", async () => {
+    const { store, kernel } = setup();
+    await propose(kernel);
+    await kernel.execute(participantContext, {
+      name: "revise_route_set",
       input: {
         operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", edits: [],
         rejectRouteRefs: ["route-closest", "route-bridge", "route-probe"],
       },
     });
-    expect(result.data?.routeSet.status).toBe("resolved");
-    expect(store.load().hypotheses).toEqual([]);
-    expect(store.load().phase).toBe("EXPLORING");
-  });
-
-  it("preserves supersession lineage and both proposal receipts", async () => {
-    const { store, kernel } = setup();
-    await kernel.execute(propose());
-    const replacement = propose(operationTwo, 1) as Extract<Command, { name: "propose_route_set" }>;
+    const replacement = proposalCommand(operationThree, 2);
     if (replacement.input.outcome !== "routes") throw new Error("fixture error");
     replacement.input.routes = replacement.input.routes.map((route) => ({ ...route, ref: `${route.ref}-v2` })) as typeof replacement.input.routes;
     replacement.input.supersedesRouteSetRef = "route-set-1";
-    const result = await kernel.execute(replacement);
-    expect(result.receipt?.changedRefs).toEqual(["route-set-1", "route-set-2"]);
+    const result = await kernel.execute(agentContext, replacement);
+    expect(result.ok).toBe(true);
     expect(store.load().routeProposalSets.map((set) => [set.ref, set.status, set.supersedesRouteSetRef])).toEqual([
-      ["route-set-1", "superseded", undefined],
-      ["route-set-2", "proposed", "route-set-1"],
+      ["route-set-1", "resolved", undefined],
+      ["route-set-3", "proposed", "route-set-1"],
     ]);
-    expect(store.load().operations).toHaveLength(2);
+    expect(store.load().hypotheses).toEqual([]);
   });
 
-  it.each([false, true])("chooses exactly one route with finalEdit=%s and records lineage atomically", async (withEdit) => {
+  it("supersedes an active set and replays the created replacement, not its predecessor", async () => {
     const { store, kernel } = setup();
-    await kernel.execute(propose());
-    const result = await kernel.execute({
-      name: "choose_route", actor: "participant",
+    await propose(kernel);
+    const replacement = proposalCommand(operationTwo, 1);
+    if (replacement.input.outcome !== "routes") throw new Error("fixture error");
+    replacement.input.routes = replacement.input.routes.map((route) => ({ ...route, ref: `${route.ref}-v2` })) as typeof replacement.input.routes;
+    replacement.input.supersedesRouteSetRef = "route-set-1";
+    const first = await kernel.execute(agentContext, replacement);
+    const replay = await kernel.execute(agentContext, { ...replacement, input: { ...replacement.input, expectedVersion: 2 } });
+    expect(first.data?.outcome).toBe("routes");
+    expect(replay.data?.outcome).toBe("routes");
+    if (replay.data?.outcome !== "routes") throw new Error("expected routes replay");
+    expect(replay.data.routeSet.ref).toBe("route-set-2");
+    expect(replay.receipt).toEqual(first.receipt);
+    expect(store.load().routeProposalSets).toHaveLength(2);
+  });
+
+  it.each([false, true])("chooses one route with finalEdit=%s and replays both result refs", async (withEdit) => {
+    const { store, kernel } = setup();
+    await propose(kernel);
+    const command: Extract<Command, { name: "choose_route" }> = {
+      name: "choose_route",
       input: {
-        operationId: operationTwo, expectedVersion: 1,
-        routeSetRef: "route-set-1", routeRef: "route-bridge",
+        operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", routeRef: "route-bridge",
         ...(withEdit ? { finalEdit: { routeRef: "route-bridge", premise: "The final participant-edited bridge claim." } } : {}),
       },
-    });
-    expect(result.ok).toBe(true);
-    const state = store.load();
-    expect(state.phase).toBe("TESTING");
-    expect(state.hypotheses).toHaveLength(1);
-    expect(state.hypotheses[0]).toMatchObject({
-      status: "accepted", originatingRouteSetRef: "route-set-1", originatingRouteRef: "route-bridge",
-      claim: withEdit ? "The final participant-edited bridge claim." : validRoutes()[1].premise,
-    });
-    expect(state.routeProposalSets[0].routes.filter((route) => route.status === "selected")).toHaveLength(1);
-    expect(result.receipt?.changedRefs).toEqual(["route-set-1", "hypothesis-2"]);
-  });
-
-  it("denies agent choice and rejected-route choice", async () => {
-    const { kernel } = setup();
-    await kernel.execute(propose());
-    expect((await kernel.execute({
-      name: "choose_route", actor: "agent",
-      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", routeRef: "route-closest" },
-    })).error?.code).toBe("WRONG_ACTOR");
-    await kernel.execute({
-      name: "revise_route_set", actor: "participant",
-      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", edits: [], rejectRouteRefs: ["route-closest"] },
-    });
-    expect((await kernel.execute({
-      name: "choose_route", actor: "participant",
-      input: { operationId: operationThree, expectedVersion: 2, routeSetRef: "route-set-1", routeRef: "route-closest" },
-    })).error?.code).toBe("WRONG_LIFECYCLE");
-  });
-
-  it("returns same-id replay, stale denial, and same-id conflict without duplicate effects", async () => {
-    const { store, kernel } = setup();
-    const first = await kernel.execute(propose());
-    const replay = await kernel.execute(propose(operationOne, 1));
+    };
+    const first = await kernel.execute(participantContext, command);
+    const replay = await kernel.execute(participantContext, { ...command, input: { ...command.input, expectedVersion: 2 } });
+    expect(replay.ok).toBe(true);
+    expect(replay.data?.routeSet.ref).toBe("route-set-1");
+    expect(replay.data?.hypothesis.ref).toBe("hypothesis-2");
     expect(replay.receipt).toEqual(first.receipt);
-    expect(store.load().routeProposalSets).toHaveLength(1);
+    expect(store.load().phase).toBe("TESTING");
+    expect(store.load().hypotheses).toHaveLength(1);
+  });
 
-    expect((await kernel.execute(propose(operationTwo, 0))).error?.code).toBe("STALE_STATE");
-    const conflicting = propose(operationOne, 1) as Extract<Command, { name: "propose_route_set" }>;
-    if (conflicting.input.outcome !== "routes") throw new Error("fixture error");
-    conflicting.input.routes[0].title = "Different intent";
-    expect((await kernel.execute(conflicting)).error?.code).toBe("OPERATION_CONFLICT");
+  it("returns stale denial and same-id conflict without duplicate effects", async () => {
+    const { store, kernel } = setup();
+    await propose(kernel);
+    expect((await propose(kernel, agentContext, operationTwo, 0)).error?.code).toBe("STALE_STATE");
+    const conflict = proposalCommand(operationOne, 1);
+    if (conflict.input.outcome !== "routes") throw new Error("fixture error");
+    conflict.input.routes[0].title = "Different intent";
+    expect((await kernel.execute(agentContext, conflict)).error?.code).toBe("OPERATION_CONFLICT");
     expect(store.load().operations).toHaveLength(1);
   });
 
-  it("compensates only an untouched proposal and preserves both history records", async () => {
+  it("binds replay identity to trusted actor and proposal provenance", async () => {
     const { store, kernel } = setup();
-    await kernel.execute(propose());
-    const result = await kernel.execute({
-      name: "compensate_route_set", actor: "participant",
+    await propose(kernel, agentContext);
+    expect((await propose(kernel, embeddedContext, operationOne, 1)).error?.code)
+      .toBe("OPERATION_CONFLICT");
+    expect((await propose(kernel, participantContext, operationOne, 1)).error?.code)
+      .toBe("OPERATION_CONFLICT");
+    expect(store.load().operations).toHaveLength(1);
+  });
+
+  it("allocates generated refs around all workspace addressable refs", async () => {
+    const initial = p3Workspace();
+    const collisionState = workspaceSchema.parse({
+      ...initial,
+      reflections: [
+        ...initial.reflections,
+        reflectionWithRef("route-set-1"),
+        reflectionWithRef("operation-1"),
+        reflectionWithRef("hypothesis-2"),
+      ],
+    });
+    const { store, kernel } = setup(collisionState);
+    const proposed = await propose(kernel);
+    expect(proposed.data?.outcome).toBe("routes");
+    if (proposed.data?.outcome !== "routes") throw new Error("expected routes");
+    expect(proposed.data.routeSet.ref).toBe("route-set-1-2");
+    expect(proposed.receipt?.operationRef).toBe("operation-1-2");
+    const chosen = await kernel.execute(participantContext, {
+      name: "choose_route",
+      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1-2", routeRef: "route-bridge" },
+    });
+    expect(chosen.data?.hypothesis.ref).toBe("hypothesis-2-2");
+    expect(store.load().hypotheses).toHaveLength(1);
+  });
+
+  it("denies supplied route refs that collide with workspace id, entities, or operation refs", async () => {
+    const initial = p3Workspace();
+    const withOperation = workspaceSchema.parse({
+      ...initial,
+      stateVersion: 1,
+      operations: [{
+        operationId: "00000000-0000-4000-8000-000000000099",
+        operationRef: "occupied-operation-ref",
+        actor: "participant",
+        command: "save_reflection",
+        effect: "APPLIED",
+        beforeVersion: 0,
+        afterVersion: 1,
+        changedRefs: ["reflection-grounded"],
+        at: "2026-09-01T10:00:00.000Z",
+        requestIdentity: "internal-test",
+      }],
+    });
+    for (const collision of [withOperation.id, "reflection-grounded", "occupied-operation-ref"]) {
+      const { store, kernel } = setup(withOperation);
+      const command = proposalCommand(operationOne, 1);
+      if (command.input.outcome !== "routes") throw new Error("fixture error");
+      command.input.routes[0].ref = collision;
+      expect((await kernel.execute(agentContext, command)).error?.code).toBe("POLICY_DENIED");
+      expect(store.load().stateVersion).toBe(1);
+    }
+  });
+
+  it("compensates only an untouched proposal and preserves receipt history", async () => {
+    const { store, kernel } = setup();
+    await propose(kernel);
+    const result = await kernel.execute(participantContext, {
+      name: "compensate_route_set",
       input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1" },
     });
     expect(result).toMatchObject({ ok: true, receipt: { effect: "COMPENSATED", compensatesOperationRef: "operation-1" } });
@@ -236,34 +353,10 @@ describe("P3A route proposal and participant choice", () => {
     expect(store.load().operations).toHaveLength(2);
   });
 
-  it("denies compensation after revision", async () => {
-    const { kernel } = setup();
-    await kernel.execute(propose());
-    await kernel.execute({
-      name: "revise_route_set", actor: "participant",
-      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-1", edits: [], rejectRouteRefs: ["route-probe"] },
-    });
-    expect((await kernel.execute({
-      name: "compensate_route_set", actor: "participant",
-      input: { operationId: operationThree, expectedVersion: 2, routeSetRef: "route-set-1" },
-    })).error?.code).toBe("POLICY_DENIED");
-  });
-
-  it("denies wrong phase, lifecycle, and cross-workspace refs", async () => {
-    const wrongPhase = workspaceSchema.parse({ ...p3Workspace(), phase: "TESTING" });
-    expect((await setup(wrongPhase).kernel.execute(propose())).error?.code).toBe("WRONG_PHASE");
-    const { kernel } = setup();
-    await kernel.execute(propose());
-    expect((await kernel.execute({
-      name: "revise_route_set", actor: "participant",
-      input: { operationId: operationTwo, expectedVersion: 1, routeSetRef: "route-set-other-workspace", edits: [], rejectRouteRefs: ["route-probe"] },
-    })).error?.code).toBe("UNKNOWN_REF");
-  });
-
-  it("returns storage failure and leaves the last authoritative workspace intact", async () => {
+  it("returns storage failure and leaves the authoritative workspace intact", async () => {
     const initial = p3Workspace();
     const store = new FailingSaveStore(initial);
-    const result = await new CommandKernel(store, environment()).execute(propose());
+    const result = await propose(new CommandKernel(store, environment()));
     expect(result.error?.code).toBe("STORAGE_FAILURE");
     expect(store.load()).toEqual(initial);
   });

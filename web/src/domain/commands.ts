@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  actorSchema,
   quoteSourceSchema,
   routeKindSchema,
   routeTestSchema,
@@ -21,7 +20,6 @@ export type SaveReflectionInput = z.infer<typeof saveReflectionInputSchema>;
 
 export const saveReflectionCommandSchema = z.strictObject({
   name: z.literal("save_reflection"),
-  actor: actorSchema,
   input: saveReflectionInputSchema,
 });
 export type SaveReflectionCommand = z.infer<typeof saveReflectionCommandSchema>;
@@ -43,7 +41,6 @@ export type RouteProposalInput = z.infer<typeof routeProposalInputSchema>;
 const proposeRoutesInputSchema = writeControlSchema.extend({
   outcome: z.literal("routes"),
   routes: z.tuple([routeProposalInputSchema, routeProposalInputSchema, routeProposalInputSchema]),
-  createdBy: z.enum(["chatgpt_webmcp", "participant", "embedded_inference"]),
   supersedesRouteSetRef: refSchema.optional(),
 });
 
@@ -61,7 +58,6 @@ export type ProposeRouteSetInput = z.infer<typeof proposeRouteSetInputSchema>;
 
 export const proposeRouteSetCommandSchema = z.strictObject({
   name: z.literal("propose_route_set"),
-  actor: actorSchema,
   input: proposeRouteSetInputSchema,
 });
 export type ProposeRouteSetCommand = z.infer<typeof proposeRouteSetCommandSchema>;
@@ -85,10 +81,10 @@ export type RouteEdit = z.infer<typeof routeEditSchema>;
 
 export const reviseRouteSetInputSchema = writeControlSchema.extend({
   routeSetRef: refSchema,
-  edits: z.array(routeEditSchema).max(3).default([]),
-  rejectRouteRefs: z.array(refSchema).max(3).default([]),
+  edits: z.array(routeEditSchema).max(3).optional(),
+  rejectRouteRefs: z.array(refSchema).max(3).optional(),
 }).superRefine((input, context) => {
-  if (input.edits.length === 0 && input.rejectRouteRefs.length === 0) {
+  if ((input.edits?.length ?? 0) === 0 && (input.rejectRouteRefs?.length ?? 0) === 0) {
     context.addIssue({ code: "custom", message: "At least one edit or rejection is required." });
   }
 });
@@ -96,7 +92,6 @@ export type ReviseRouteSetInput = z.infer<typeof reviseRouteSetInputSchema>;
 
 export const reviseRouteSetCommandSchema = z.strictObject({
   name: z.literal("revise_route_set"),
-  actor: actorSchema,
   input: reviseRouteSetInputSchema,
 });
 export type ReviseRouteSetCommand = z.infer<typeof reviseRouteSetCommandSchema>;
@@ -105,14 +100,13 @@ export const chooseRouteInputSchema = writeControlSchema.extend({
   routeSetRef: refSchema,
   routeRef: refSchema,
   finalEdit: routeEditSchema.optional(),
-  influenceFlags: z.array(z.enum(["peer", "trend", "parent", "prestige", "fear"])).max(5).default([]),
-  confidence: z.number().min(0).max(1).default(0.5),
+  influenceFlags: z.array(z.enum(["peer", "trend", "parent", "prestige", "fear"])).max(5).optional(),
+  confidence: z.number().min(0).max(1).optional(),
 });
 export type ChooseRouteInput = z.infer<typeof chooseRouteInputSchema>;
 
 export const chooseRouteCommandSchema = z.strictObject({
   name: z.literal("choose_route"),
-  actor: actorSchema,
   input: chooseRouteInputSchema,
 });
 export type ChooseRouteCommand = z.infer<typeof chooseRouteCommandSchema>;
@@ -124,7 +118,6 @@ export type CompensateRouteSetInput = z.infer<typeof compensateRouteSetInputSche
 
 export const compensateRouteSetCommandSchema = z.strictObject({
   name: z.literal("compensate_route_set"),
-  actor: actorSchema,
   input: compensateRouteSetInputSchema,
 });
 export type CompensateRouteSetCommand = z.infer<typeof compensateRouteSetCommandSchema>;
@@ -138,13 +131,25 @@ export const commandSchema = z.discriminatedUnion("name", [
 ]);
 export type Command = z.infer<typeof commandSchema>;
 
-export function commandRequestIdentity(command: Command): string {
+export function commandRequestIdentity(
+  command: Command,
+  actor: "participant" | "agent",
+  proposalSource?: "participant" | "chatgpt_webmcp" | "embedded_inference",
+): string {
   const intent = Object.fromEntries(
     Object.entries(command.input).filter(([key]) => key !== "operationId" && key !== "expectedVersion"),
   );
-  return JSON.stringify({ name: command.name, actor: command.actor, input: intent });
+  return JSON.stringify({
+    name: command.name,
+    actor,
+    ...(command.name === "propose_route_set" ? { proposalSource } : {}),
+    input: intent,
+  });
 }
 
-export function reflectionRequestIdentity(command: SaveReflectionCommand): string {
-  return commandRequestIdentity(command);
+export function reflectionRequestIdentity(
+  command: SaveReflectionCommand,
+  actor: "participant" | "agent",
+): string {
+  return commandRequestIdentity(command, actor);
 }

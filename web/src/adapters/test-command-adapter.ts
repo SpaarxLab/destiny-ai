@@ -13,10 +13,14 @@ export function createTestCommandAdapter(
 ): TestCommandAdapter {
   return {
     saveReflection: (input) =>
-      kernel.execute({
+      kernel.execute(
+        actor === "participant"
+          ? { actor: "participant", proposalSource: "participant" }
+          : { actor: "agent", proposalSource: "chatgpt_webmcp" },
+        {
         name: "save_reflection",
-        actor,
         input,
-      }),
+        },
+      ),
   };
 }
