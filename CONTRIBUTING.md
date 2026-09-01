@@ -36,6 +36,20 @@ the active packet in `docs/packets/`. Confirm the packet owner and owned paths.
 - Lane B/C consume commands; they do not reproduce policy.
 - A contract change needs product-authority approval and updated fixtures.
 - Daily 15-minute check: contract change, evidence, blocker, next integration only.
+- After A0 lands, P3A and P8A are the first independent outcomes: Devarsh owns the route-set and
+  human-choice command contract while Harsh owns the read-only WebMCP adapter. P3B starts only from
+  the frozen P3A contract. The lanes must not edit each other's paths or treat an unintegrated
+  contract as stable.
+
+## Ticket reading order
+
+Every Linear ticket should be understandable without reconstructing chat history. Read it in
+this order: outcome, why it is unblocked, owner and paths, contract, numbered acceptance
+criteria, proof commands, rollback, out of scope, and related packet. If any of these is
+missing, clarify the ticket before starting code.
+
+Linear mirrors execution. `SPEC.md`, `docs/DECISIONS.md`, `docs/PLAN.md`, and the packet remain
+authority when a ticket summary drifts.
 
 ## Branches and pull requests
 
@@ -61,3 +75,8 @@ A packet is done when it has: a named operator outcome and owner; satisfied prer
 focused success, denial, stale, and replay checks where applicable; a visible after-state and
 durable receipt; documented recovery or compensation; a branch/SHA/dirty-state receipt; and
 an explicit `INTEGRATE`, `DEFER`, or `REJECT` disposition.
+
+P8C is the only packet that may close the competition epic. It closes only the truthful
+route-proposal and human-choice submission slice, not P4-P7 or the full product promise. P10 completes
+the post-submission WebMCP catalogue. P9 optional inference is never a candidate blocker and
+must prove benefit against the no-provider baseline before adoption.

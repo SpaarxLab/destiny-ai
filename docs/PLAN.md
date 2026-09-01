@@ -1,153 +1,215 @@
-# Destiny.AI — Team Build Plan
+# Destiny.AI — Competition-First Build Plan
 
-**Status:** APPROVED. Foundation decisions are recorded in `docs/DECISIONS.md`; live packet
-status lives in Linear and `PROJECT_STATE.md`. Participant research remains separately
-reviewer- and recruitment-gated.
-**Product contract:** `SPEC.md`.
-**Review receipt:** `docs/archive/2026-09-01-foundation/SYSTEM_REVIEW.md`.
-**Decision already made (Harsh, 2026-09-01):** build the complete learning vehicle,
-skip the 2026-09-03 submission, and target a later submission window
-(internal candidate 2026-09-29, contingency 2026-10-06).
+**Status:** APPROVED through D-014. P1/P2 are integrated. A0 authority is active.
+**Deadline:** 3 September 2026, 1:00 p.m. Pacific / 4 September, 1:30 a.m. IST.
+**Authority:** `PROJECT_STATE.md` · `SPEC.md` · `docs/DECISIONS.md`.
 
-## Outcome
+## What we are shipping
 
-Build one coherent human-agent loop:
+### Competition candidate
 
-`confusion -> quoted hypothesis -> cheap experiment -> confirmed evidence -> proposed revision`
+A career-stuck adult completes a guided Destiny Journey and sees three grounded routes. ChatGPT uses
+WebMCP to read confirmed words and call `propose_route_set`. The participant repairs the previews
+and calls `choose_route`, the single acceptance command. ChatGPT then reads that decision back. The
+website shows the same state in the Route Room.
 
-The visiting agent reasons. Destiny.AI owns state, permissions, commands, receipts, and the
-human approval boundary. The board remains useful without an agent; WebMCP makes a visiting
-agent an unusually capable lab assistant rather than a chatbot.
+The candidate must work without embedded inference credentials. It needs a live URL, public licensed
+repository, public video under three minutes, testing instructions, and fresh ChatGPT WebMCP proof.
 
-## Non-negotiable build rules
+### Full product
 
-1. One canonical repository and one declared integration branch before parallel work.
-2. One command kernel for UI and WebMCP. A tool may not write state through a second path.
-3. Every write carries `operationId` and `expectedVersion`; a retry returns the original
-   receipt and never duplicates an effect.
-4. Tool registration aids discovery; the command kernel re-checks phase, preconditions, and
-   approval on every invocation.
-5. Human feedback can improve future proposals, but never silently widen agent authority.
-6. Only human-confirmed evidence can revise a hypothesis.
-7. Each packet ends with a visible journey proof, denial/retry proof, and a receipt.
-8. No lane starts a dependent packet while its contract is unsettled.
+After the candidate, the chosen route becomes a small experiment, confirmed evidence, and an
+inspectable human-approved revision. AI SDK/OpenCode Go Luna can later provide an optional embedded
+proposal source. It does not replace ChatGPT/WebMCP or become state authority.
 
-## Three team lanes
+## Stable ownership
 
-### Lane A — Domain, commands, and persistence
+| Lane | Owner | Owns | Must not own |
+|---|---|---|---|
+| A — Domain | Devarsh | schemas, commands, migration, receipts, contract tests | UI or WebMCP policy copies |
+| B — Human experience | Tirth | guided journey, Route Room, accessibility, browser journeys | direct persistence |
+| C — Agent surface | Harsh | WebMCP, evals, inference adapter, runtime and release proof | domain policy or human approval |
+| Integration | Harsh | authority, dependency order, candidate identity, PR stack | silent scope changes |
 
-Owns `src/domain/`, `src/commands/`, `src/storage/`, migrations, invariants, operation
-receipts, deterministic projections, and contract tests. Lane A publishes types and fixtures;
-it does not own UI or WebMCP adapters.
+## Proven base
 
-### Lane B — Human board and collaboration
+| Packet | State | Proof | Unlocks |
+|---|---|---|---|
+| P0A authority | INTEGRATED | baseline and recovery receipt | safe integration |
+| P1 command spine | INTEGRATED | PR #1, tests, CI, browser receipt | governed writes |
+| P2 cold orientation | INTEGRATED | PR #2, bounded reads, CI, browser receipt | A1 and B1 |
 
-Owns `src/app/`, `src/components/`, accessibility, onboarding, ghosts, gates, week/outbox/
-ledger views, clear/export/delete, and browser journey tests. Lane B invokes the command
-kernel; it does not mutate the store directly.
+This proves only the base. It does not prove P3, WebMCP, deployment, usefulness, or submission.
 
-### Lane C — Agent surface, evals, and release proof
+## Dependency graph
 
-Owns `src/webmcp/`, tool descriptions and adapters, `METHOD.md` delivery, fixture-based
-agent evals, runtime compatibility, demo script, and deployment receipts. Lane C wraps Lane
-A commands; it does not recreate business rules in tool handlers.
+```text
+                         COMPETITION
+                 +--> A1 P3 domain --> A2 journey --+
+A0 authority ----+                                  +--> C1 P8B --> C2 hardening --> C3 P8C
+                 +--> B1 P8A WebMCP ----------------+
 
-Harsh is integration captain for this programme. He admits only packets whose contract tests
-and visible exit proof pass.
+                         OPTIONAL / LATER
+C3 P8C --> D1 P9 AI SDK + OpenCode Go Luna
+A1 P3  --> P4 experiment --> P5 evidence/revision --> P6/P7 --> P10 full WebMCP
+```
 
-## Dependency-closed packets
+Only A1 and B1 are initially parallel. A2 starts from the exact A1 head. C1 starts only after A2
+and B1 integrate. A green branch does not override this dependency order.
 
-| Packet | Visible outcome | Primary | Prerequisite | Required proof |
-|---|---|---|---|---|
-| P0A Authority and baseline | one repo, clean recoverable baseline | Harsh | accepted defaults | **INTEGRATED:** `752ab8e` + packet receipt |
-| P0B Team admission | implementation owners recorded; research remains reviewer-gated | Harsh | owner decision | **P1 ADMITTED** |
-| P1 Command spine | UI and a test adapter execute the same `save_reflection` command | A | P0B | schema, stale, replay, receipt tests |
-| P2 Cold orientation | a new agent understands the active situation in one bounded read | A+C | P1 | golden orientation fixtures and token budget |
-| P3 Hypothesis collaboration | quote-backed ghost can be accepted, edited, rejected, or compensated | A+B | P2 | full browser journey plus denial cases |
-| P4 Experiment loop | accepted hypothesis produces one cost-capped, falsifiable experiment | A+B+C | P3 | wrong-phase, over-cap, stale, replay proof |
-| P5 Evidence and revision | confirmed evidence leads to a human-approved confidence revision | all | P4 | unconfirmed/cross-hypothesis evidence denied |
-| P6 Accretion | rejection/correction improves a cold agent's next proposal without changing authority | A+C | P5 | replay before/after, conflict and supersession proof |
-| P7 Complete workspace | swipe, week, outbox, activity, compensation, privacy controls | B | P5 | solo journey, accessibility, export/import |
-| P8 Runtime and release | same candidate works in supported WebMCP runtimes | C | P6+P7 | runtime matrix, deployed readback, rollback |
+## Smooth, dependency-closed tickets
 
-## Four-week sequence
+### SPX-14 / A0 — Authority and PR-stack base
 
-### Week 1 — 2–8 September: establish truth and the vertical spine
+- **Owner:** Harsh
+- **Outcome:** everyone builds the same Destiny Journey, Route Room, WebMCP catalogue, and trust model.
+- **Paths:** root authority docs and `docs/packets/` only.
+- **Done when:** D-014, spec, plan, packets, owner paths, tests, and PR receipt agree; no product code.
+- **Rollback:** revert this documentation outcome; P1/P2 remain intact.
 
-- Day 1: resolve Gate 0, create the clean baseline, record owners and target.
-- Day 2: freeze canonical nouns, lifecycle states, command/result envelopes, and storage
-  migration strategy.
-- Day 3: implement P1 and its replay/stale/malformed tests.
-- Day 4: build P2 orientation projection and agent harness; make the same state legible in UI.
-- Day 5: integrate the first vertical slice and run 10 rant fixtures. Do not score model prose;
-  inspect quotation fidelity, state changes, denials, and receipts.
+### SPX-15 / A1 / P3A — Route proposal and selected-hypothesis domain
 
-Exit: one reflection can enter through UI or tool adapter and produce the same after-state and
-receipt; a cold agent can orient without reading the full history.
+- **Owner:** Devarsh
+- **Starts after:** A0 exact head.
+- **Outcome:** `propose_route_set` stores one bounded three-route proposal; participant-only
+  `revise_route_set` owns repair/rejection and `choose_route` atomically advances one edited route
+  into an accepted hypothesis and receipt.
+- **Paths:** `web/src/domain/`, `web/src/commands/`, `web/src/storage/`, fixtures and focused tests.
+- **Done when:** schema migration, quote fidelity, distinct-question/test rules, caps,
+  `INSUFFICIENT_SIGNAL`, edit, reject, choose, compensation, stale, replay, conflict, malformed, and
+  corrupt-storage paths pass.
+- **Not included:** UI, WebMCP registration, model calls.
 
-### Week 2 — 9–15 September: human-agent collaboration
+### B1 / P8A — Native WebMCP foundation and reads
 
-- Build P3 and P4 in that order.
-- Add ghosts, accept/edit/reject, corrections, phase gates, operation activity, and
-  compensating undo.
-- Test the board without an agent with at least three participants before adding visual
-  flourish.
-- Freeze the must-ship journey at the end of the week.
+- **Owner:** Harsh
+- **Starts after:** A0 exact head; may run beside A1.
+- **Outcome:** supported pages safely expose `read_workspace` and `get_method_guide`; unsupported pages
+  keep the full human journey.
+- **Paths:** `web/src/webmcp/`, read-adapter tests, small honest connection status.
+- **Done when:** feature absent/present, registration replacement, abort/remount/navigation, bounds,
+  schema parity, malformed input, stale cached call, no mutation, and deterministic harness pass.
+- **Not included:** P3 write tool or inference.
 
-Exit: a participant can move from confusion to one accepted experiment, by hand or with an
-agent, and explain every state change.
+### SPX-16 / A2 / P3B — Guided Destiny Journey and Route Room
 
-### Week 3 — 16–22 September: evidence, accretion, and WebMCP
+- **Owner:** Tirth
+- **Starts after:** frozen A1 contract.
+- **Outcome:** a person chooses the shape of stuck, answers focused prompts, confirms quotes, sees and
+  repairs three routes, then chooses one through the single acceptance command.
+- **Paths:** `web/src/components/journey/`, `components/routes/`, `components/primitives/`,
+  `content/`, `styles/`, page composition and browser tests.
+- **Done when:** every early branch, free-writing, Back, safe Skip, refresh/resume, route edit/reject,
+  selection with final edit, route rejection, receipt, mobile, keyboard, zoom, reduced motion, and clean console
+  pass against the A1 command contract.
+- **Not included:** direct storage, duplicated policy, WebMCP handlers.
 
-- Build P5, then P6.
-- Register only tools valid for the phase, but enforce validity again in commands.
-- Turn human corrections into explicit, sourced, editable teachings. Derived summaries are
-  projections; raw decisions and receipts remain inspectable.
-- Run the agent eval suite on every schema, description, method-guide, or projection change.
+### C1 / P8B — ChatGPT collaboration and evals
 
-Exit: a brand-new agent completes the full loop, survives stale/replay/timeout-style retries,
-and demonstrably uses prior human teaching without receiving extra authority.
+- **Owner:** Harsh
+- **Starts after:** integrated A2 and B1.
+- **Outcome:** ChatGPT reads the journey, uses the versioned method, calls `propose_route_set`, and
+  observes the participant's `choose_route` decision and receipt.
+- **Paths:** WebMCP catalogue/tools/evals and ChatGPT journey fixtures.
+- **Done when:** hard invariant suite, tool discovery, phase catalogue, exact quotes, human repair,
+  write receipt, readback, injection-like content, stale/replay, unavailable-tool avoidance, and
+  isolated multi-session tests pass.
+- **Rule:** no average model score can hide a safety, authority, receipt, or lifecycle failure.
 
-### Week 4 — 23–29 September: complete, harden, and prove
+### C2 — Human and candidate hardening
 
-- Build P7 and P8; add only features that strengthen the frozen journey.
-- Test five participants if available; report the actual number if not.
-- Verify Chrome flag/origin-trial and ChatGPT in-app browser separately.
-- Deploy an immutable candidate; record URL, commit SHA, schema/contract versions, runtime,
-  data reset procedure, and rollback.
-- Record the video only after a fresh end-to-end candidate readback.
+- **Owner:** Tirth for UI fixes; Harsh for eval/runtime fixes; Devarsh for command defects.
+- **Starts after:** C1 candidate branch.
+- **Outcome:** the exact journey is clear, accessible, responsive, recoverable, and fast enough to
+  demonstrate without explanation.
+- **Done when:** copy review, accessibility matrix, mobile/desktop browser runs, provider-off journey,
+  console/network checks, performance baseline, and rollback rehearsal pass. Defects return to their
+  owner; C2 does not become a mega-PR.
 
-Exit: the three-minute story works without narration and every success claim has the right
-proof class. Local tests are not submission or production proof.
+### C3 / P8C — Immutable competition candidate
 
-## Must ship, gate, and defer
+- **Owner:** Harsh
+- **Starts after:** C2 has no blocking finding.
+- **Outcome:** one exact SHA is deployed, runtime-proven, opened under the release gate, demonstrated,
+  and submitted.
+- **Done when:** CI, harness, enabled Chrome, fresh ChatGPT in-app browser, deployed readback, reset,
+  rollback, public MIT repository, video with audio under three minutes, description, testing access,
+  and Devpost receipt all name the same candidate.
+- **Rule:** public release and submission are separate external gates; record their exact after-state.
 
-### Must ship
+### D1 / P9 — Optional AI SDK + OpenCode Go Luna adapter
 
-- shared command kernel and versioned local persistence;
-- cold-agent orientation, explicit affordances, typed errors, idempotent receipts;
-- reflection, hypothesis ghost, experiment ghost, confirmed evidence, proposed revision;
-- phase gates, visible activity, compensating undo, export/delete;
-- WebMCP runtime test plus deterministic harness and end-to-end evals.
+- **Owner:** Harsh
+- **Starts after:** provider-free candidate is stable; may be stacked separately but never block C3.
+- **Outcome:** measure on synthetic fixtures whether `gpt-5.6-luna` produces better structured route
+  proposals through AI SDK while `DisabledInferenceAdapter` preserves the baseline.
+- **Paths:** `web/src/inference/`, server-only route, synthetic fixtures and evals.
+- **Done when:** authenticated model catalogue, minimal structured response, exact-ref validation,
+  streaming cancel, timeout, auth/429/5xx/schema failures, zero mutation on failure, provider-off
+  parity, latency/cost/privacy receipt, and adopt/defer/reject decision are recorded.
+- **Privacy:** real participant content remains browser-local until a separate accepted decision
+  covers consent, minimisation, retention, deletion, provider terms, and failure handling.
+- **EVE:** not part of D1. Create a new architecture ticket only after a durable-workflow need exists.
 
-### Start after named gate
+### D2 onward — Full learning loop
 
-- swipe session: only after P3, and latency is interaction telemetry—not evidence about the
-  participant's career;
-- outreach and week views: only after P5;
-- collaboration-profile distillation: only after raw feedback, provenance, conflict, and
-  supersession are proven.
+P4 adds the reversible experiment. P5 records confirmed evidence and proposes a revision. P6 stores
+sourced human teachings. P7 completes recovery and workspace controls. P10 exposes only integrated
+commands and runs at least 15 isolated agent sessions.
 
-### Defer
+## PR stack
 
-- embedded fallback agent, Gmail/Calendar, server database, auth, multiple participants,
-  background nudges, portfolio, opportunity radar, resource search, and internal AI modules.
+1. PR A0 updates existing documentation PR #4.
+2. PR A1 branches from A0 and owns P3 domain only.
+3. PR B1 branches from A0 and owns WebMCP foundation only.
+4. PR A2 stacks on A1 and owns the journey/UI only.
+5. PR C1 stacks after A2 plus B1 integration.
+6. C2 fixes stay in small owner-specific PRs stacked on C1.
+7. PR C3 contains proof and release artifacts, not unreviewed feature scope.
+8. PR D1 is visibly optional and can land after the candidate.
 
-### Reject for this build
+Each PR states base/head SHA, owned paths, exact commands, observed proof, missing proof, rollback, and
+whether it is ready to integrate. Never bulk-stage unrelated files.
 
-- automatic career prediction, therapy claims, agent-sent outreach, silent preference
-  inference, automatic permission earning, and any mutation path that bypasses commands.
+## Test matrix
 
-The team operating rhythm, working agreement, and packet definition of done live in
-`CONTRIBUTING.md`. Do not admit participant sessions or a public release merely because
-local implementation begins.
+| Layer | Required proof |
+|---|---|
+| Domain | contract, caps, refs, phase, stale, replay, conflict, compensation, migration |
+| UI | all branches, free text, repair, choice, human decision, reload, recovery |
+| Accessibility | keyboard, focus, semantics, live status, 44px targets, 200% zoom, reduced motion |
+| WebMCP | feature detection, lifecycle, catalogue parity, thin handlers, no direct mutation |
+| Agent | discovery, correct tool use, injection resistance, readback, isolated sessions |
+| Inference | structured output, cancel/timeout/errors, no mutation on failure, provider-off parity |
+| Runtime | harness, enabled Chrome, fresh ChatGPT, deployed exact-SHA readback |
+| Release | source/license, secrets/data review, video, testing instructions, submission receipt |
+
+Subjective route quality and copy warmth use a separate reviewer rubric. Deterministic failures are
+never averaged with model scores.
+
+## Ticket closeout template
+
+1. Outcome observed by a person.
+2. Branch, base SHA, head SHA, and dirty state.
+3. Owned paths changed; unrelated changes preserved.
+4. Commands run and exact results.
+5. Browser/runtime proof class reached.
+6. Recovery or rollback exercised.
+7. Remaining unknowns and human gates.
+8. `INTEGRATE`, `DEFER`, `REJECT`, or `BLOCKED` disposition with reason.
+
+## Release checklist
+
+1. Working WebMCP app and judge-accessible live URL.
+2. Clear explanation of the human journey, WebMCP fit, and shared-state collaboration.
+3. Public source with visible license and challenge-period change history.
+4. Public YouTube video under three minutes with audio and functioning demo.
+5. ChatGPT in-app-browser or supported Chrome testing instructions.
+6. Exact candidate identity, reset, rollback, and fresh readback.
+7. Truthful claims limited to observed proof.
+
+## Defer and reject
+
+Defer auth, server database, sync, automatic outreach, background career agents, hidden memory, and
+EVE. Reject career prediction, therapy claims, agent-sent messages, permission earning, fabricated
+quotes, and any adapter that writes around the command kernel.

@@ -1,34 +1,37 @@
 # Destiny.AI
 
-**A lab for career confusion.** A career-stuck participant and a visiting AI agent share one
-board: the participant reflects, the agent proposes quoted hypotheses, they run one cheap
-real-world experiment, and confidence can move only through confirmed evidence.
+**Find one direction worth testing next.** Destiny.AI guides a career-stuck adult from “I do not
+know what to do” to three grounded routes. ChatGPT leads the conversation. The Route Room shows the
+person's own words, what ChatGPT proposed, and the one route the person chose.
 Built for the OpenAI WebMCP Challenge.
+
+The candidate does not require an embedded model. ChatGPT is the visiting agent; Destiny.AI
+provides the governed WebMCP capabilities and shared state. AI SDK/OpenCode experiments are
+optional after the WebMCP candidate, not a prerequisite for it.
+
+The competition candidate demonstrates a visible WebMCP collaboration: ChatGPT reads confirmed
+words, proposes three routes through the site's own command kernel, the participant repairs and
+chooses one, and ChatGPT reads the accepted result back. It proposes a seven-day test idea; it does
+not claim that the test ran.
 
 **Development repository:** private [`SpaarxLab/destiny-ai`](https://github.com/SpaarxLab/destiny-ai).
 
 ## The idea in 5 lines (humans)
 
-1. Direction is reduced through cheap experiments, not predicted. The AI is the lab
-   assistant; the participant owns the question and every consequential decision.
-2. The AI has no hands: it acts only through typed WebMCP tools the page exposes, and
-   everything it does appears live on the shared board, undoable.
-3. **The journey shapes the capability surface**: tools register/unregister as the
-   participant moves through EXPLORING → TESTING → REVIEWING. Phase changes are human-only
-   buttons, while the command kernel enforces the current state on every call.
-4. Agent output lands as **ghosts** the participant accepts, edits, or rejects. Corrections
-   can become sourced, scoped teachings for the next visiting agent.
-5. Learning improves future proposals, never permissions. Anything touching the real world
-   (such as sending outreach) remains the participant's hand.
+1. Start with a guided choice, not a blank box.
+2. ChatGPT uses the person's confirmed words to propose Closest, Bridge, and Probe routes.
+3. Every route respects a real constraint and contains one small test idea.
+4. The person can repair or reject the suggestions, then chooses once. The AI cannot choose.
+5. The website and ChatGPT stay in sync through WebMCP, the shared command kernel, and receipts.
 
 ## The idea in 5 lines (agents)
 
-1. Call `read_workspace` for compact orientation, then `get_method_guide` once.
-2. Follow each entity's `availableActions`; do not infer permissions.
+1. Call `read_workspace`, then `get_method_guide` once.
+2. Call `propose_route_set` only with exact confirmed quote references and recorded caps.
 3. Every write carries `operationId` and `expectedVersion`; retry uncertain results with the
    same operation id, and re-read on `STALE_STATE`.
-4. Only confirmed evidence can support a proposed revision. Every success returns a receipt.
-5. Speak through the board. One traceable real-world learning loop is success.
+4. Never call participant-only `revise_route_set` or `choose_route`.
+5. Reread after the participant acts. Do not predict, rank, or fabricate a route.
 
 ## Where things live
 
