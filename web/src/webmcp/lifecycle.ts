@@ -1,4 +1,5 @@
 import type { WorkspaceReader } from "../projections/workspace-reader";
+import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import { detectModelContext, type WebMcpDocument, type WebMcpModelContext } from "./runtime";
 import { createWebMcpTools } from "./tools";
 
@@ -13,12 +14,20 @@ type WebMcpRegistrationOutcome = WebMcpRegistrationState | null;
 export class WebMcpRegistrationManager {
   private activeController: AbortController | null = null;
   private generation = 0;
+  private readonly replayableProposalOperationIds = new Set<string>();
 
   constructor(
     private readonly resolveRuntime: RuntimeResolver = () => detectModelContext(),
   ) {}
 
-  async replace(reader: WorkspaceReader): Promise<WebMcpRegistrationOutcome> {
+  async replace(
+    reader: WorkspaceReader,
+    options: Readonly<{
+      commandAdapter?: WebMcpCommandAdapter;
+      onWorkspaceChanged?: (stateVersion: number) => void;
+      onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
+    }> = {},
+  ): Promise<WebMcpRegistrationOutcome> {
     const generation = ++this.generation;
     this.abortActive();
     const runtime = this.resolveRuntime();
@@ -26,7 +35,14 @@ export class WebMcpRegistrationManager {
 
     const controller = new AbortController();
     this.activeController = controller;
-    const tools = createWebMcpTools(reader, controller.signal);
+    const tools = createWebMcpTools(reader, controller.signal, {
+      ...options,
+      replayableProposalOperationIds: this.replayableProposalOperationIds,
+      onProposalCommitted: (operationId) => {
+        this.replayableProposalOperationIds.clear();
+        this.replayableProposalOperationIds.add(operationId);
+      },
+    });
 
     try {
       await Promise.all(

@@ -1,4 +1,5 @@
 import type { ReadWorkspaceInput } from "../domain/reads";
+import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { WorkspaceReader } from "../projections/workspace-reader";
 import {
   getMethodGuide,
@@ -6,6 +7,11 @@ import {
   webMcpReadWorkspaceResultSchema,
 } from "./contracts";
 import type { WebMcpToolDefinition } from "./runtime";
+import {
+  canRegisterProposeRouteSet,
+  canRegisterProposeRouteSetReplay,
+  createProposeRouteSetTool,
+} from "./tools/propose-route-set";
 
 export const READ_WORKSPACE_INPUT_SCHEMA = {
   oneOf: [
@@ -53,8 +59,15 @@ const EMPTY_INPUT_SCHEMA = {
 export function createWebMcpTools(
   reader: WorkspaceReader,
   signal: AbortSignal,
+  options: Readonly<{
+    commandAdapter?: WebMcpCommandAdapter;
+    onWorkspaceChanged?: (stateVersion: number) => void;
+    onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
+    replayableProposalOperationIds?: ReadonlySet<string>;
+    onProposalCommitted?: (operationId: string) => void;
+  }> = {},
 ): readonly WebMcpToolDefinition[] {
-  return [
+  const tools: WebMcpToolDefinition[] = [
     {
       name: "read_workspace",
       description:
@@ -99,6 +112,27 @@ export function createWebMcpTools(
       },
     },
   ];
+
+  const proposalAvailable = canRegisterProposeRouteSet(reader);
+  const replayableOperationIds = options.replayableProposalOperationIds ?? new Set<string>();
+  const proposalReplayAvailable = replayableOperationIds.size > 0 &&
+    canRegisterProposeRouteSetReplay(reader);
+  if (options.commandAdapter && (proposalAvailable || proposalReplayAvailable)) {
+    tools.push(createProposeRouteSetTool(
+      options.commandAdapter,
+      reader,
+      signal,
+      {
+        replayOnly: !proposalAvailable,
+        replayableOperationIds,
+        onProposalCommitted: options.onProposalCommitted,
+        onWorkspaceChanged: options.onWorkspaceChanged,
+        onWorkspaceSyncError: options.onWorkspaceSyncError,
+      },
+    ));
+  }
+
+  return tools;
 }
 
 function isEmptyRecord(value: unknown): value is Record<string, never> {

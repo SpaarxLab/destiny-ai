@@ -6,6 +6,8 @@ import {
 import {
   availableActionSchema,
   CONTRACT_VERSION,
+  operationReceiptSchema,
+  routeProposalSetSchema,
   type AvailableAction,
 } from "../domain/workspace";
 
@@ -19,6 +21,108 @@ const toolErrorSchema = z.strictObject({
   example: z.unknown().optional(),
   changedRefs: z.array(z.string().min(1).max(128)).max(READ_ENTITY_LIMIT).optional(),
 });
+
+const agentAvailableActionSchema = availableActionSchema.extend({
+  actor: z.literal("agent"),
+});
+
+const publicCommandErrorSchema = z.strictObject({
+  code: z.enum([
+    "MALFORMED_INPUT",
+    "WRONG_ACTOR",
+    "WRONG_PHASE",
+    "WRONG_LIFECYCLE",
+    "UNKNOWN_REF",
+    "POLICY_DENIED",
+    "STALE_STATE",
+    "OPERATION_CONFLICT",
+    "INVALID_CURSOR",
+    "STORAGE_FAILURE",
+    "STALE_REGISTRATION",
+  ]),
+  what: z.string().min(1).max(500),
+  retry: z.enum(["NEVER", "SAME_OPERATION_ID", "REREAD_THEN_NEW_OPERATION"]),
+  insteadDo: z.string().min(1).max(500).optional(),
+  example: z.unknown().optional(),
+  changedRefs: z.array(z.string().min(1).max(128)).max(READ_ENTITY_LIMIT).optional(),
+  changedRefsTruncated: z.boolean().optional(),
+});
+
+const pendingRouteInteractionSchema = z.strictObject({
+  kind: z.enum([
+    "REVISE_OR_REJECT_ROUTE_SET",
+    "CHOOSE_ROUTE",
+    "RESOLVE_ROUTE_SET",
+  ]),
+  targetRef: z.string().min(1).max(128),
+  guidance: z.string().min(1).max(240),
+});
+
+export const publicProposedRouteSetSchema = routeProposalSetSchema
+  .omit({ availableActions: true })
+  .extend({
+    createdBy: z.literal("chatgpt_webmcp"),
+    pendingHumanInteractions: z.strictObject({
+      items: z.array(pendingRouteInteractionSchema).max(3),
+      total: z.number().int().nonnegative().max(3),
+    }),
+  });
+
+const webMcpProposalReceiptSchema = operationReceiptSchema.omit({
+  actor: true,
+  command: true,
+  effect: true,
+  changedRefs: true,
+  compensatesOperationRef: true,
+}).extend({
+  actor: z.literal("agent"),
+  command: z.literal("propose_route_set"),
+  effect: z.literal("PROPOSED"),
+  changedRefs: z.array(z.string().min(1).max(128)).min(1).max(2),
+}).superRefine((receipt, context) => {
+  if (receipt.afterVersion !== receipt.beforeVersion + 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["afterVersion"],
+      message: "A proposal receipt must advance exactly one workspace version.",
+    });
+  }
+});
+
+const publicResultFields = {
+  nextActions: z.array(agentAvailableActionSchema).max(READ_ENTITY_LIMIT),
+  stateVersion: z.number().int().nonnegative(),
+  guidance: z.string().min(1).max(500),
+};
+
+export const webMcpProposeRouteSetResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    data: z.strictObject({
+      outcome: z.literal("routes"),
+      routeSet: publicProposedRouteSetSchema,
+    }),
+    receipt: webMcpProposalReceiptSchema,
+    ...publicResultFields,
+  }),
+  z.strictObject({
+    ok: z.literal(true),
+    data: z.strictObject({
+      outcome: z.literal("insufficient_signal"),
+      followUpQuestion: z.string().trim().min(1).max(300),
+      reasonRefs: z.array(z.string().trim().min(1).max(128)).min(1).max(5),
+    }),
+    ...publicResultFields,
+  }),
+  z.strictObject({
+    ok: z.literal(false),
+    error: publicCommandErrorSchema,
+    ...publicResultFields,
+  }),
+]);
+export type WebMcpProposeRouteSetResult = z.infer<
+  typeof webMcpProposeRouteSetResultSchema
+>;
 
 export const webMcpReadWorkspaceResultSchema = z.strictObject({
   ok: z.boolean(),

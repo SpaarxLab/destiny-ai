@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createParticipantCommandAdapter, type ParticipantCommandAdapter } from "../../adapters/participant-command-adapter";
+import { createWebMcpCommandAdapter, type WebMcpCommandAdapter } from "../../adapters/webmcp-command-adapter";
 import { CommandKernel } from "../../commands/command-kernel";
 import type { RouteEdit, RouteProposalInput } from "../../domain/commands";
 import type { RouteProposalSet, Workspace } from "../../domain/workspace";
@@ -34,6 +35,7 @@ import {
 interface JourneyRuntime {
   store: LocalWorkspaceStore;
   adapter: ParticipantCommandAdapter;
+  webMcpAdapter: WebMcpCommandAdapter;
   reader: WorkspaceReader;
 }
 
@@ -45,6 +47,7 @@ export function DestinyJourney() {
   const hasPresentedInitialScreen = useRef(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [reader, setReader] = useState<WorkspaceReader | null>(null);
+  const [webMcpAdapter, setWebMcpAdapter] = useState<WebMcpCommandAdapter | null>(null);
   const [draft, setDraft] = useState<JourneyDraft>(emptyJourneyDraft);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,9 +80,11 @@ export function DestinyJourney() {
       createInitialWorkspace(savedDraft.caps),
       navigator.locks,
     );
-    const adapter = createParticipantCommandAdapter(new CommandKernel(store));
+    const kernel = new CommandKernel(store);
+    const adapter = createParticipantCommandAdapter(kernel);
+    const webMcpAdapter = createWebMcpCommandAdapter(kernel);
     const workspaceReader = new WorkspaceReader(store);
-    runtime.current = { store, adapter, reader: workspaceReader };
+    runtime.current = { store, adapter, webMcpAdapter, reader: workspaceReader };
 
     queueMicrotask(() => {
       if (cancelled) return;
@@ -104,6 +109,7 @@ export function DestinyJourney() {
         setDraft(nextDraft);
         setWorkspace(currentWorkspace);
         setReader(workspaceReader);
+        setWebMcpAdapter(webMcpAdapter);
         setReady(true);
       } catch {
         setStartupError("Your saved journey could not be opened. Its original copy is still on this device.");
@@ -112,6 +118,23 @@ export function DestinyJourney() {
     });
 
     return () => { cancelled = true; };
+  }, []);
+
+  const handleWebMcpWorkspaceChanged = useCallback(() => {
+    if (!runtime.current) return;
+    const nextWorkspace = runtime.current.store.load();
+    setWorkspace(nextWorkspace);
+    if (nextWorkspace.routeProposalSets.at(-1)?.status === "proposed") {
+      const nextDraft = { ...draftRef.current, screen: "routes" as const };
+      draftRef.current = nextDraft;
+      localStorage.setItem(JOURNEY_DRAFT_KEY, JSON.stringify(nextDraft));
+      setDraft(nextDraft);
+      setStatusMessage("ChatGPT added three grounded route previews for you to review.");
+    }
+  }, []);
+
+  const handleWebMcpWorkspaceSyncError = useCallback(() => {
+    setStatusMessage("Your routes were saved, but this screen could not refresh. Reload to see them.");
   }, []);
 
   useEffect(() => {
@@ -338,11 +361,14 @@ export function DestinyJourney() {
       createInitialWorkspace(caps),
       navigator.locks,
     );
-    const adapter = createParticipantCommandAdapter(new CommandKernel(store));
+    const kernel = new CommandKernel(store);
+    const adapter = createParticipantCommandAdapter(kernel);
+    const webMcpAdapter = createWebMcpCommandAdapter(kernel);
     const workspaceReader = new WorkspaceReader(store);
-    runtime.current = { store, adapter, reader: workspaceReader };
+    runtime.current = { store, adapter, webMcpAdapter, reader: workspaceReader };
     setWorkspace(store.load());
     setReader(workspaceReader);
+    setWebMcpAdapter(webMcpAdapter);
     return true;
   }
 
@@ -446,7 +472,13 @@ export function DestinyJourney() {
           Destiny.AI
         </a>
         <div className="site-header__actions">
-          <WebMcpRegistrar reader={reader} />
+          <WebMcpRegistrar
+            commandAdapter={webMcpAdapter}
+            onWorkspaceChanged={handleWebMcpWorkspaceChanged}
+            onWorkspaceSyncError={handleWebMcpWorkspaceSyncError}
+            reader={reader}
+            stateVersion={workspace?.stateVersion}
+          />
           {ready && !["welcome", "saved", "chosen", "all-rejected", "routes"].includes(draft.screen) ? (
             <ActionButton onClick={saveAndExit} tone="quiet">Save and exit</ActionButton>
           ) : null}

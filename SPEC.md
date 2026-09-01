@@ -444,6 +444,12 @@ On a lost response, the agent retries with the same `operationId`. The command l
 returns the original receipt. On `STALE_STATE`, it re-reads and creates a new operation only
 after reconsidering the new state.
 
+After a WebMCP-authored route proposal changes catalogue availability, `propose_route_set` remains
+registered for exact same-operation replay. The command kernel returns the original receipt for
+that replay and denies every new proposal while the unresolved set remains. UI projection refresh
+is a separate notification: its failure is visible in the human surface but cannot replace or hide
+the already committed command result.
+
 Actor and proposal provenance are trusted execution context, not caller-shaped command input. The
 participant adapter supplies participant authority; a WebMCP write adapter can supply only agent
 authority with `chatgpt_webmcp` provenance; an optional inference adapter supplies agent authority
@@ -507,6 +513,8 @@ Catalogue rules:
 - `draft_outreach` has no send counterpart anywhere in the product;
 - `propose_route_set` returns a visible proposal and cannot select or accept a route for the
   participant; `choose_route` is intentionally absent from the WebMCP catalogue;
+- public write results are runtime-validated; nested participant affordances are represented as
+  pending human interactions, never agent `availableActions`;
 - a phase change aborts old registrations, but cached invocations are still command-denied.
 
 Tool handlers are mechanically thin:

@@ -1,0 +1,365 @@
+import { describe, expect, it } from "vitest";
+import { p3Workspace, validRoutes } from "../../commands/fixtures/p3-route-set";
+import { workspaceSchema } from "../../domain/workspace";
+import { webMcpProposeRouteSetResultSchema } from "../contracts";
+import { createProviderOffEvalContext } from "./provider-off-harness";
+
+const ids = {
+  routes: "00000000-0000-4000-8000-000000008101",
+  retry: "00000000-0000-4000-8000-000000008102",
+  recovery: "00000000-0000-4000-8000-000000008103",
+  choose: "00000000-0000-4000-8000-000000008104",
+};
+
+describe("P8B provider-off propose_route_set evals", () => {
+  it("returns a visible authoritative proposal and receipt from exact confirmed quotes", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    await context.discover();
+
+    const result = await context.runtime.invoke("propose_route_set", routeInput());
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        outcome: "routes",
+        routeSet: { createdBy: "chatgpt_webmcp", status: "proposed" },
+      },
+      receipt: {
+        operationId: ids.routes,
+        command: "propose_route_set",
+        effect: "PROPOSED",
+        beforeVersion: 0,
+        afterVersion: 1,
+      },
+      stateVersion: 1,
+    });
+    expect(webMcpProposeRouteSetResultSchema.parse(result)).toEqual(result);
+    expect(result).not.toHaveProperty("data.routeSet.availableActions");
+    expect(result).toMatchObject({
+      data: {
+        routeSet: {
+          pendingHumanInteractions: {
+            total: 3,
+            items: [
+              { kind: "REVISE_OR_REJECT_ROUTE_SET" },
+              { kind: "CHOOSE_ROUTE" },
+              { kind: "RESOLVE_ROUTE_SET" },
+            ],
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('"actor":"participant"');
+    expect(JSON.stringify(result)).not.toContain('"requestIdentity"');
+    expect(context.store.load().routeProposalSets[0].routes.map((route) =>
+      route.sourceQuotes[0].reflectionRef)).toEqual([
+      "reflection-grounded",
+      "reflection-grounded",
+      "reflection-grounded",
+    ]);
+    expect(context.visibleVersions).toEqual([1]);
+  });
+
+  it("keeps every route structurally distinct and within recorded participant caps", async () => {
+    const cases = [
+      {
+        name: "duplicate route refs",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[1].ref = routes[0].ref;
+        },
+      },
+      {
+        name: "same learning question",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[1].learningQuestion = routes[0].learningQuestion;
+        },
+      },
+      {
+        name: "same test",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[1].test = { ...routes[0].test };
+        },
+      },
+      {
+        name: "time cap exceeded",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[2].test.maximumHours = 7;
+        },
+      },
+      {
+        name: "money cap exceeded",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[2].test.maximumMoney = 101;
+        },
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const context = createProviderOffEvalContext(p3Workspace());
+      await context.discover();
+      const routes = validRoutes();
+      testCase.mutate(routes);
+      const result = await context.runtime.invoke("propose_route_set", {
+        ...routeInput(`00000000-0000-4000-8000-${String(8110 + index).padStart(12, "0")}`),
+        routes,
+      });
+      expect(result, testCase.name).toMatchObject({
+        ok: false,
+        error: { code: "POLICY_DENIED", retry: "NEVER" },
+        stateVersion: 0,
+      });
+      expect(context.store.load().routeProposalSets, testCase.name).toEqual([]);
+    }
+  });
+
+  it("rejects fabricated, edited, unknown, and unconfirmed quote sources", async () => {
+    const cases = [
+      {
+        expectedCode: "POLICY_DENIED",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[0].sourceQuotes[0].quote = "a fabricated quote";
+        },
+      },
+      {
+        expectedCode: "UNKNOWN_REF",
+        mutate: (routes: ReturnType<typeof validRoutes>) => {
+          routes[0].sourceQuotes[0].reflectionRef = "reflection-elsewhere";
+        },
+      },
+      {
+        expectedCode: "POLICY_DENIED",
+        makeUnconfirmedAfterDiscovery: true,
+        mutate: () => undefined,
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const context = createProviderOffEvalContext(p3Workspace());
+      await context.discover();
+      if ("makeUnconfirmedAfterDiscovery" in testCase && testCase.makeUnconfirmedAfterDiscovery) {
+        context.store.replace(workspaceSchema.parse({
+          ...context.store.load(),
+          reflections: context.store.load().reflections.map((reflection) => ({
+            ...reflection,
+            status: "proposed" as const,
+          })),
+        }));
+      }
+      const routes = validRoutes();
+      testCase.mutate(routes);
+      const result = await context.runtime.invoke("propose_route_set", {
+        ...routeInput(`00000000-0000-4000-8000-${String(8120 + index).padStart(12, "0")}`),
+        routes,
+      });
+      expect(result).toMatchObject({ ok: false, error: { code: testCase.expectedCode } });
+      expect(context.store.load().stateVersion).toBe(0);
+    }
+  });
+
+  it("returns INSUFFICIENT_SIGNAL without mutation and recovers with a new grounded proposal", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    await context.discover();
+
+    const insufficient = await context.runtime.invoke("propose_route_set", {
+      operationId: ids.retry,
+      expectedVersion: 0,
+      outcome: "insufficient_signal",
+      followUpQuestion: "Which recent task felt worth doing again, and why?",
+      reasonRefs: ["reflection-grounded"],
+    });
+    expect(insufficient).toMatchObject({
+      ok: true,
+      data: { outcome: "insufficient_signal", reasonRefs: ["reflection-grounded"] },
+      stateVersion: 0,
+    });
+    expect(insufficient).not.toHaveProperty("receipt");
+    expect(context.store.load().routeProposalSets).toEqual([]);
+
+    const recovered = await context.runtime.invoke("propose_route_set", routeInput(ids.recovery));
+    expect(recovered).toMatchObject({ ok: true, data: { outcome: "routes" }, stateVersion: 1 });
+    expect(context.store.load().routeProposalSets).toHaveLength(1);
+  });
+
+  it("preserves stale, same-id replay, and same-id conflict semantics", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    await context.discover();
+    const first = await context.runtime.invoke("propose_route_set", routeInput());
+
+    const stale = await context.runtime.invoke("propose_route_set", {
+      ...routeInput(ids.retry),
+      expectedVersion: 0,
+      supersedesRouteSetRef: "route-set-1",
+    });
+    expect(stale).toMatchObject({
+      ok: false,
+      error: { code: "STALE_STATE", retry: "REREAD_THEN_NEW_OPERATION" },
+      stateVersion: 1,
+    });
+
+    const cachedBeforeReplacement = context.runtime.cached("propose_route_set");
+    await context.discover();
+    expect(context.runtime.activeToolNames()).toContain("propose_route_set");
+
+    const replay = await context.runtime.invoke("propose_route_set", routeInput());
+    expect(replay).toMatchObject({
+      ok: true,
+      data: (first as { data: unknown }).data,
+      receipt: (first as { receipt: unknown }).receipt,
+      guidance: expect.stringContaining("Replay detected"),
+    });
+    expect(context.store.load().stateVersion).toBe(1);
+
+    const staleRegistration = await cachedBeforeReplacement.execute(routeInput());
+    expect(webMcpProposeRouteSetResultSchema.parse(staleRegistration)).toEqual(staleRegistration);
+    expect(staleRegistration).toMatchObject({
+      ok: false,
+      error: { code: "STALE_REGISTRATION", retry: "NEVER" },
+    });
+
+    const deniedNewProposal = await context.runtime.invoke("propose_route_set", {
+      ...routeInput(ids.retry),
+      expectedVersion: 1,
+      supersedesRouteSetRef: "route-set-1",
+    });
+    expect(deniedNewProposal).toMatchObject({
+      ok: false,
+      error: { code: "WRONG_LIFECYCLE", retry: "NEVER" },
+      stateVersion: 1,
+    });
+    expect(context.store.load().routeProposalSets).toHaveLength(1);
+
+    const conflictRoutes = validRoutes();
+    conflictRoutes[0].title = "Different intent under a reused operation id";
+    const conflict = await context.runtime.invoke("propose_route_set", {
+      ...routeInput(),
+      routes: conflictRoutes,
+    });
+    expect(conflict).toMatchObject({
+      ok: false,
+      error: { code: "OPERATION_CONFLICT", retry: "NEVER" },
+      stateVersion: 1,
+    });
+
+    expect(context.store.load().routeProposalSets).toHaveLength(1);
+    context.store.replace(workspaceSchema.parse({
+      ...context.store.load(),
+      phase: "TESTING",
+    }));
+    await context.discover();
+    expect(context.runtime.activeToolNames()).not.toContain("propose_route_set");
+  });
+
+  it("returns the committed receipt when visible workspace synchronization throws", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    const syncErrors: Array<{ error: unknown; stateVersion: number }> = [];
+    await context.manager.replace(context.reader, {
+      commandAdapter: context.webMcpAdapter,
+      onWorkspaceChanged: () => {
+        throw new Error("simulated projection refresh failure");
+      },
+      onWorkspaceSyncError: (error, stateVersion) => {
+        syncErrors.push({ error, stateVersion });
+      },
+    });
+
+    const result = await context.runtime.invoke("propose_route_set", routeInput());
+
+    expect(result).toMatchObject({
+      ok: true,
+      receipt: { operationId: ids.routes, afterVersion: 1 },
+      stateVersion: 1,
+    });
+    expect(context.store.load().stateVersion).toBe(1);
+    expect(context.store.load().routeProposalSets).toHaveLength(1);
+    expect(syncErrors).toHaveLength(1);
+    expect(syncErrors[0]).toMatchObject({ stateVersion: 1 });
+    expect(syncErrors[0].error).toEqual(
+      new Error("simulated projection refresh failure"),
+    );
+  });
+
+  it("rechecks cached invocations against live phase and lifecycle authority", async () => {
+    const phaseContext = createProviderOffEvalContext(p3Workspace());
+    await phaseContext.discover();
+    phaseContext.store.replace(workspaceSchema.parse({
+      ...phaseContext.store.load(),
+      phase: "TESTING",
+    }));
+    const wrongPhase = await phaseContext.runtime.invoke("propose_route_set", routeInput());
+    expect(wrongPhase).toMatchObject({ ok: false, error: { code: "WRONG_PHASE" } });
+
+    const lifecycleContext = createProviderOffEvalContext(p3Workspace());
+    await lifecycleContext.discover();
+    await lifecycleContext.runtime.invoke("propose_route_set", routeInput());
+    const wrongLifecycle = await lifecycleContext.runtime.invoke("propose_route_set", {
+      ...routeInput(ids.retry),
+      expectedVersion: 1,
+    });
+    expect(wrongLifecycle).toMatchObject({
+      ok: false,
+      error: { code: "WRONG_LIFECYCLE" },
+      stateVersion: 1,
+    });
+  });
+
+  it("rejects malformed and authority-escalating extra fields without a write", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    await context.discover();
+    const malformedCases = [
+      { ...routeInput(), actor: "participant" },
+      { ...routeInput(), proposalSource: "participant" },
+      { ...routeInput(), hidden: true },
+      { operationId: ids.routes, expectedVersion: 0, outcome: "routes", routes: validRoutes().slice(0, 2) },
+    ];
+
+    for (const malformed of malformedCases) {
+      const result = await context.runtime.invoke("propose_route_set", malformed);
+      expect(result).toMatchObject({ ok: false, error: { code: "MALFORMED_INPUT" } });
+      expect(context.store.load().stateVersion).toBe(0);
+    }
+  });
+
+  it("supports participant choice and exact agent reread without registering choose_route", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    await context.discover();
+    await context.runtime.invoke("propose_route_set", routeInput());
+    const routeSet = context.store.load().routeProposalSets[0];
+    const choice = await context.participantAdapter.chooseRoute({
+      operationId: ids.choose,
+      expectedVersion: 1,
+      routeSetRef: routeSet.ref,
+      routeRef: routeSet.routes[1].ref,
+    });
+    expect(choice).toMatchObject({
+      ok: true,
+      receipt: { actor: "participant", command: "choose_route", afterVersion: 2 },
+    });
+
+    await context.discover();
+    expect(context.runtime.activeToolNames()).not.toContain("choose_route");
+    const reread = await context.runtime.invoke("read_workspace", { view: "orientation" });
+    expect(reread).toMatchObject({
+      ok: true,
+      data: {
+        active: {
+          hypothesis: {
+            originatingRouteSetRef: routeSet.ref,
+            originatingRouteRef: routeSet.routes[1].ref,
+          },
+        },
+        latestChange: { command: "choose_route", afterVersion: 2 },
+      },
+      stateVersion: 2,
+    });
+  });
+
+});
+
+function routeInput(operationId = ids.routes) {
+  return {
+    operationId,
+    expectedVersion: 0,
+    outcome: "routes" as const,
+    routes: validRoutes(),
+  };
+}
