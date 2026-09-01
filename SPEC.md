@@ -275,6 +275,11 @@ It does not return the full ledger by default. `working_set` returns current act
 and `entities` performs bounded targeted reads. There is no ambiguous “since last read”
 stored globally; the caller supplies a cursor, while a cold caller receives current truth.
 
+The P2 implementation fixes those bounds at 20 public change summaries and 20 working-set or
+targeted entities per read. Internal replay identities are never projected. The serialized
+orientation is capped at 6,000 characters, with a conservative 1,500-token estimate at four
+characters per token; truncation is explicit and callers can follow with targeted reads.
+
 ### 8.2 Affordances
 
 Every addressable entity returns:

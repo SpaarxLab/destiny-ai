@@ -18,9 +18,9 @@
   Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
   `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
-  open against `main`. P2 may begin only as a dependency-closed branch stacked on P1 and
-  remains blocked from integration until P1 merges. Participant testing remains blocked on
-  reviewer approval and recruitment.
+  open against `main`. P2 Cold Orientation is active on dependency-closed branch
+  `codex/p2-cold-orientation`, stacked on P1, and remains blocked from integration until P1
+  merges. Participant testing remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).

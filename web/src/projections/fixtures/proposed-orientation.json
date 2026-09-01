@@ -1,0 +1,51 @@
+{
+  "view": "orientation",
+  "identity": {
+    "workspaceRef": "00000000-0000-4000-8000-000000000001",
+    "schemaVersion": 1,
+    "contractVersion": "1.0.0",
+    "stateVersion": 1,
+    "phase": "EXPLORING"
+  },
+  "focus": {
+    "question": null,
+    "costCaps": { "hoursPerWeek": 0, "money": 0, "currency": "XXX" }
+  },
+  "active": { "hypothesis": null, "experiment": null },
+  "nextHumanDecision": {
+    "kind": "REVIEW_PROPOSED_REFLECTION",
+    "targetRefs": ["reflection-1"],
+    "guidance": "Confirm, edit, or reject the visible agent transcription before relying on it."
+  },
+  "constraints": ["Time cap: 0 hours/week", "Money cap: 0 XXX"],
+  "teachings": [],
+  "pendingHumanInteractions": {
+    "items": [
+      {
+        "ref": "reflection-1",
+        "kind": "CONFIRM_REFLECTION",
+        "excerpt": "The participant said they prefer bounded experiments."
+      }
+    ],
+    "total": 1,
+    "truncated": false
+  },
+  "conflicts": [],
+  "changes": { "sinceCursor": null, "items": [], "truncated": false },
+  "cursor": "workspace:00000000-0000-4000-8000-000000000001:v1",
+  "availableActions": [
+    {
+      "tool": "save_reflection",
+      "targetRef": "00000000-0000-4000-8000-000000000001",
+      "effect": "PROPOSE",
+      "requiresHuman": true,
+      "reason": "Agent-transcribed text remains proposed until the participant confirms it."
+    }
+  ],
+  "proof": {
+    "level": "PROPOSED",
+    "confirmedReflectionCount": 0,
+    "proposedReflectionCount": 1
+  },
+  "guidance": "Use target refs and declared actions only. Proposed content requires human confirmation."
+}
