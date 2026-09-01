@@ -17,7 +17,7 @@ stop and ask Harsh to resolve the conflict before implementation.
 | Milestone | Target | Ticket | Owner | Status | Dependency |
 |---|---:|---|---|---|---|
 | M1 — Truth & command spine | Sep 8 | [SPX-1 — P1 Build the shared command spine](https://linear.app/harsh-shah/issue/SPX-1/p1-build-the-shared-command-spine) | Devarsh | In Review; PR #1 clean; due Sep 4 | P0B admitted |
-| M1 — Truth & command spine | Sep 8 | [SPX-2 — P2 Deliver cold-agent orientation](https://linear.app/harsh-shah/issue/SPX-2/p2-deliver-cold-agent-orientation) | Devarsh | In Progress; PR #2 conflicts with updated P1 | Reconcile P1 head, rerun proof, then review |
+| M1 — Truth & command spine | Sep 8 | [SPX-2 — P2 Deliver cold-agent orientation](https://linear.app/harsh-shah/issue/SPX-2/p2-deliver-cold-agent-orientation) | Devarsh | Code accepted; stacked PR #2 clean | Land P1, retarget and reverify P2 |
 | M2 — Human-agent collaboration | Sep 15 | [SPX-3 — P3 Build quote-backed hypothesis collaboration](https://linear.app/harsh-shah/issue/SPX-3/p3-build-quote-backed-hypothesis-collaboration) | Tirth | Backlog | SPX-2 |
 | M2 — Human-agent collaboration | Sep 15 | [SPX-4 — P4 Build the cost-capped experiment loop](https://linear.app/harsh-shah/issue/SPX-4/p4-build-the-cost-capped-experiment-loop) | Devarsh | Backlog | SPX-3 |
 | M3 — Evidence & accretion | Sep 22 | [SPX-5 — P5 Prove evidence-bound confidence revision](https://linear.app/harsh-shah/issue/SPX-5/p5-prove-evidence-bound-confidence-revision) | Devarsh | Backlog | SPX-4 |
@@ -28,10 +28,11 @@ stop and ask Harsh to resolve the conflict before implementation.
 Verified board balance: eight packets; two per milestone; Devarsh owns four, Tirth two, and
 Harsh two. SPX-1 is `In Review`; P1 implementation commit `009b7f9` passed its local checks
 and browser proof, and PR #1 is open against `main`. SPX-2 implementation started on a
-dependency-closed stacked branch, but remains integration-blocked until PR #1 merges. The
-live Linear SPX-2 ticket returned to `In Progress` after P1 advanced to a contention-safe
-candidate and PR #2 became dirty. SPX-3 remains in `Backlog`; PLAN.md rule 8 and its native
-SPX-2 blocker prevent a truthful working-state transition until P2 is reconciled and admitted.
+dependency-closed stacked branch and has been reconciled with accepted P1 head `94898ce`.
+The exact P2 code candidate `690c164` passed the full local gate and independent correctness
+and test review. Live Linear status was not changed by this repository receipt. SPX-3 remains
+in `Backlog`; PLAN.md rule 8 and its native SPX-2 blocker prevent a truthful working-state
+transition until P2 is integrated.
 
 Native Linear blocker relationships mirror the plan: SPX-2 is blocked by SPX-1; SPX-3 by
 SPX-2; SPX-4 by SPX-3; SPX-5 by SPX-4; SPX-6 and SPX-7 by SPX-5; and SPX-8 by both SPX-6

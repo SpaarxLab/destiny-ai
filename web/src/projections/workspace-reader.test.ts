@@ -240,6 +240,41 @@ describe("P2 read_workspace cold orientation", () => {
     expect(cursor).toBe(`workspace:${workspace.id}:v25`);
   });
 
+  it("advances past one operation with maximal changed refs", () => {
+    const workspace = workspaceSchema.parse({
+      ...createEmptyWorkspace(),
+      stateVersion: 1,
+      operations: [{
+        operationId: "00000000-0000-4000-8000-000000000901",
+        operationRef: "operation-maximal",
+        actor: "participant",
+        command: "save_reflection",
+        effect: "APPLIED",
+        beforeVersion: 0,
+        afterVersion: 1,
+        changedRefs: Array.from({ length: READ_ENTITY_LIMIT }, (_, index) =>
+          `reflection-${index}-${"x".repeat(110)}`,
+        ),
+        at: "2026-09-01T10:00:00.000Z",
+        requestIdentity: "internal-maximal",
+      }],
+    });
+    const result = new WorkspaceReader(new MemoryWorkspaceStore(workspace)).read({
+      view: "orientation",
+      sinceCursor: `workspace:${workspace.id}:v0`,
+    });
+
+    expect(result.data?.view).toBe("orientation");
+    if (result.data?.view !== "orientation") return;
+    expect(result.data.changes.items).toHaveLength(1);
+    expect(result.data.changes.items[0].changedRefs).toHaveLength(5);
+    expect(result.data.changes.items[0].changedRefsTruncated).toBe(true);
+    expect(result.data.cursor).toBe(`workspace:${workspace.id}:v1`);
+    expect(new TextEncoder().encode(JSON.stringify(result)).length).toBeLessThanOrEqual(
+      ORIENTATION_ESTIMATED_TOKEN_BUDGET,
+    );
+  });
+
   it.each([
     ["unknown view", { view: "unknown" }],
     ["empty entity refs", { view: "entities", refs: [] }],

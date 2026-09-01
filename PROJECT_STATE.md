@@ -6,10 +6,11 @@
   window; primary goal = deep learning of coherent, safe, resource-efficient agentic product
   design.
 - **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
-  (accepted choices), and `PLAN.md` (approved delivery programme; P1 admitted).
+  (accepted choices), and `PLAN.md` (approved delivery programme; P1 and P2 accepted for
+  dependency-ordered integration).
   `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
-- **Canonical repo/worktree:** `/Users/harsh/career-lab`; integration branch `main`; active P1
-  branch `codex/p1-command-spine`; foundation
+- **Canonical repo/worktree:** `/Users/harsh/career-lab`; integration branch `main`; active P2
+  branch `codex/spx-2-cold-orientation`, stacked on `codex/p1-command-spine`; foundation
   baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
   Original nested-repository history and dirty-overlay recovery are preserved at the path
   documented in `RECOVERY.md`; nothing was deleted.
@@ -17,16 +18,14 @@
   SpaarxLab repository; default branch `main`; Harsh has admin access. Remote candidate
   `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
   Actions CI in run `33497218996`.
-- **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
-  `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
-  open against `main`. P1 is `In Review` on the Linear delivery board with a 4 September
-  due date. P2 Cold Orientation is active locally on dependency-closed branch
-  `codex/spx-2-cold-orientation`, stacked on P1, and remains blocked from integration until P1
-  merges. P1 advanced to `94898ce0c2d0042af837dca9a00d2ed34694023d`; GitHub reports
-  PR #1 clean with its `web` check passing. [P2 PR #2](https://github.com/SpaarxLab/destiny-ai/pull/2)
-  now conflicts with that updated P1 head, so SPX-2 returned to `In Progress` for
-  reconciliation. SPX-3 remains blocked in `Backlog`. Participant testing remains blocked on
-  reviewer approval and recruitment.
+- **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine candidate
+  `94898ce0c2d0042af837dca9a00d2ed34694023d` is accepted on
+  [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1), clean, with exact-head CI passing.
+  P2 Cold Orientation is reconciled with that exact P1 head on
+  `codex/spx-2-cold-orientation`; [PR #2](https://github.com/SpaarxLab/destiny-ai/pull/2)
+  is clean on its stacked base. Both are accepted for dependency-ordered landing: merge P1,
+  retarget P2 to `main`, reverify, then merge P2. SPX-3 remains blocked until that landing is
+  verified. Participant testing remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
@@ -48,14 +47,15 @@
   participant commitments before participant testing. Separately, Harsh must choose whether
   to keep Linear Free with all three users as admins or authorize a paid upgrade so Devarsh
   and Tirth can become members.
-- **Last verified evidence:** on P2 implementation commit
-  `eff533e234e48c8774216ff9aaba9ecd4b0af778`, Node 24 `web/npm run check` passed 16
+- **Last verified evidence:** on reconciled P2 code candidate
+  `690c1642f9d0a6927e686750ac52f8d7a2f803f7`, Node 24 `web/npm run check` passed 35
   focused P1/P2 tests, ESLint, generated route types, TypeScript, and the Next.js production
-  build. Three golden orientation fixtures, caller-owned cursor isolation, bounded reads, and
-  the 1,500-estimated-token cap passed. A local production-browser journey applied one
+  build. A follow-up maximal-change regression brings the focused count to 36. Three golden
+  orientation fixtures, caller-owned recoverable pagination, bounded reads, and the complete
+  6,000-character/3,000-byte result cap passed. A local production-browser journey applied one
   participant reflection and advanced authoritative state plus orientation cursor from
   `v1` to `v2`; browser warning/error logs were empty. P1 hardening commit
-  `c5ac83c72fd060729390062cd740ecef60edefc7` separately passed 20 focused command and
+  `94898ce0c2d0042af837dca9a00d2ed34694023d` separately passed 20 focused command and
   storage tests and exact-head GitHub CI as part of PR #1. This is local/static journey and
   PR CI proof—not live WebMCP, deployed, participant, `main` integration, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all

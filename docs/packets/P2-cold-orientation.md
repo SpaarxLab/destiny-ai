@@ -1,10 +1,10 @@
 # Packet P2 — Cold Orientation
 
-**Status:** ACTIVE — PR #2 requires reconciliation with updated P1
+**Status:** ACCEPTED CANDIDATE — dependency-ordered landing in progress
 **Owner:** Devarsh (Lane A), with Harsh (Lane C) required for integration/runtime review
 **Branch/worktree:** `codex/spx-2-cold-orientation` in the current canonical checkout
 **Integration destination:** `main`, only after P1 PR #1 merges
-**Depends on:** P1 commit `44acf7d` and https://github.com/SpaarxLab/destiny-ai/pull/1
+**Depends on:** P1 commit `94898ce0c2d0042af837dca9a00d2ed34694023d` and https://github.com/SpaarxLab/destiny-ai/pull/1
 **Pull request:** https://github.com/SpaarxLab/destiny-ai/pull/2 (stacked review base:
 `codex/p1-command-spine`)
 
@@ -38,7 +38,7 @@ persistence, auth, sync, analytics, and participant research are out of scope.
 - `{}` and `{ view: "orientation" }` return current truth without reading full history;
 - `sinceCursor` is caller-owned and workspace/version bound; no global last-read state exists;
 - orientation changes contain at most 20 public operation summaries and never expose
-  `requestIdentity`;
+  `requestIdentity`; each summary exposes at most five changed refs and reports truncation;
 - working-set and targeted entity reads contain at most 20 entities;
 - truncated change pages advance their cursor only through the last returned operation;
 - the complete orientation tool result is capped at 6,000 serialized characters and 3,000
@@ -69,8 +69,8 @@ one unit. P2 is read-only and creates no state requiring compensation.
 
 ## Closeout receipt
 
-- branch/implementation SHA: `codex/spx-2-cold-orientation` /
-  `eff533e234e48c8774216ff9aaba9ecd4b0af778`
+- branch/code-review SHA: `codex/spx-2-cold-orientation` /
+  `690c1642f9d0a6927e686750ac52f8d7a2f803f7`
 - verified: Node 24 `npm run check`; focused P1/P2 tests; three golden orientation
   fixtures; strict input/output schemas; cursor isolation; public delta; malformed and invalid
   cursor denial; bounded working-set/entity reads; no ledger/request identity; no mutation or
@@ -80,7 +80,8 @@ one unit. P2 is read-only and creates no state requiring compensation.
   proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty
 - unverified: live WebMCP, deployed runtime, participants, `main` integration, release
   candidate, and cold-agent model eval; Linear SPX-2 is `In Review` with PR #2 attached
-- review state: P1 advanced to `94898ce0c2d0042af837dca9a00d2ed34694023d` with
-  contention-safe write/replay changes; GitHub reports stacked PR #2 dirty against that head
-- disposition: `ACTIVE` — reconcile P2 with P1, rerun the full proof, and return SPX-2 to
-  review before P1 integration, retargeting, or Lane C/runtime acceptance
+- review state: P1 `94898ce0c2d0042af837dca9a00d2ed34694023d` is preserved as an
+  ancestor; correctness and test reviewers accepted the reconciled candidate after bounded,
+  recoverable pagination fixes
+- disposition: `ACCEPTED` — land P1 with a merge commit, retarget PR #2 to `main`, verify the
+  exact P2 head, then land P2 with a merge commit

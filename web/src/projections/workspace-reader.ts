@@ -2,6 +2,7 @@ import { availableActions } from "../domain/affordances";
 import {
   ORIENTATION_ESTIMATED_TOKEN_BUDGET,
   ORIENTATION_MAX_SERIALIZED_CHARS,
+  PUBLIC_CHANGED_REF_LIMIT,
   READ_CHANGE_LIMIT,
   READ_ENTITY_LIMIT,
   entitiesProjectionSchema,
@@ -253,8 +254,8 @@ function publicChange(operation: OperationRecord): ChangeSummary {
     command: operation.command,
     effect: operation.effect,
     afterVersion: operation.afterVersion,
-    changedRefs: operation.changedRefs.slice(0, READ_ENTITY_LIMIT),
-    changedRefsTruncated: operation.changedRefs.length > READ_ENTITY_LIMIT,
+    changedRefs: operation.changedRefs.slice(0, PUBLIC_CHANGED_REF_LIMIT),
+    changedRefsTruncated: operation.changedRefs.length > PUBLIC_CHANGED_REF_LIMIT,
     at: operation.at,
   };
 }
