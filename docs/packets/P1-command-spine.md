@@ -1,9 +1,10 @@
 # Packet P1 — Command Spine
 
-**Status:** ACTIVE
+**Status:** ACTIVE — PR #1 open for integration review
 **Owner:** Devarsh (Lane A)
 **Branch/worktree:** `codex/p1-command-spine` in the current canonical checkout
 **Integration destination:** `main`
+**Pull request:** https://github.com/SpaarxLab/destiny-ai/pull/1
 
 ## Operator-visible outcome
 
@@ -97,5 +98,6 @@ appear during the packet.
   journey rendered one confirmed reflection, one `APPLIED` receipt, and state `0 -> 1` with
   no browser errors
 - unverified: live WebMCP, deployed runtime, participants, release candidate
-- disposition: `ACTIVE` — implementation is committed and ready for integration review;
-  the packet is not integrated into `main`
+- review state: PR #1 is open against `main`; merge and live WebMCP remain unverified
+- disposition: `ACTIVE` — implementation is committed and under integration review; the
+  packet is not integrated into `main`

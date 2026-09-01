@@ -17,8 +17,10 @@
   `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
   Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
-  `codex/p1-command-spine`. Participant testing remains blocked on reviewer approval and
-  recruitment.
+  `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
+  open against `main`. P2 may begin only as a dependency-closed branch stacked on P1 and
+  remains blocked from integration until P1 merges. Participant testing remains blocked on
+  reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
