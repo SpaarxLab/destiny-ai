@@ -95,9 +95,10 @@ appear during the packet.
 ## Closeout receipt
 
 - branch/SHA: `codex/p1-command-spine` / hardened candidate
-  `9ad1883b33e4c65153acacde6ac1a8df747a5262`
-- verified: Node 24 `npm run check`; 12 focused contract tests; strict schema, wrong-phase,
-  stale, replay, conflict, cross-tab serialization, bootstrap, receipt, and
+  `c5ac83c72fd060729390062cd740ecef60edefc7`
+- verified: Node 24 `npm run check`; 20 focused contract tests; strict schema, wrong-phase,
+  stale, concurrent replay/conflict, cross-tab serialization, bootstrap, corrupt-storage
+  preservation, receipt, and
   persistence-failure proof; local production-browser
   journey rendered one confirmed reflection, one `APPLIED` receipt, and state `0 -> 1` with
   no browser errors

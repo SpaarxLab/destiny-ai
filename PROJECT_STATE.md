@@ -44,11 +44,12 @@
   to keep Linear Free with all three users as admins or authorize a paid upgrade so Devarsh
   and Tirth can become members.
 - **Last verified evidence:** on P1 hardening commit
-  `9ad1883b33e4c65153acacde6ac1a8df747a5262` on `codex/p1-command-spine`, Node 24
-  `web/npm run check` passed 12 focused
+  `c5ac83c72fd060729390062cd740ecef60edefc7` on `codex/p1-command-spine`, Node 24
+  `web/npm run check` passed 20 focused
   command and storage tests, ESLint, generated route types, TypeScript, and the Next.js
   production build. Cross-tab writes are serialized and an absent workspace read no longer
-  creates an unreceipted bootstrap write.
+  creates an unreceipted bootstrap write. Concurrent same-operation retries return the
+  original receipt, while same-ID different-intent races return `OPERATION_CONFLICT`.
   A local production-browser journey saved one participant reflection and rendered one
   `APPLIED` receipt with state version `0 -> 1`; browser error logs were empty. P0A remote CI
   evidence remains GitHub Actions run `33497218996`. This is local/static journey proof—not
