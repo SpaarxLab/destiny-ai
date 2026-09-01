@@ -108,14 +108,18 @@ describe("P1 save_reflection command spine", () => {
     ["oversized text", { operationId: operationOne, expectedVersion: 0, text: "x".repeat(2_001) }],
   ])("rejects %s without mutation", async (_case, input) => {
     const { store, kernel } = setup();
-    const result = await kernel.execute({
+    const result = await kernel.execute({ actor: "participant", proposalSource: "participant" }, {
       name: "save_reflection",
-      actor: "participant",
       input,
     });
 
     expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("MALFORMED_INPUT");
+    expect(result.error).toMatchObject({
+      code: "MALFORMED_INPUT",
+      retry: "NEVER",
+      insteadDo: "Do not repeat this request. Correct the input and submit a new command with a new operationId.",
+    });
+    expect(result.guidance).toBe("No state changed because the command was malformed.");
     expect(store.load()).toEqual(createEmptyWorkspace());
   });
 

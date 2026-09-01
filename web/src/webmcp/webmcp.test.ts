@@ -216,7 +216,6 @@ describe("P8A native WebMCP foundation", () => {
     }));
     const workspace = workspaceSchema.parse({
       ...createEmptyWorkspace(),
-      stateVersion: reflections.length,
       reflections,
     });
     const { runtime } = await createWebMcpHarness(
@@ -239,7 +238,23 @@ describe("P8A native WebMCP foundation", () => {
   });
 
   it("returns the versioned method guide and rejects extra input", async () => {
-    const workspace = workspaceSchema.parse({ ...createEmptyWorkspace(), stateVersion: 7 });
+    const base = createEmptyWorkspace();
+    const workspace = workspaceSchema.parse({
+      ...base,
+      stateVersion: 7,
+      operations: Array.from({ length: 7 }, (_, index) => ({
+        operationId: `00000000-0000-4000-8000-${String(index + 801).padStart(12, "0")}`,
+        operationRef: `operation-guide-${index + 1}`,
+        actor: "participant" as const,
+        command: "save_reflection",
+        effect: "APPLIED" as const,
+        beforeVersion: index,
+        afterVersion: index + 1,
+        changedRefs: [base.id],
+        at: "2026-09-01T10:00:00.000Z",
+        requestIdentity: `internal-guide-${index + 1}`,
+      })),
+    });
     const { reader } = setup(workspace);
     const { runtime } = await createWebMcpHarness(reader);
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createParticipantCommandAdapter } from "../adapters/participant-command-adapter";
 import { CommandKernel } from "../commands/command-kernel";
-import { createEmptyWorkspace } from "../domain/workspace";
+import { p3Workspace, validRoutes } from "../commands/fixtures/p3-route-set";
+import { CONTRACT_VERSION, WORKSPACE_SCHEMA_VERSION, createEmptyWorkspace } from "../domain/workspace";
 import {
   LOCAL_WORKSPACE_KEY,
   LocalWorkspaceStore,
@@ -139,6 +140,34 @@ describe("LocalWorkspaceStore", () => {
     expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(corruptBytes);
   });
 
+  it("preserves stored v2 bytes whose route policy violates participant caps", () => {
+    const storage = new MemoryStorage();
+    const initial = p3Workspace();
+    const routes = validRoutes().map((route, index) => ({
+      ...route,
+      status: "proposed" as const,
+      test: index === 0 ? { ...route.test, maximumHours: 7 } : route.test,
+    }));
+    const invalid = {
+      ...initial,
+      routeProposalSets: [{
+        id: "00000000-0000-4000-8000-000000000750",
+        ref: "route-set-invalid-caps",
+        availableActions: [],
+        status: "proposed",
+        routes,
+        createdBy: "chatgpt_webmcp",
+        createdAt: "2026-09-01T10:00:00.000Z",
+      }],
+    };
+    const originalBytes = JSON.stringify(invalid);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, initial, new SerialLockManager());
+
+    expect(() => store.load()).toThrowError(/original bytes were preserved/i);
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+  });
+
   it("returns a typed storage failure when the browser lock cannot be acquired", async () => {
     const storage = new MemoryStorage();
     const store = new LocalWorkspaceStore(
@@ -163,6 +192,110 @@ describe("LocalWorkspaceStore", () => {
       stateVersion: 0,
     });
     expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBeNull();
+  });
+
+  it("migrates a valid schema-v1 workspace in memory without overwriting its original bytes", () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      id: "00000000-0000-4000-8000-000000000001",
+      schemaVersion: 1,
+      contractVersion: "1.0.0",
+      stateVersion: 0,
+      phase: "EXPLORING",
+      participant: { displayName: "", focusQuestion: "", costCaps: { hoursPerWeek: 0, money: 0, currency: "XXX" } },
+      reflections: [], hypotheses: [], experiments: [], evidence: [], revisions: [],
+      planItems: [], outbox: [], teachings: [], operations: [],
+    };
+    const originalBytes = JSON.stringify(legacy);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, createEmptyWorkspace(), new SerialLockManager());
+
+    expect(store.load()).toMatchObject({
+      schemaVersion: WORKSPACE_SCHEMA_VERSION,
+      contractVersion: CONTRACT_VERSION,
+      routeProposalSets: [],
+      hypotheses: [],
+    });
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+  });
+
+  it("canonicalizes a schema-v1 save_reflection identity so an identical retry replays", async () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      id: "00000000-0000-4000-8000-000000000001",
+      schemaVersion: 1,
+      contractVersion: "1.0.0",
+      stateVersion: 1,
+      phase: "EXPLORING",
+      participant: { displayName: "", focusQuestion: "", costCaps: { hoursPerWeek: 0, money: 0, currency: "XXX" } },
+      reflections: [{
+        id: "00000000-0000-4000-8000-000000000100",
+        ref: "reflection-1",
+        availableActions: [],
+        status: "confirmed",
+        text: "Retry-safe migrated reflection.",
+        recordedBy: "participant",
+        createdAt: "2026-09-01T10:00:00.000Z",
+      }],
+      hypotheses: [], experiments: [], evidence: [], revisions: [], planItems: [], outbox: [], teachings: [],
+      operations: [{
+        operationId: operationOne,
+        operationRef: "operation-1",
+        actor: "participant",
+        command: "save_reflection",
+        effect: "APPLIED",
+        beforeVersion: 0,
+        afterVersion: 1,
+        changedRefs: ["reflection-1"],
+        at: "2026-09-01T10:00:00.000Z",
+        requestIdentity: JSON.stringify({
+          name: "save_reflection",
+          actor: "participant",
+          text: "Retry-safe migrated reflection.",
+        }),
+      }],
+    };
+    const originalBytes = JSON.stringify(legacy);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, createEmptyWorkspace(), new SerialLockManager());
+    const result = await createParticipantCommandAdapter(new CommandKernel(store)).saveReflection({
+      operationId: operationOne,
+      expectedVersion: 1,
+      text: "Retry-safe migrated reflection.",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      stateVersion: 1,
+      receipt: { operationRef: "operation-1", afterVersion: 1 },
+    });
+    expect(result.guidance).toContain("Replay detected");
+    expect(store.load().operations).toHaveLength(1);
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+  });
+
+  it("reloads a persisted P3 route proposal with its receipt intact", async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLockManager();
+    const firstStore = new LocalWorkspaceStore(storage, p3Workspace(), locks);
+    const first = await new CommandKernel(firstStore).execute(
+      { actor: "agent", proposalSource: "chatgpt_webmcp" },
+      {
+      name: "propose_route_set",
+      input: {
+        operationId: operationOne,
+        expectedVersion: 0,
+        outcome: "routes",
+        routes: validRoutes(),
+      },
+      },
+    );
+    const reloaded = new LocalWorkspaceStore(storage, p3Workspace(), locks).load();
+
+    expect(first.ok).toBe(true);
+    expect(reloaded.routeProposalSets).toHaveLength(1);
+    expect(reloaded.operations[0].operationId).toBe(operationOne);
+    expect(reloaded.stateVersion).toBe(1);
   });
 });
 

@@ -168,6 +168,11 @@ validates bounds, exact references, caps, and structural distinction; it does no
 career sufficiency itself. The insufficient branch stores no route set. A replacement proposal
 includes `supersedesRouteSetRef`; the older set stays in history.
 
+`insufficient_signal` is a successful, non-mutating diagnostic outcome: the result has `ok: true`,
+typed `outcome`, `followUpQuestion`, and `reasonRefs` data, no `error`, no receipt, and the unchanged
+`stateVersion`. It is not a successful write. Every successful write still creates and returns a
+receipt.
+
 `revise_route_set` is replay-safe and participant-only. It owns bounded pre-choice edits and
 individual or all-route rejection. Rejecting all routes resolves the set without creating a
 hypothesis. Revision, rejection, and supersession preserve receipts and proposal history.
@@ -315,6 +320,15 @@ reference. The other routes remain proposal history and never become silently ac
 must equal a substring of its referenced confirmed reflection. Every route respects recorded time
 and money caps and proposes a test idea of no more than seven days.
 
+Workspace validation independently rechecks those caps and lifecycle relationships on load/import.
+Workspace identity, entity refs, route refs, hypothesis refs, and operation refs are globally unique;
+every receipt `changedRef` resolves to an addressable workspace object. Operation IDs are unique and
+the ordered ledger forms a contiguous `beforeVersion -> afterVersion` chain ending at
+`stateVersion`. A compensation may point only to one earlier, uncompensated `PROPOSED`
+`propose_route_set` operation for the same route set, with no intervening operation that changed
+that set, and only a `COMPENSATED`
+`compensate_route_set` record may carry that link.
+
 The workspace snapshot is canonical for current state. Operation receipts are canonical for
 what happened. A stored operation record adds the canonical request identity needed to
 distinguish a retry from reuse of an operation id for a different intent; that internal value
@@ -407,9 +421,22 @@ interface ToolResult<T> {
 }
 ```
 
+`retry` describes whether the exact request and operation may be repeated; it does not prohibit a
+different recovery action. `NEVER` means do not repeat that request. `insteadDo` may direct the
+caller to reread or correct the input and submit a distinct command with a new `operationId`.
+`SAME_OPERATION_ID` is reserved for retrying the same intended effect after an uncertain/storage
+failure, while `REREAD_THEN_NEW_OPERATION` requires fresh state and a newly considered operation.
+
 On a lost response, the agent retries with the same `operationId`. The command ledger
 returns the original receipt. On `STALE_STATE`, it re-reads and creates a new operation only
 after reconsidering the new state.
+
+Actor and proposal provenance are trusted execution context, not caller-shaped command input. The
+participant adapter supplies participant authority; a WebMCP write adapter can supply only agent
+authority with `chatgpt_webmcp` provenance; an optional inference adapter supplies agent authority
+with `embedded_inference` provenance. Extra payload fields that attempt to self-assert actor or
+provenance are malformed. Replay identity remains bound to the trusted actor and, for route
+proposals, the trusted proposal source.
 
 ### 8.4 Accretion without corruption
 

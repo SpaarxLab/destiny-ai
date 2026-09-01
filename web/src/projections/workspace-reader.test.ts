@@ -119,7 +119,6 @@ describe("P2 read_workspace cold orientation", () => {
     }));
     const store = new MemoryWorkspaceStore(workspaceSchema.parse({
       ...createEmptyWorkspace(),
-      stateVersion: reflections.length,
       reflections,
     }));
     const reader = createTestReadAdapter(new WorkspaceReader(store));
@@ -166,8 +165,8 @@ describe("P2 read_workspace cold orientation", () => {
       effect: "PROPOSED" as const,
       beforeVersion: index,
       afterVersion: index + 1,
-      changedRefs: [reflection.ref, ...Array.from({ length: 4 }, (_, refIndex) =>
-        `related-${index + 1}-${refIndex}-${"R".repeat(95)}`)],
+      changedRefs: Array.from({ length: 5 }, (_, refIndex) =>
+        proposed[(index + refIndex) % proposed.length].ref),
       at: "2026-09-01T10:00:00.000Z",
       requestIdentity: `INTERNAL-SECRET-${index}`,
     }));
@@ -220,6 +219,15 @@ describe("P2 read_workspace cold orientation", () => {
     const workspace = workspaceSchema.parse({
       ...createEmptyWorkspace(),
       stateVersion: operations.length,
+      reflections: operations.map((operation, index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 301).padStart(12, "0")}`,
+        ref: operation.changedRefs[0],
+        availableActions: [],
+        status: "confirmed" as const,
+        text: `Historical reflection ${index + 1}`,
+        recordedBy: "participant" as const,
+        createdAt: "2026-09-01T10:00:00.000Z",
+      })),
       operations,
     });
     const reader = new WorkspaceReader(new MemoryWorkspaceStore(workspace));
@@ -256,7 +264,10 @@ describe("P2 read_workspace cold orientation", () => {
         effect: "APPLIED",
         beforeVersion: 0,
         afterVersion: 1,
-        changedRefs: Array.from({ length: READ_ENTITY_LIMIT }, () => `界`.repeat(128)),
+        changedRefs: Array.from(
+          { length: READ_ENTITY_LIMIT },
+          () => createEmptyWorkspace().id,
+        ),
         at: "2026-09-01T10:00:00.000Z",
         requestIdentity: "internal-maximal",
       }],

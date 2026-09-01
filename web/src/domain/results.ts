@@ -1,7 +1,9 @@
 import type {
   AvailableAction,
+  Hypothesis,
   OperationReceipt,
   Reflection,
+  RouteProposalSet,
 } from "./workspace";
 
 export type RetryInstruction =
@@ -11,7 +13,11 @@ export type RetryInstruction =
 
 export type CommandErrorCode =
   | "MALFORMED_INPUT"
+  | "WRONG_ACTOR"
   | "WRONG_PHASE"
+  | "WRONG_LIFECYCLE"
+  | "UNKNOWN_REF"
+  | "POLICY_DENIED"
   | "STALE_STATE"
   | "OPERATION_CONFLICT"
   | "INVALID_CURSOR"
@@ -37,3 +43,47 @@ export interface ToolResult<T> {
 }
 
 export type SaveReflectionResult = ToolResult<{ reflection: Reflection }>;
+
+export type ProposeRouteSetResult =
+  | (ToolResult<{ outcome: "routes"; routeSet: RouteProposalSet }> & {
+      ok: true;
+      data: { outcome: "routes"; routeSet: RouteProposalSet };
+      receipt: OperationReceipt;
+      error?: never;
+    })
+  | (ToolResult<{
+      outcome: "insufficient_signal";
+      followUpQuestion: string;
+      reasonRefs: string[];
+    }> & {
+      ok: true;
+      data: {
+        outcome: "insufficient_signal";
+        followUpQuestion: string;
+        reasonRefs: string[];
+      };
+      receipt?: never;
+      error?: never;
+    })
+  | (ToolResult<never> & {
+      ok: false;
+      data?: never;
+      receipt?: never;
+      error: CommandError;
+    });
+
+export type ReviseRouteSetResult = ToolResult<{ routeSet: RouteProposalSet }>;
+
+export type ChooseRouteResult = ToolResult<{
+  routeSet: RouteProposalSet;
+  hypothesis: Hypothesis;
+}>;
+
+export type CompensateRouteSetResult = ToolResult<{ routeSet: RouteProposalSet }>;
+
+export type CommandResult =
+  | SaveReflectionResult
+  | ProposeRouteSetResult
+  | ReviseRouteSetResult
+  | ChooseRouteResult
+  | CompensateRouteSetResult;

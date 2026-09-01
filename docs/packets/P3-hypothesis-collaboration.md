@@ -32,6 +32,9 @@ authoritative receipt. No second approval is required.
 - UI, WebMCP, and optional inference use the same command.
 - If three grounded routes cannot be produced, return `INSUFFICIENT_SIGNAL` with one focused
   follow-up question. Never fabricate a third route.
+- `INSUFFICIENT_SIGNAL` is represented as `ok: true` typed diagnostic data with the follow-up
+  question and confirmed reason refs, no `error`, no receipt, and unchanged `stateVersion`; it is
+  not a write, while every successful write still returns a receipt.
 - Routes differ only when both their learning question and test differ.
 - Every quote equals a substring of its referenced confirmed reflection.
 - Tests take at most seven days and stay within recorded time and money caps.
@@ -41,6 +44,17 @@ authoritative receipt. No second approval is required.
   originating route-set and route refs.
 - `choose_route` is participant-only. It may carry final edits, atomically creates one accepted
   hypothesis plus receipt, and leaves the other routes as proposal history.
+- Actor and `createdBy` provenance come from trusted adapter execution context, never the command
+  payload. Participant adapters cannot impersonate agents, and WebMCP-shaped payloads cannot
+  self-assert participant or embedded-inference authority.
+- Workspace validation enforces globally unique addressable refs, resolvable receipt refs, unique
+  operation IDs, a contiguous version ledger, one-time same-set compensation links, route caps and
+  lifecycle, valid supersession targets, selected-route cardinality, and accepted-hypothesis
+  lineage on load/import as well as at command time.
+- Compensation is valid only while the original proposal is untouched; any intervening revision,
+  choice, supersession, or other receipt that changes that route set permanently denies it.
+- A denial with `retry: NEVER` forbids repeating that exact request; recovery copy may direct a
+  corrected, distinct command with a new `operationId` and must not describe it as a retry.
 - Rejection and compensation preserve proposal and receipt history.
 
 ### Required proof

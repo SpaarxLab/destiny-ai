@@ -2,8 +2,8 @@
   "view": "orientation",
   "identity": {
     "workspaceRef": "00000000-0000-4000-8000-000000000001",
-    "schemaVersion": 1,
-    "contractVersion": "1.0.0",
+    "schemaVersion": 2,
+    "contractVersion": "1.1.0",
     "stateVersion": 0,
     "phase": "EXPLORING"
   },
@@ -27,6 +27,7 @@
     {
       "tool": "save_reflection",
       "targetRef": "00000000-0000-4000-8000-000000000001",
+      "actor": "agent",
       "effect": "PROPOSE",
       "requiresHuman": true,
       "reason": "Agent-transcribed text remains proposed until the participant confirms it."
