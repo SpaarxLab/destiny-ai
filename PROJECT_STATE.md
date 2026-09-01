@@ -19,9 +19,10 @@
   Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
   `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
-  open against `main`. The Linear board contains all eight dependency-closed packets: P1 is
-  `In Progress` with a 4 September due date; P2-P8 remain `Backlog` until their prerequisites
-  are integrated. Participant testing remains blocked on reviewer approval and recruitment.
+  open against `main`. P1 is `In Progress` on the Linear delivery board with a 4 September
+  due date. P2 may begin only as a dependency-closed branch stacked on P1 and remains blocked
+  from integration until P1 merges; P2-P8 remain `Backlog` on Linear. Participant testing
+  remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
