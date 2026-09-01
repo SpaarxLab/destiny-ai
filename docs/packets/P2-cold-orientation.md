@@ -1,6 +1,6 @@
 # Packet P2 — Cold Orientation
 
-**Status:** ACTIVE — implementation started; integration gate open
+**Status:** ACTIVE — implementation complete; integration blocked on P1
 **Owner:** Devarsh (Lane A), with Harsh (Lane C) required for integration/runtime review
 **Branch/worktree:** `codex/p2-cold-orientation` in the current canonical checkout
 **Integration destination:** `main`, only after P1 PR #1 merges
@@ -66,9 +66,16 @@ one unit. P2 is read-only and creates no state requiring compensation.
 
 ## Closeout receipt
 
-- branch/SHA: pending implementation commit
-- verified: prerequisite audit only
-- unverified: implementation checks, browser journey, live WebMCP, deployed runtime,
-  participants, `main` integration, release candidate
-- disposition: `ACTIVE` — safe to implement on the stacked branch; not safe to integrate
-  before P1 PR #1 merges
+- branch/implementation SHA: `codex/p2-cold-orientation` /
+  `eff533e234e48c8774216ff9aaba9ecd4b0af778`
+- verified: Node 24 `npm run check`; 16 focused P1/P2 tests; three golden orientation
+  fixtures; strict input/output schemas; cursor isolation; public delta; malformed and invalid
+  cursor denial; bounded working-set/entity reads; no ledger/request identity; no mutation or
+  receipt; 6,000-character/1,500-estimated-token cap
+- browser proof: production journey rendered the P2 handoff, applied one participant
+  reflection, and advanced both authoritative state and orientation cursor from `v1` to `v2`;
+  proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty
+- unverified: live WebMCP, deployed runtime, participants, `main` integration, release
+  candidate; live Linear SPX-2 status/evidence write remains pending
+- disposition: `ACTIVE` — implementation is ready for review, but may not integrate before
+  P1 PR #1 merges and Harsh completes Lane C/runtime review
