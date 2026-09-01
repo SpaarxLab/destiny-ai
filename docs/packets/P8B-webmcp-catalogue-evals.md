@@ -51,7 +51,10 @@ repairs and chooses one through the UI; ChatGPT rereads and accurately reports t
   malformed/extra fields, stale, replay, conflict, injection-like content, and unavailable-tool
   avoidance;
 - at least one `INSUFFICIENT_SIGNAL` recovery conversation;
-- multiple isolated synthetic ChatGPT/browser contexts with no state or instruction leakage;
+- provider-off synthetic-policy runs that consume only the discovered catalogue and tool results,
+  with forbidden/unavailable calls asserted independently;
+- separate local Playwright `BrowserContext`s with no workspace, journey-text, or synthetic-token
+  leakage;
 - every hard assertion passes independently; subjective route quality is reported separately;
 - provider-off baseline and `npm run check`.
 
@@ -66,6 +69,11 @@ Real Chrome/ChatGPT availability and deployed identity belong to P8C. Executing 
 revision tools belong to P4/P5/P10. P8B still owns `propose_route_set` WebMCP registration, schema
 parity, thin command execution, isolated agent sessions, and the full hard-invariant eval suite;
 P3C proves only the bounded read/readback substrate.
+
+The provider-off synthetic policy is deterministic test code, not a language model or ChatGPT.
+Playwright `BrowserContext` isolation proves local browser storage separation, not native WebMCP
+catalogue behavior or model-session isolation. Fresh ChatGPT in-app-browser behavior remains a P8C
+runtime gate and must not be inferred from either proof class.
 
 ## Closeout receipt
 

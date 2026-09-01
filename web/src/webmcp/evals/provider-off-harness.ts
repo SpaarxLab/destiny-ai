@@ -6,6 +6,7 @@ import { WorkspaceReader } from "../../projections/workspace-reader";
 import { WorkspaceStoreError, type WorkspaceStore } from "../../storage/workspace-store";
 import { WebMcpRegistrationManager } from "../lifecycle";
 import { FakeWebMcpRuntime } from "../testing/fake-runtime";
+import type { SyntheticToolDescription } from "./provider-off-synthetic-agent";
 
 export class MutableEvalWorkspaceStore implements WorkspaceStore {
   private workspace: Workspace;
@@ -52,6 +53,20 @@ export function createProviderOffEvalContext(workspace: Workspace) {
     runtime,
     manager,
     visibleVersions,
+    catalogue: (): SyntheticToolDescription[] => runtime.activeToolNames().map((name) => {
+      const tool = runtime.latest(name);
+      return {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      };
+    }),
+    invokeDiscovered: async (name: string, input: unknown) => {
+      if (!runtime.activeToolNames().includes(name)) {
+        throw new Error(`Unavailable tool invocation: ${name}`);
+      }
+      return runtime.invoke(name, input);
+    },
     discover: () => manager.replace(reader, {
       commandAdapter: webMcpAdapter,
       onWorkspaceChanged: (stateVersion) => visibleVersions.push(stateVersion),
