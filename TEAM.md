@@ -1,15 +1,15 @@
-# Career Lab — Team Charter
+# Destiny.AI — Team Charter
 
 ## Ownership
 
 | Responsibility | Owner | Decision authority |
 |---|---|---|
 | Product authority and integration | Harsh | scope, contract admission, candidate identity |
-| Lane A — domain/commands/persistence | **OWNER INPUT** | invariants, command kernel, migrations, receipts |
-| Lane B — human board/collaboration | **OWNER INPUT** | interaction design, accessibility, browser journeys |
+| Lane A — domain/commands/persistence | Devarsh | invariants, command kernel, migrations, receipts |
+| Lane B — human board/collaboration | Tirth | interaction design, accessibility, browser journeys |
 | Lane C — agent surface/evals/runtime | Harsh | WebMCP adapters, method, evals, live runtime proof |
 | Safeguarding review | **OWNER INPUT** | distress and referral copy |
-| Participant recruitment | Harsh until delegated | five adult participant commitments |
+| Participant recruitment | Harsh | five adult participant commitments |
 
 Harsh is integration captain for the first four-week programme. This role can be delegated
 later by an explicit decision-record update; it does not rotate automatically.

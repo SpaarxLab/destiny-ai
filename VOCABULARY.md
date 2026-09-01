@@ -1,4 +1,4 @@
-# Career Lab — Canonical Vocabulary
+# Destiny.AI — Canonical Vocabulary
 
 Stable nouns reduce agent mistakes and contract drift. They do not force awkward human copy:
 the UI may say “You” while schemas and tools use the canonical term.

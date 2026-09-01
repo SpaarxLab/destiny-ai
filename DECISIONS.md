@@ -1,6 +1,6 @@
-# Career Lab — Decision Record
+# Destiny.AI — Decision Record
 
-**Authority:** decisions D-001 through D-007 were selected under Harsh's 2026-09-01
+**Authority:** decisions D-001 through D-009 were selected under Harsh's 2026-09-01
 instruction to apply the best defaults and complete foundation setup. Items marked
 `OWNER INPUT` remain deliberately unresolved.
 
@@ -45,9 +45,9 @@ do not let an unknown external date control foundation quality.
 
 ### D-006 — Team shape
 
-**Decision:** three stable lanes. Harsh owns Lane C (Agent Surface, Evals, Runtime Proof) and
-is integration captain/product authority. The strongest backend/domain teammate owns Lane A;
-the strongest product/frontend teammate owns Lane B.
+**Decision:** three stable lanes. Devarsh owns Lane A (Domain, Commands, Persistence);
+Tirth owns Lane B (Human Board, Collaboration); Harsh owns Lane C (Agent Surface, Evals,
+Runtime Proof) and is integration captain/product authority.
 
 **Why:** Harsh's learning goal is agentic product design. One integration captain prevents
 contract drift; lane ownership prevents shared-file chaos.
@@ -58,17 +58,22 @@ contract drift; lane ownership prevents shared-file chaos.
 the repository. Three participants must validate the solo board before agent polish; five
 complete the candidate study if recruitment succeeds. Report actual counts honestly.
 
-## Owner input still required
+### D-008 — Safeguarding gate
 
-1. `OWNER INPUT` — Lane A person's name.
-2. `OWNER INPUT` — Lane B person's name.
-3. `OWNER INPUT` — safeguarding reviewer for distress copy.
-4. `OWNER INPUT` — five participant IDs/recruitment commitments (do not store contact
+**Decision:** use the recommended qualified safeguarding reviewer. Harsh will secure and name
+that reviewer before participant sessions. Product implementation may start; participant
+testing remains blocked until the reviewer approves the distress copy.
+
+### D-009 — Repository visibility and license
+
+**Decision:** create a private GitHub repository under `harsh41099` for team development.
+Before submission, complete source-ownership, secret, participant-data, and candidate review;
+then add the MIT license and make the repository public.
+
+No license is granted and the repository remains private until that release gate.
+
+## Owner input still required before participant testing
+
+1. `OWNER INPUT` — safeguarding reviewer name/role for distress copy.
+2. `OWNER INPUT` — five participant IDs/recruitment commitments (do not store contact
    details here).
-5. `OWNER INPUT` — repository visibility and license:
-   - **Recommended:** private during development, MIT + public when the team is ready to
-     submit;
-   - Apache-2.0 + public at submission;
-   - remain private and do not submit until rights/visibility are resolved.
-
-No remote repository is created and no license is granted until item 5 is chosen.

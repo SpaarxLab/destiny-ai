@@ -1,4 +1,4 @@
-# Career Lab — Project State
+# Destiny.AI — Project State
 
 **Last updated:** 2026-09-01
 
@@ -6,18 +6,19 @@
   window; primary goal = deep learning of coherent, safe, resource-efficient agentic product
   design.
 - **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
-  (accepted choices), and `PLAN.md` (approved for foundation setup; packet implementation is
-  owner-gated). `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
+  (accepted choices), and `PLAN.md` (approved delivery programme; P1 admitted).
+  `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
 - **Canonical repo/worktree:** `/Users/harsh/career-lab`, branch `main`; foundation
   baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
   Original nested-repository history and dirty-overlay recovery are preserved at the path
   documented in `RECOVERY.md`; nothing was deleted.
-- **Phase:** P0A integrated; P0B team admission blocked on owner names. Product implementation
-  has not started. P1 can start after Lane A and Lane B owners are named.
-- **Owner:** Harsh = product authority, integration captain, and Lane C (agent/evals/runtime).
-  Lane A and Lane B require owner names.
-- **Next decision:** fill the five `OWNER INPUT` entries in `DECISIONS.md`: Lane A, Lane B,
-  safeguarding reviewer, participant commitments, and repository license/visibility.
+- **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
+  started. Participant testing remains blocked on reviewer approval and recruitment.
+- **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
+  board/collaboration); Harsh = product authority, integration captain, and Lane C
+  (agent/evals/runtime).
+- **Next decision:** name the qualified safeguarding reviewer and record five adult
+  participant commitments before participant testing.
 - **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
   committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build.
   This is foundation/static proof—not live WebMCP, deployed, participant, or submission proof.

@@ -1,4 +1,4 @@
-# Career Lab Agent Rules
+# Destiny.AI Agent Rules
 
 These rules apply to the whole repository. `web/AGENTS.md` adds framework-specific rules.
 

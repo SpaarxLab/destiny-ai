@@ -1,4 +1,4 @@
-# Career Lab — MVP Safety and Privacy Boundary
+# Destiny.AI — MVP Safety and Privacy Boundary
 
 **Status:** product copy draft. Privacy defaults are accepted; distress wording requires the
 named safeguarding reviewer before participant use.
@@ -6,7 +6,7 @@ named safeguarding reviewer before participant use.
 ## Participant boundary
 
 - Adults aged 18+ only.
-- Career Lab is structured self-direction practice, not therapy, diagnosis, crisis support,
+- Destiny.AI is structured self-direction practice, not therapy, diagnosis, crisis support,
   or career prediction.
 - The participant owns approvals, evidence confirmation, and all real-world sends.
 
@@ -20,13 +20,13 @@ named safeguarding reviewer before participant use.
 
 ## Proposed onboarding copy
 
-> Career Lab helps you test career assumptions through small experiments. It does not predict
+> Destiny.AI helps you test career assumptions through small experiments. It does not predict
 > the right career and is not mental-health care. Your workspace stays in this browser unless
 > you choose to export it. You approve every agent proposal and every real-world action.
 
 ## Proposed distress boundary copy
 
-> Career Lab is not equipped to help with immediate distress or safety concerns. Pause this
+> Destiny.AI is not equipped to help with immediate distress or safety concerns. Pause this
 > exercise and contact someone you trust or an appropriate local support service. If you may
 > be in immediate danger, contact local emergency services.
 

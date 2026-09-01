@@ -1,4 +1,4 @@
-# Career Lab — Repository Consolidation Recovery
+# Destiny.AI — Repository Consolidation Recovery
 
 On 2026-09-01, the nested Create Next App repository was consolidated into the canonical
 repository at `/Users/harsh/career-lab`.

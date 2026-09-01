@@ -1,27 +1,26 @@
 # Packet P0B — Team and Participant Admission
 
-**Status:** BLOCKED — OWNER INPUT
+**Status:** P1 ADMITTED — PARTICIPANT RESEARCH STILL BLOCKED
 **Owner:** Harsh
 **Branch/worktree:** `main`
 **Integration destination:** `main`
 
 ## Outcome
 
-Every consequential lane and participant-facing safeguard has a real human owner before P1
-or research begins.
+Every implementation lane has a real human owner before P1. Participant-facing safeguards
+remain a separate named gate before research begins.
 
-## Required owner choices
+## Recorded implementation owners
 
 ### Lane A
 
-Choose the teammate strongest at TypeScript domain modelling, invariants, tests, and careful
-state transitions. This person owns commands and persistence—not “the backend” as a vague
-shared area.
+Devarsh owns TypeScript domain modelling, invariants, commands, persistence, and their tests.
+This is a bounded lane—not “the backend” as a vague shared area.
 
 ### Lane B
 
-Choose the teammate strongest at interaction design, React, accessibility, and observing
-people use unfinished software. This person owns the board and browser journeys.
+Tirth owns interaction design, React, accessibility, the participant board, and browser
+journeys.
 
 ### Safeguarding reviewer
 
@@ -53,14 +52,14 @@ submission until rights are resolved.
 
 ## Admission check
 
-P0B completes when `DECISIONS.md`, `TEAM.md`, and `PROJECT_STATE.md` contain the two lane
-names and reviewer, and `research/PARTICIPANTS.md` contains five non-identifying recruitment
-commitments. License/visibility may stay private during development but must be decided before
-creating a public remote.
+P1 implementation is admitted because all three lanes are named. Participant testing remains
+blocked until `DECISIONS.md` and `PROJECT_STATE.md` name the reviewer and
+`research/PARTICIPANTS.md` records five non-identifying recruitment commitments.
 
 ## Closeout
 
-- verified: not yet;
-- blocked by: owner names, reviewer, participant commitments;
+- verified: Devarsh, Tirth, and Harsh have distinct implementation lanes;
+- product implementation: admitted;
+- participant research blocked by: reviewer and participant commitments;
 - next packet: P1 Command Spine;
-- disposition: `START AFTER NAMED GATE`.
+- disposition: `P1 START NOW`; research `START AFTER NAMED GATE`.

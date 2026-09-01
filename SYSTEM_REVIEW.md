@@ -1,11 +1,12 @@
-# Career Lab — Specialist System Review
+# Destiny.AI — Specialist System Review
 
 **Verdict:** `PARTIAL` — unusually strong concept and agent-facing instincts, but not yet
 safe for parallel implementation.
 **Reviewed:** 2026-09-01 against `PROJECT_STATE.md`, `SPEC.md`, `PLAN.md`, `METHOD.md`,
-`VOCABULARY.md`, `boards.html`, the current scaffold, and the recent WebMCP/Career Lab chats.
-**Authority:** this is a review receipt, not a replacement product contract. `SPEC.md` remains
-the product/technical authority; `PLAN.md` remains a team-discussion draft.
+`VOCABULARY.md`, `boards.html`, the current scaffold, and the recent WebMCP/Destiny.AI chats.
+**Authority:** this is the historical review receipt, not a replacement product contract.
+`SPEC.md`, `DECISIONS.md`, and `PROJECT_STATE.md` carry current authority; the plan was
+still a team-discussion draft at the time of this review.
 
 ## What the recent chats actually established
 
@@ -18,7 +19,7 @@ The direction changed in four important steps:
 4. The career-learning direction became the chosen ambitious wedge, and Harsh accepted the
    narrow MVP: a stuck student moves from reflection to experiments and an editable plan.
 
-That supports Career Lab as the current product direction. It does **not** support therapy,
+That supports Destiny.AI as the current product direction. It does **not** support therapy,
 career prediction, eight internal agents, or a lifetime learner model as MVP scope.
 
 ## What is already excellent

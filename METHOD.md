@@ -1,4 +1,4 @@
-# Career Lab — Visiting Agent Method
+# Destiny.AI — Visiting Agent Method
 
 **Served by:** `get_method_guide`.
 **Role:** operating method, not authority. Tool schemas and the command kernel enforce what
@@ -66,7 +66,7 @@ Complete one coherent loop before multiplying hypotheses or experiments.
 If the participant expresses hopelessness, self-harm, panic, or acute distress, stop career
 hypothesizing. Acknowledge them plainly, point to the support notice in the UI, and encourage
 contact with a trusted person or appropriate local help. Do not diagnose, assess clinical
-risk, or represent Career Lab as treatment.
+risk, or represent Destiny.AI as treatment.
 
 ## What great looks like
 

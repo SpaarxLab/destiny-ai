@@ -1,9 +1,9 @@
-# Career Lab — Product and System Contract
+# Destiny.AI — Product and System Contract
 
 **Status:** Current product/technical authority, revised 2026-09-01.
-**Build admission:** foundation setup approved. P1 implementation is gated by named Lane A
-and Lane B owners in `DECISIONS.md`.
-**Supersedes:** the original Career Lab brainstorm, the red/green whiteboards, the eight
+**Build admission:** P1 implementation approved with Devarsh, Tirth, and Harsh owning separate
+lanes. Participant research remains reviewer- and recruitment-gated.
+**Supersedes:** the original Destiny.AI brainstorm, the red/green whiteboards, the eight
 internal-agent concept, and the pre-review architecture in this file.
 **Review receipt:** `SYSTEM_REVIEW.md`.
 
@@ -23,7 +23,7 @@ The smallest complete loop is:
 
 ## 2. Binding invariants
 
-1. **We do not build the reasoning agent.** A browser agent visits. Career Lab supplies the
+1. **We do not build the reasoning agent.** A browser agent visits. Destiny.AI supplies the
    workspace, governed capabilities, method, and proof.
 2. **One state authority.** The MVP workspace is one versioned local document. UI and WebMCP
    invoke the same command kernel; neither writes storage directly.
@@ -464,14 +464,10 @@ competition, or production proof.
 The dependency-ordered team programme, ownership lanes, packet gates, and daily sequence live
 in `PLAN.md`. It is intentionally separate from this product/system contract.
 
-The repository-root conflict is resolved and foundation setup is admitted. The first product
-outcome remains the command spine and cold orientation—not the whole catalogue. P1 starts
-only after Lane A and Lane B owners are named.
+The repository-root conflict is resolved and P1 is admitted. The first product outcome remains
+the command spine and cold orientation—not the whole catalogue.
 
 ## 14. Open decisions
 
-1. Who owns Lane A?
-2. Who owns Lane B?
-3. Who approves the distress copy?
-4. Which five adults commit to testing?
-5. Which repository visibility/license option does Harsh choose?
+1. Who is the named qualified reviewer for distress copy?
+2. Which five adults commit to testing?

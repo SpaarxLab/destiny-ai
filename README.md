@@ -1,4 +1,4 @@
-# Career Lab
+# Destiny.AI
 
 **A lab for career confusion.** A career-stuck participant and a visiting AI agent share one
 board: the participant reflects, the agent proposes quoted hypotheses, they run one cheap
@@ -34,7 +34,7 @@ Built for the OpenAI WebMCP Challenge.
 |---|---|---|
 | `README.md` | everyone | this — the short notes |
 | `SPEC.md` | Harsh + team/build agents | current product and system contract |
-| `PLAN.md` | team | draft ownership, gates, dependency packets, and four-week sequence |
+| `PLAN.md` | team | approved ownership, gates, dependency packets, and four-week sequence |
 | `SYSTEM_REVIEW.md` | Harsh + team | specialist verdict, findings, recent-chat connection, and doubts |
 | `DECISIONS.md` | everyone | accepted defaults and the few remaining owner choices |
 | `TEAM.md` | team | lane ownership, integration order, and working agreement |
@@ -48,5 +48,5 @@ Built for the OpenAI WebMCP Challenge.
 
 The system contract and foundation plan are approved. One canonical repository now contains
 the plans and the application; the previous nested history is preserved in `RECOVERY.md`.
-Product implementation has not started. The next action is to fill the five `OWNER INPUT`
-entries in `DECISIONS.md`, then activate P1.
+Product implementation has not started, but P1 is admitted. Participant testing remains
+blocked until Harsh names the safeguarding reviewer and records five adult commitments.

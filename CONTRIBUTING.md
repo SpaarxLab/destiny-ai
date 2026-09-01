@@ -1,4 +1,4 @@
-# Contributing to Career Lab
+# Contributing to Destiny.AI
 
 ## Setup
 

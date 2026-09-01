@@ -50,8 +50,8 @@ intentionally admitted into the new baseline. No unrelated product edits existed
 
 ## Remaining unknowns
 
-Lane A, Lane B, safeguarding reviewer, participant commitments, and license/visibility remain
-`OWNER INPUT` in `DECISIONS.md`.
+Lane A, Lane B, and private-development visibility were resolved in P0B. The safeguarding
+reviewer and participant commitments remain `OWNER INPUT` before research.
 
 ## Closeout receipt
 

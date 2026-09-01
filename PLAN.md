@@ -1,7 +1,7 @@
-# Career Lab — Team Build Plan
+# Destiny.AI — Team Build Plan
 
-**Status:** APPROVED FOR FOUNDATION SETUP. P1 implementation starts only after the remaining
-`OWNER INPUT` assignments in `DECISIONS.md` are recorded.
+**Status:** APPROVED. P1 implementation is admitted with Devarsh, Tirth, and Harsh owning
+separate lanes. Participant research remains separately reviewer- and recruitment-gated.
 **Product contract:** `SPEC.md`.
 **Review receipt:** `SYSTEM_REVIEW.md`.
 **Decision already made (Harsh, 2026-09-01):** build the complete learning vehicle,
@@ -13,7 +13,7 @@ Build one coherent human-agent loop:
 
 `confusion -> quoted hypothesis -> cheap experiment -> confirmed evidence -> proposed revision`
 
-The visiting agent reasons. Career Lab owns state, permissions, commands, receipts, and the
+The visiting agent reasons. Destiny.AI owns state, permissions, commands, receipts, and the
 human approval boundary. The board remains useful without an agent; WebMCP makes a visiting
 agent an unusually capable lab assistant rather than a chatbot.
 
@@ -37,7 +37,7 @@ The meeting must record all of these in `PROJECT_STATE.md`:
 | Decision | Current state | Required answer |
 |---|---|---|
 | Repository root | **DECIDED:** `/Users/harsh/career-lab`; app stays in `web/` | preserve old nested history, create clean root baseline |
-| Team ownership | **PARTIAL:** Harsh = Lane C + integration | record Lane A and Lane B names |
+| Team ownership | **DECIDED:** Devarsh = A, Tirth = B, Harsh = C + integration | invite teammates to private GitHub repo |
 | Participant boundary | **DECIDED:** adults 18+ only | enforce in recruitment and copy |
 | User access | target accepted, people unconfirmed | record five pseudonymous commitments |
 | Target window | **DECIDED:** internal candidate 2026-09-29 | contingency through 2026-10-06 |
@@ -76,7 +76,7 @@ and visible exit proof pass.
 | Packet | Visible outcome | Primary | Prerequisite | Required proof |
 |---|---|---|---|---|
 | P0A Authority and baseline | one repo, clean recoverable baseline | Harsh | accepted defaults | **INTEGRATED:** `752ab8e` + packet receipt |
-| P0B Team admission | Lane A/B and safeguarding owners recorded | Harsh | owner input | BLOCKED on names |
+| P0B Team admission | implementation owners recorded; research remains reviewer-gated | Harsh | owner decision | **P1 ADMITTED** |
 | P1 Command spine | UI and a test adapter execute the same `save_reflection` command | A | P0B | schema, stale, replay, receipt tests |
 | P2 Cold orientation | a new agent understands the active situation in one bounded read | A+C | P1 | golden orientation fixtures and token budget |
 | P3 Hypothesis collaboration | quote-backed ghost can be accepted, edited, rejected, or compensated | A+B | P2 | full browser journey plus denial cases |
