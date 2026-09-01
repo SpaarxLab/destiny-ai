@@ -16,7 +16,7 @@ stop and ask Harsh to resolve the conflict before implementation.
 
 | Milestone | Target | Ticket | Owner | Status | Dependency |
 |---|---:|---|---|---|---|
-| M1 — Truth & command spine | Sep 8 | [SPX-1 — P1 Build the shared command spine](https://linear.app/harsh-shah/issue/SPX-1/p1-build-the-shared-command-spine) | Devarsh | Todo | P0B admitted |
+| M1 — Truth & command spine | Sep 8 | [SPX-1 — P1 Build the shared command spine](https://linear.app/harsh-shah/issue/SPX-1/p1-build-the-shared-command-spine) | Devarsh | In Progress; due Sep 4 | P0B admitted |
 | M1 — Truth & command spine | Sep 8 | [SPX-2 — P2 Deliver cold-agent orientation](https://linear.app/harsh-shah/issue/SPX-2/p2-deliver-cold-agent-orientation) | Devarsh | Backlog | SPX-1 |
 | M2 — Human-agent collaboration | Sep 15 | [SPX-3 — P3 Build quote-backed hypothesis collaboration](https://linear.app/harsh-shah/issue/SPX-3/p3-build-quote-backed-hypothesis-collaboration) | Tirth | Backlog | SPX-2 |
 | M2 — Human-agent collaboration | Sep 15 | [SPX-4 — P4 Build the cost-capped experiment loop](https://linear.app/harsh-shah/issue/SPX-4/p4-build-the-cost-capped-experiment-loop) | Devarsh | Backlog | SPX-3 |
@@ -26,7 +26,13 @@ stop and ask Harsh to resolve the conflict before implementation.
 | M4 — Polish, runtime & proof | Sep 29 | [SPX-8 — P8 Prove WebMCP runtime and release candidate](https://linear.app/harsh-shah/issue/SPX-8/p8-prove-webmcp-runtime-and-release-candidate) | Harsh | Backlog | SPX-6 and SPX-7 |
 
 Verified board balance: eight packets; two per milestone; Devarsh owns four, Tirth two, and
-Harsh two. Only SPX-1 is admitted to `Todo` so dependent work cannot outrun its contract.
+Harsh two. Only SPX-1 is `In Progress`; dependent packets remain in `Backlog` so work cannot
+outrun the command-spine contract. Linear records the start signal, but no P1 implementation
+SHA, test receipt, or pull request has been verified yet.
+
+Native Linear blocker relationships mirror the plan: SPX-2 is blocked by SPX-1; SPX-3 by
+SPX-2; SPX-4 by SPX-3; SPX-5 by SPX-4; SPX-6 and SPX-7 by SPX-5; and SPX-8 by both SPX-6
+and SPX-7.
 
 ## Human and agent workflow
 

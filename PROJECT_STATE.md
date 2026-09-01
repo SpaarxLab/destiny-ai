@@ -17,9 +17,10 @@
   `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
   Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
-  started. The Linear delivery board contains all eight dependency-closed packets: P1 is
-  `Todo`; P2-P8 remain `Backlog`. Participant testing remains blocked on reviewer approval
-  and recruitment.
+  produced an implementation receipt. The Linear delivery board contains all eight
+  dependency-closed packets: P1 moved to `In Progress` at 16:32 IST with a 4 September due
+  date; P2-P8 remain `Backlog`. Participant testing remains blocked on reviewer approval and
+  recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).

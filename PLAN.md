@@ -45,8 +45,8 @@ The meeting must record all of these in `PROJECT_STATE.md`:
 | Runtime access | **DECIDED:** Harsh owns live proof | verify ChatGPT and Chrome separately |
 | Data policy | **DECIDED:** local-only candidate | export/import/clear; no analytics |
 
-Foundation setup is admitted and all implementation owners are recorded. P1 is admitted as
-the only `Todo` packet; P2-P8 remain dependency-ordered in the Linear backlog. Participant
+Foundation setup is admitted and all implementation owners are recorded. P1 is the only
+`In Progress` packet; P2-P8 remain dependency-ordered in the Linear backlog. Participant
 sessions wait for the safeguarding reviewer and recruitment commitments.
 
 ## Three team lanes
