@@ -17,13 +17,19 @@
   `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
   Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
-  started. Participant testing remains blocked on reviewer approval and recruitment.
+  started. The Linear delivery board contains all eight dependency-closed packets: P1 is
+  `Todo`; P2-P8 remain `Backlog`. Participant testing remains blocked on reviewer approval
+  and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
 - **Repository access:** `Devarsh009` and `Tirth262830` hold GitHub's `All-repository write`
   organization role for SpaarxLab. It covers every current and future organization repository
   without granting repository admin or organization-owner authority.
+- **Delivery board:** [Destiny.AI — Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)
+  in the SpaarxLab Linear team. `docs/LINEAR_WORKBOARD.md` is the repository-side issue,
+  milestone, owner, dependency, and workflow receipt. Repository documents remain product
+  authority; Linear indexes execution and evidence.
 - **Next decision:** Harsh names the qualified safeguarding reviewer and records five adult
   participant commitments before participant testing.
 - **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
@@ -36,4 +42,4 @@
   plan" MVP and the 8-internal-agents concept.
 - **Documents:** README.md · PROJECT_STATE.md · DECISIONS.md · SPEC.md · PLAN.md · TEAM.md ·
   SAFETY_AND_PRIVACY.md · SYSTEM_REVIEW.md · METHOD.md · VOCABULARY.md · RECOVERY.md ·
-  boards.html
+  docs/LINEAR_WORKBOARD.md · boards.html
