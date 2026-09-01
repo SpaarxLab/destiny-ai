@@ -10,8 +10,11 @@ import { ActionButton } from "../primitives/action-button";
 interface RouteCardProps {
   route: RoutePreview;
   marks: RouteMarks;
+  reviewed: boolean;
+  chooseDisabled: boolean;
   busy: boolean;
   onMarksChange: (marks: RouteMarks) => void;
+  onReviewed: () => void;
   onEdit: (edit: RouteEdit) => Promise<boolean>;
   onReject: () => Promise<boolean>;
   onChoose: () => Promise<void>;
@@ -20,8 +23,11 @@ interface RouteCardProps {
 export function RouteCard({
   route,
   marks,
+  reviewed,
+  chooseDisabled,
   busy,
   onMarksChange,
+  onReviewed,
   onEdit,
   onReject,
   onChoose,
@@ -33,6 +39,8 @@ export function RouteCard({
   const [testAction, setTestAction] = useState(route.test.action);
   const editTrigger = useRef<HTMLButtonElement>(null);
   const rejectTrigger = useRef<HTMLButtonElement>(null);
+  const firstEditField = useRef<HTMLInputElement>(null);
+  const rejectConfirm = useRef<HTMLButtonElement>(null);
   const label = ROUTE_LABELS[route.kind];
   const rejected = route.status === "rejected";
 
@@ -58,6 +66,16 @@ export function RouteCard({
     setTestAction(route.test.action);
     setMode("view");
     requestAnimationFrame(() => editTrigger.current?.focus());
+  }
+
+  function openEdit() {
+    setMode("edit");
+    requestAnimationFrame(() => firstEditField.current?.focus());
+  }
+
+  function openReject() {
+    setMode("reject");
+    requestAnimationFrame(() => rejectConfirm.current?.focus());
   }
 
   async function confirmReject() {
@@ -97,6 +115,7 @@ export function RouteCard({
             onChange={(event) => setTitle(event.target.value)}
             required
             value={title}
+            ref={firstEditField}
           />
           <label htmlFor={`${route.ref}-premise`}>Why this may be worth testing</label>
           <textarea
@@ -132,7 +151,7 @@ export function RouteCard({
           <h2 id={`${route.ref}-reject-title`}>Set aside “{route.title}”?</h2>
           <p>It will leave the comparison. Your other routes will stay as they are.</p>
           <div className="button-row">
-            <ActionButton disabled={busy} onClick={confirmReject} tone="danger">
+            <ActionButton disabled={busy} onClick={confirmReject} ref={rejectConfirm} tone="danger">
               Set aside this route
             </ActionButton>
             <ActionButton disabled={busy} onClick={cancelReject}>Cancel</ActionButton>
@@ -165,7 +184,8 @@ export function RouteCard({
             </dl>
 
             <fieldset className="route-marks">
-              <legend>Make sense of this route</legend>
+              <legend>Private website notes</legend>
+              <p>Saved on this device. ChatGPT cannot read these notes.</p>
               {(Object.keys(MARK_PROMPTS) as Array<keyof RouteMarks>).map((key) => (
                 <label key={key} htmlFor={`${route.ref}-${key}`}>
                   {MARK_PROMPTS[key]}
@@ -182,26 +202,35 @@ export function RouteCard({
           </div>
 
           <footer className="route-card__actions">
-            <ActionButton disabled={busy} onClick={onChoose} tone="primary" fullWidth>
-              Choose this to test
-            </ActionButton>
             <div className="button-row button-row--split">
               <ActionButton
                 disabled={busy}
-                onClick={() => setMode("edit")}
+                onClick={openEdit}
                 ref={editTrigger}
               >
                 Edit this route
               </ActionButton>
               <ActionButton
                 disabled={busy}
-                onClick={() => setMode("reject")}
+                onClick={openReject}
                 ref={rejectTrigger}
                 tone="quiet"
               >
                 Set this aside
               </ActionButton>
             </div>
+            <ActionButton disabled={busy || reviewed} onClick={onReviewed} fullWidth>
+              {reviewed ? "Reviewed" : "Mark this route reviewed"}
+            </ActionButton>
+            <ActionButton
+              aria-describedby={chooseDisabled ? "choice-gate-note" : undefined}
+              disabled={busy || chooseDisabled}
+              onClick={onChoose}
+              tone="primary"
+              fullWidth
+            >
+              Choose this to test
+            </ActionButton>
           </footer>
         </>
       )}

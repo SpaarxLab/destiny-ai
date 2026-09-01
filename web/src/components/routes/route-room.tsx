@@ -11,9 +11,13 @@ import { RouteComparison } from "./route-comparison";
 interface RouteRoomProps {
   routeSet: RouteProposalSet;
   marks: Record<string, RouteMarks>;
+  reviewedRoutes: Record<string, boolean>;
+  hasComparedRoutes: boolean;
   busy: boolean;
   statusMessage: string;
   onMarksChange: (routeRef: string, marks: RouteMarks) => void;
+  onReviewed: (routeRef: string) => void;
+  onComparisonSeen: () => void;
   onEdit: (edit: RouteEdit) => Promise<boolean>;
   onReject: (routeRef: string) => Promise<boolean>;
   onChoose: (routeRef: string) => Promise<void>;
@@ -22,15 +26,40 @@ interface RouteRoomProps {
 export function RouteRoom({
   routeSet,
   marks,
+  reviewedRoutes,
+  hasComparedRoutes,
   busy,
   statusMessage,
   onMarksChange,
+  onReviewed,
+  onComparisonSeen,
   onEdit,
   onReject,
   onChoose,
 }: RouteRoomProps) {
   const [compare, setCompare] = useState(false);
-  const activeCount = routeSet.routes.filter((route) => route.status !== "rejected").length;
+  const activeRoutes = routeSet.routes.filter((route) => route.status !== "rejected");
+  const activeCount = activeRoutes.length;
+  const canChoose =
+    hasComparedRoutes && activeRoutes.every((route) => reviewedRoutes[route.ref] === true);
+
+  function toggleComparison() {
+    const next = !compare;
+    setCompare(next);
+    if (next) onComparisonSeen();
+  }
+
+  async function editRoute(edit: RouteEdit) {
+    const saved = await onEdit(edit);
+    if (saved) setCompare(false);
+    return saved;
+  }
+
+  async function rejectRoute(routeRef: string) {
+    const saved = await onReject(routeRef);
+    if (saved) setCompare(false);
+    return saved;
+  }
 
   return (
     <section className="route-room" aria-labelledby="route-room-title">
@@ -47,7 +76,7 @@ export function RouteRoom({
           aria-expanded={compare}
           aria-controls="route-comparison"
           disabled={activeCount < 2}
-          onClick={() => setCompare((value) => !value)}
+          onClick={toggleComparison}
         >
           {compare ? "Hide comparison" : "Compare my marks"}
         </ActionButton>
@@ -56,6 +85,17 @@ export function RouteRoom({
       <div className="status-region" role="status" aria-live="polite" aria-atomic="true">
         {statusMessage}
       </div>
+
+      <p className="scratch-note">
+        Your route notes stay in this browser. They are not shared with ChatGPT or included in
+        route decisions.
+      </p>
+
+      {!canChoose ? (
+        <p className="choice-gate-note" id="choice-gate-note">
+          Review every active route and open the comparison before choosing one to test.
+        </p>
+      ) : null}
 
       {compare ? (
         <div id="route-comparison">
@@ -69,10 +109,13 @@ export function RouteRoom({
             key={route.ref}
             route={route}
             marks={marks[route.ref] ?? { draws: "", worries: "", teaches: "" }}
+            reviewed={reviewedRoutes[route.ref] === true}
+            chooseDisabled={!canChoose}
             busy={busy}
             onMarksChange={(nextMarks) => onMarksChange(route.ref, nextMarks)}
-            onEdit={onEdit}
-            onReject={() => onReject(route.ref)}
+            onReviewed={() => onReviewed(route.ref)}
+            onEdit={editRoute}
+            onReject={() => rejectRoute(route.ref)}
             onChoose={() => onChoose(route.ref)}
           />
         ))}

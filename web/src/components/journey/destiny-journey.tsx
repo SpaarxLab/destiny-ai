@@ -6,7 +6,7 @@ import { CommandKernel } from "../../commands/command-kernel";
 import type { RouteEdit, RouteProposalInput } from "../../domain/commands";
 import type { RouteProposalSet, Workspace } from "../../domain/workspace";
 import { createEmptyWorkspace } from "../../domain/workspace";
-import { LocalWorkspaceStore } from "../../storage/local-workspace-store";
+import { LOCAL_WORKSPACE_KEY, LocalWorkspaceStore } from "../../storage/local-workspace-store";
 import { WorkspaceReader } from "../../projections/workspace-reader";
 import { WebMcpRegistrar } from "../../webmcp/registrar";
 import {
@@ -25,6 +25,7 @@ import {
   emptyJourneyDraft,
   parseJourneyDraft,
   type ConfirmedSource,
+  type JourneyCaps,
   type JourneyDraft,
   type JourneyScreen,
   type RouteMarks,
@@ -70,7 +71,12 @@ export function DestinyJourney() {
       return () => { cancelled = true; };
     }
 
-    const store = new LocalWorkspaceStore(localStorage, createEmptyWorkspace(), navigator.locks);
+    const savedDraft = parseJourneyDraft(localStorage.getItem(JOURNEY_DRAFT_KEY));
+    const store = new LocalWorkspaceStore(
+      localStorage,
+      createInitialWorkspace(savedDraft.caps),
+      navigator.locks,
+    );
     const adapter = createParticipantCommandAdapter(new CommandKernel(store));
     const workspaceReader = new WorkspaceReader(store);
     runtime.current = { store, adapter, reader: workspaceReader };
@@ -79,7 +85,6 @@ export function DestinyJourney() {
       if (cancelled) return;
       try {
         const currentWorkspace = store.load();
-        const savedDraft = parseJourneyDraft(localStorage.getItem(JOURNEY_DRAFT_KEY));
         const newestSet = currentWorkspace.routeProposalSets.at(-1);
         let nextDraft = savedDraft;
 
@@ -219,16 +224,27 @@ export function DestinyJourney() {
     if (draft.confirmIndex < answers.length - 1) {
       commitDraft((current) => ({ ...current, confirmIndex: current.confirmIndex + 1 }));
     } else {
-      moveTo("workshop");
+      moveTo("boundaries");
     }
+  }
+
+  function saveCaps(caps: JourneyCaps) {
+    commitDraft((current) => ({ ...current, caps, screen: "workshop" }));
+    setStatusMessage("");
   }
 
   async function buildRoutes() {
     if (!runtime.current || busy) return;
+    if (!draft.caps || !draft.workshopReviewed) {
+      setStatusMessage("Check your limits and review all three route drafts before continuing.");
+      return;
+    }
+    const caps = draft.caps;
     setBusy(true);
     setStatusMessage("Saving your confirmed words…");
     try {
       let currentDraft = draft;
+      if (!ensureRuntimeCaps(caps)) return;
       const sources: ConfirmedSource[] = [...currentDraft.confirmedSources];
 
       for (const [answerId, rawText] of answeredEntries(currentDraft)) {
@@ -256,7 +272,7 @@ export function DestinyJourney() {
         currentDraft = commitDraft((current) => ({ ...current, confirmedSources: [...sources] }));
       }
 
-      setStatusMessage("Shaping three different routes from your words…");
+      setStatusMessage("Saving your three route drafts…");
       const routeOperationId = currentDraft.routeOperationId ?? crypto.randomUUID();
       const routeRefs = currentDraft.routeRefs ?? createRouteRefs();
       if (!currentDraft.routeOperationId || !currentDraft.routeRefs) {
@@ -268,7 +284,12 @@ export function DestinyJourney() {
         operationId: routeOperationId,
         expectedVersion: currentWorkspace.stateVersion,
         outcome: "routes",
-        routes: createManualRoutes(sources, routeRefs, currentWorkspace),
+        routes: createManualRoutes(
+          sources,
+          routeRefs,
+          currentWorkspace,
+          currentDraft.routeDrafts,
+        ),
       });
       if (!result.ok) {
         setStatusMessage("The three routes could not be saved. Review your confirmed words and try again.");
@@ -292,6 +313,39 @@ export function DestinyJourney() {
     commitDraft((current) => ({ ...current, marks: { ...current.marks, [routeRef]: marks } }));
   }
 
+  function markRouteReviewed(routeRef: string) {
+    commitDraft((current) => ({
+      ...current,
+      reviewedRoutes: { ...current.reviewedRoutes, [routeRef]: true },
+    }));
+  }
+
+  function markComparisonSeen() {
+    commitDraft((current) => ({ ...current, hasComparedRoutes: true }));
+  }
+
+  function ensureRuntimeCaps(caps: JourneyCaps): boolean {
+    if (!runtime.current) return false;
+    const current = runtime.current.store.load();
+    if (sameCaps(current.participant.costCaps, caps)) return true;
+    if (current.stateVersion !== 0 || localStorage.getItem(LOCAL_WORKSPACE_KEY) !== null) {
+      setStatusMessage("These limits do not match the saved workspace. Start with a fresh local journey before building routes.");
+      return false;
+    }
+
+    const store = new LocalWorkspaceStore(
+      localStorage,
+      createInitialWorkspace(caps),
+      navigator.locks,
+    );
+    const adapter = createParticipantCommandAdapter(new CommandKernel(store));
+    const workspaceReader = new WorkspaceReader(store);
+    runtime.current = { store, adapter, reader: workspaceReader };
+    setWorkspace(store.load());
+    setReader(workspaceReader);
+    return true;
+  }
+
   async function editRoute(edit: RouteEdit): Promise<boolean> {
     if (!runtime.current || !latestRouteSet || busy) return false;
     setBusy(true);
@@ -309,6 +363,11 @@ export function DestinyJourney() {
         return false;
       }
       setWorkspace(runtime.current.store.load());
+      commitDraft((current) => {
+        const reviewedRoutes = { ...current.reviewedRoutes };
+        delete reviewedRoutes[edit.routeRef];
+        return { ...current, reviewedRoutes, hasComparedRoutes: false };
+      });
       setStatusMessage("Your route changes are saved.");
       return true;
     } catch {
@@ -337,6 +396,7 @@ export function DestinyJourney() {
       }
       const nextWorkspace = runtime.current.store.load();
       setWorkspace(nextWorkspace);
+      commitDraft((current) => ({ ...current, hasComparedRoutes: false }));
       const nextSet = nextWorkspace.routeProposalSets.at(-1);
       if (nextSet?.routes.every((route) => route.status === "rejected")) {
         commitDraft((current) => ({ ...current, screen: "all-rejected" }));
@@ -461,21 +521,46 @@ export function DestinyJourney() {
             onChange={(id, value) => commitDraft((current) => ({ ...current, answers: { ...current.answers, [id]: value } }))}
             onSubmit={confirmCurrentWording}
           />
+        ) : draft.screen === "boundaries" ? (
+          <BoundariesStep
+            caps={draft.caps}
+            onBack={() => moveTo("confirm")}
+            onSubmit={saveCaps}
+          />
         ) : draft.screen === "workshop" ? (
           <StepShell
-            eyebrow="Your words are ready"
-            title="Build three routes to compare"
-            description="This workshop shapes three different, reversible tests from the wording you just checked. You can edit or reject every route next."
-            progress={<ProgressTrack current={answers.length} total={answers.length} label="Sources checked" />}
+            eyebrow="Shape the starter routes"
+            title="Make these three drafts sound useful to you"
+            description="These are plain starter templates, not AI recommendations. Rewrite the title, reason, question, or test before saving them to your Route Room."
+            progress={<ProgressTrack current={answers.length} total={answers.length} label="Sources confirmed" />}
           >
             <div className="source-stack">
               {answers.map(([id, text]) => <blockquote key={id}>“{text}”</blockquote>)}
             </div>
+            <div className="workshop-routes">
+              {draft.routeDrafts.map((routeDraft, index) => (
+                <fieldset className="workshop-route" key={ROUTE_KINDS[index]}>
+                  <legend>{index + 1}. {ROUTE_KINDS[index] === "closest" ? "Closest" : ROUTE_KINDS[index] === "bridge" ? "Bridge" : "Probe"}</legend>
+                  <label>Route title<input maxLength={120} required value={routeDraft.title} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { title: event.target.value }) }))} /></label>
+                  <label>Why it may be worth testing<textarea maxLength={600} required value={routeDraft.premise} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { premise: event.target.value }) }))} /></label>
+                  <label>What it should help you learn<textarea maxLength={300} required value={routeDraft.learningQuestion} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { learningQuestion: event.target.value }) }))} /></label>
+                  <label>Small test idea<textarea maxLength={500} required value={routeDraft.testAction} onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: false, routeDrafts: replaceRouteDraft(current.routeDrafts, index, { testAction: event.target.value }) }))} /></label>
+                </fieldset>
+              ))}
+            </div>
+            <label className="review-check">
+              <input
+                checked={draft.workshopReviewed}
+                onChange={(event) => commitDraft((current) => ({ ...current, workshopReviewed: event.target.checked }))}
+                type="checkbox"
+              />
+              <span>I have read these three starter routes and they are ready for my Route Room.</span>
+            </label>
             <div className="status-region" role="status" aria-live="polite" aria-atomic="true">{statusMessage}</div>
             <div className="step-actions">
-              <ActionButton disabled={busy} onClick={() => moveTo("confirm")}>{JOURNEY_COPY.back}</ActionButton>
-              <ActionButton disabled={busy} onClick={buildRoutes} tone="primary">
-                {busy ? "Building my routes…" : "Build my three routes"}
+              <ActionButton disabled={busy} onClick={() => moveTo("boundaries")}>{JOURNEY_COPY.back}</ActionButton>
+              <ActionButton disabled={busy || !draft.workshopReviewed} onClick={buildRoutes} tone="primary">
+                {busy ? "Saving my routes…" : "Save my three routes"}
               </ActionButton>
             </div>
           </StepShell>
@@ -485,7 +570,11 @@ export function DestinyJourney() {
             marks={draft.marks}
             busy={busy}
             statusMessage={statusMessage}
+            reviewedRoutes={draft.reviewedRoutes}
+            hasComparedRoutes={draft.hasComparedRoutes}
             onMarksChange={updateMarks}
+            onReviewed={markRouteReviewed}
+            onComparisonSeen={markComparisonSeen}
             onEdit={editRoute}
             onReject={rejectRoute}
             onChoose={chooseRoute}
@@ -586,7 +675,7 @@ function ConfirmStep({ answer, current, total, statusMessage, onBack, onChange, 
       eyebrow="Check your source wording"
       title="Does this still sound like you?"
       description="Edit anything that feels too neat or not quite true. Your routes may quote these exact words."
-      progress={<ProgressTrack current={current} total={total} label="Sources checked" />}
+      progress={<ProgressTrack current={Math.max(0, current - 1)} total={total} label="Sources confirmed" />}
     >
       <form className="answer-form answer-form--confirm" onSubmit={onSubmit}>
         <label htmlFor={`confirm-${answer[0]}`}>Words routes may quote</label>
@@ -603,6 +692,92 @@ function ConfirmStep({ answer, current, total, statusMessage, onBack, onChange, 
         <div className="step-actions">
           <ActionButton onClick={onBack}>{JOURNEY_COPY.back}</ActionButton>
           <ActionButton tone="primary" type="submit">{current === total ? "Use these words" : JOURNEY_COPY.continue}</ActionButton>
+        </div>
+      </form>
+    </StepShell>
+  );
+}
+
+function BoundariesStep({
+  caps,
+  onBack,
+  onSubmit,
+}: {
+  caps: JourneyCaps | undefined;
+  onBack: () => void;
+  onSubmit: (caps: JourneyCaps) => void;
+}) {
+  const [hours, setHours] = useState(caps?.hoursPerWeek ? String(caps.hoursPerWeek) : "");
+  const [money, setMoney] = useState(caps ? String(caps.money) : "0");
+  const [currency, setCurrency] = useState(caps?.currency ?? "");
+  const [error, setError] = useState("");
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsedHours = Number(hours);
+    const parsedMoney = Number(money);
+    const parsedCurrency = currency.trim().toUpperCase();
+    if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+      setError("Enter at least a small amount of time you could protect each week.");
+      return;
+    }
+    if (!Number.isFinite(parsedMoney) || parsedMoney < 0) {
+      setError("Enter zero or a positive money limit.");
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(parsedCurrency)) {
+      setError("Use a three-letter currency code such as INR, USD, or GBP.");
+      return;
+    }
+    onSubmit({ hoursPerWeek: parsedHours, money: parsedMoney, currency: parsedCurrency });
+  }
+
+  return (
+    <StepShell
+      eyebrow="Keep the routes realistic"
+      title="What limits should every small test respect?"
+      description="These are hard ceilings, not targets. The Route Room will keep every starter test inside them."
+    >
+      <form className="answer-form boundary-form" onSubmit={submit}>
+        <label htmlFor="hours-per-week">Time available each week</label>
+        <div className="field-with-suffix">
+          <input
+            id="hours-per-week"
+            inputMode="decimal"
+            min="0.25"
+            onChange={(event) => setHours(event.target.value)}
+            required
+            step="0.25"
+            type="number"
+            value={hours}
+          />
+          <span>hours</span>
+        </div>
+        <label htmlFor="money-limit">Maximum money for one test</label>
+        <input
+          id="money-limit"
+          inputMode="decimal"
+          min="0"
+          onChange={(event) => setMoney(event.target.value)}
+          required
+          step="0.01"
+          type="number"
+          value={money}
+        />
+        <label htmlFor="currency-code">Currency</label>
+        <input
+          autoCapitalize="characters"
+          id="currency-code"
+          maxLength={3}
+          onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+          placeholder="INR"
+          required
+          value={currency}
+        />
+        <div className="status-region" role="status" aria-live="polite">{error}</div>
+        <div className="step-actions">
+          <ActionButton onClick={onBack}>{JOURNEY_COPY.back}</ActionButton>
+          <ActionButton tone="primary" type="submit">Use these limits</ActionButton>
         </div>
       </form>
     </StepShell>
@@ -642,14 +817,16 @@ function createManualRoutes(
   sources: ConfirmedSource[],
   refs: [string, string, string],
   workspace: Workspace,
+  routeDrafts: JourneyDraft["routeDrafts"],
 ): [RouteProposalInput, RouteProposalInput, RouteProposalInput] {
   const quoteSources = sources.slice(0, 5).map((source) => ({
     reflectionRef: source.reflectionRef,
     quote: source.text,
   }));
-  const boundary = "Keep the test free, reversible, and small enough to stop within one week.";
   const hours = workspace.participant.costCaps.hoursPerWeek;
+  const money = workspace.participant.costCaps.money;
   const currency = workspace.participant.costCaps.currency;
+  const boundary = `Keep the test within ${hours} hours a week and ${money} ${currency}, reversible, and small enough to stop within one week.`;
   const common = {
     sourceQuotes: quoteSources,
     constraint: boundary,
@@ -661,11 +838,11 @@ function createManualRoutes(
       ...common,
       ref: refs[0],
       kind: "closest",
-      title: "Use what already pulls you",
-      premise: "A nearby direction may be hiding inside work you already return to without being pushed.",
-      learningQuestion: "Does doing one real piece of this work create enough energy to repeat it?",
+      title: routeDrafts[0].title.trim(),
+      premise: routeDrafts[0].premise.trim(),
+      learningQuestion: routeDrafts[0].learningQuestion.trim(),
       test: {
-        action: "Spend one short session doing the work, then note what gave or took energy.",
+        action: routeDrafts[0].testAction.trim(),
         maximumDays: 3,
         maximumHours: Math.min(hours, 1),
         maximumMoney: 0,
@@ -676,11 +853,11 @@ function createManualRoutes(
       ...common,
       ref: refs[1],
       kind: "bridge",
-      title: "Combine the familiar and the new",
-      premise: "A bridge may pair something you can already do with a nearby problem you want to understand.",
-      learningQuestion: "Does combining these two parts feel more useful than pursuing either alone?",
+      title: routeDrafts[1].title.trim(),
+      premise: routeDrafts[1].premise.trim(),
+      learningQuestion: routeDrafts[1].learningQuestion.trim(),
       test: {
-        action: "Sketch one tiny piece of work that combines both parts, and show it privately to one trusted person.",
+        action: routeDrafts[1].testAction.trim(),
         maximumDays: 5,
         maximumHours: Math.min(hours, 2),
         maximumMoney: 0,
@@ -691,11 +868,11 @@ function createManualRoutes(
       ...common,
       ref: refs[2],
       kind: "probe",
-      title: "Try a small departure",
-      premise: "A careful probe may reveal whether a less familiar direction deserves more attention.",
-      learningQuestion: "Does a low-stakes taste of this direction create curiosity strong enough for a second step?",
+      title: routeDrafts[2].title.trim(),
+      premise: routeDrafts[2].premise.trim(),
+      learningQuestion: routeDrafts[2].learningQuestion.trim(),
       test: {
-        action: "Make one private sample or simulation of the unfamiliar work and record what surprised you.",
+        action: routeDrafts[2].testAction.trim(),
         maximumDays: 7,
         maximumHours: Math.min(hours, 3),
         maximumMoney: 0,
@@ -703,4 +880,32 @@ function createManualRoutes(
       },
     },
   ];
+}
+
+function replaceRouteDraft(
+  drafts: JourneyDraft["routeDrafts"],
+  index: number,
+  changes: Partial<JourneyDraft["routeDrafts"][number]>,
+): JourneyDraft["routeDrafts"] {
+  return drafts.map((draft, currentIndex) =>
+    currentIndex === index ? { ...draft, ...changes } : draft,
+  ) as JourneyDraft["routeDrafts"];
+}
+
+function createInitialWorkspace(caps?: JourneyCaps): Workspace {
+  const workspace = createEmptyWorkspace();
+  if (!caps) return workspace;
+  return {
+    ...workspace,
+    participant: {
+      ...workspace.participant,
+      costCaps: caps,
+    },
+  };
+}
+
+function sameCaps(left: JourneyCaps, right: JourneyCaps): boolean {
+  return left.hoursPerWeek === right.hoursPerWeek &&
+    left.money === right.money &&
+    left.currency === right.currency;
 }

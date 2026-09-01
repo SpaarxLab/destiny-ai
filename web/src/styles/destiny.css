@@ -474,6 +474,85 @@ input::placeholder {
   gap: var(--space-2);
 }
 
+.boundary-form {
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.45fr);
+  align-items: end;
+}
+
+.boundary-form > label,
+.boundary-form > .field-with-suffix,
+.boundary-form > .status-region,
+.boundary-form > .step-actions {
+  grid-column: 1 / -1;
+}
+
+.field-with-suffix {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.field-with-suffix > span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-body-sm);
+  font-weight: 650;
+}
+
+.workshop-routes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.workshop-route {
+  min-inline-size: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inner);
+  padding: var(--space-3);
+}
+
+.workshop-route legend {
+  padding-inline: var(--space-1);
+  font-weight: 750;
+}
+
+.workshop-route label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-body-sm);
+  font-weight: 650;
+}
+
+.workshop-route textarea {
+  min-block-size: 7rem;
+}
+
+.review-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-accent-soft);
+  padding: var(--space-3);
+  font-weight: 650;
+}
+
+.review-check input {
+  inline-size: 1.25rem;
+  min-block-size: 1.25rem;
+  margin-block-start: 0.15rem;
+  flex: 0 0 auto;
+  accent-color: var(--color-accent-solid);
+}
+
 .source-stack blockquote,
 .route-card blockquote {
   margin: 0;
@@ -522,6 +601,21 @@ input::placeholder {
   max-inline-size: var(--measure-reading);
   color: var(--color-text-secondary);
   font-size: var(--text-body-lg);
+}
+
+.scratch-note,
+.choice-gate-note {
+  max-inline-size: var(--measure-reading);
+  margin-block: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-body-sm);
+}
+
+.choice-gate-note {
+  border-inline-start: 3px solid var(--gold-700);
+  padding-inline-start: var(--space-2);
+  color: var(--neutral-800);
+  font-weight: 650;
 }
 
 .route-grid,
@@ -656,6 +750,11 @@ input::placeholder {
 .route-marks legend {
   padding: 0;
   font-weight: 700;
+}
+
+.route-marks > p {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
 }
 
 .route-marks label {
@@ -795,7 +894,8 @@ input::placeholder {
 
 @media (max-width: 67.99rem) {
   .route-grid,
-  .comparison-grid {
+  .comparison-grid,
+  .workshop-routes {
     grid-template-columns: 1fr;
   }
 
@@ -851,6 +951,10 @@ input::placeholder {
 
   .button-row--split {
     grid-template-columns: 1fr;
+  }
+
+  .workshop-route {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

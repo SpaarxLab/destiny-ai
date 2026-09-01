@@ -14,7 +14,10 @@ export function RouteComparison({ routes, marks }: RouteComparisonProps) {
       <div className="comparison-board__heading">
         <p className="eyebrow">Your comparison</p>
         <h2 id="comparison-title">See your marks side by side</h2>
-        <p>The order stays fixed. This board does not score or rank your routes.</p>
+        <p>
+          The order stays fixed. This board does not score or rank your routes. Your notes stay on
+          this device and are not shared with ChatGPT.
+        </p>
       </div>
       <div className="comparison-grid">
         {activeRoutes.map((route) => {

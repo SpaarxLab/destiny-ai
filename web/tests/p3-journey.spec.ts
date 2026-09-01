@@ -24,6 +24,14 @@ for (const [shape, firstAnswer] of SHAPES) {
     await expect(page.getByText("Probe", { exact: true })).toBeVisible();
     await expect(page.locator("[data-webmcp-status=unsupported]")).toContainText("Human mode");
     await expect(page.getByText(/best|recommended/i)).toHaveCount(0);
+    const workspace = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("destiny-ai.workspace.v1") ?? "null"),
+    );
+    expect(workspace.participant.costCaps).toEqual({
+      hoursPerWeek: 3,
+      money: 500,
+      currency: "INR",
+    });
     expect(errors).toEqual([]);
   });
 }
@@ -54,6 +62,8 @@ test("marks, compares, edits, rejects, and chooses through one human action", as
 
   const closest = routeCard(page, "Closest");
   const bridge = routeCard(page, "Bridge");
+  const probe = routeCard(page, "Probe");
+  await expect(closest.getByRole("button", { name: "Choose this to test" })).toBeDisabled();
   await closest.getByLabel("What draws me in").fill("I can begin with skills I already use.");
   await closest.getByLabel("What worries me").fill("It may feel too familiar.");
   await closest.getByLabel("What this could teach me").fill("Whether clarity work gives me energy.");
@@ -64,6 +74,7 @@ test("marks, compares, edits, rejects, and chooses through one human action", as
   await expect(page.locator(".comparison-board").getByText("I can begin with skills I already use.")).toBeVisible();
 
   await closest.getByRole("button", { name: "Edit this route" }).click();
+  await expect(closest.getByLabel("Route title")).toBeFocused();
   await closest.getByRole("button", { name: "Cancel" }).click();
   await expect(closest.getByRole("button", { name: "Edit this route" })).toBeFocused();
   await closest.getByRole("button", { name: "Edit this route" }).click();
@@ -73,9 +84,14 @@ test("marks, compares, edits, rejects, and chooses through one human action", as
   await expect(closest.getByText("Edited by you")).toBeVisible();
 
   await bridge.getByRole("button", { name: "Set this aside" }).click();
+  await expect(bridge.getByRole("button", { name: "Set aside this route" })).toBeFocused();
   await bridge.getByRole("button", { name: "Set aside this route" }).click();
   await expect(bridge.getByText("Set aside", { exact: true })).toBeVisible();
 
+  await closest.getByRole("button", { name: "Mark this route reviewed" }).click();
+  await probe.getByRole("button", { name: "Mark this route reviewed" }).click();
+  await page.getByRole("button", { name: "Compare my marks" }).click();
+  await expect(closest.getByRole("button", { name: "Choose this to test" })).toBeEnabled();
   await closest.getByRole("button", { name: "Choose this to test" }).click();
   await expect(page.getByRole("heading", { name: "You chose “Make complex work clear” to test" })).toBeVisible();
   await expect(page.getByText("Choosing saved this direction.")).toBeVisible();
@@ -140,10 +156,21 @@ async function completeJourneyToRoutes(page: Page, shape: string, firstAnswer: s
     await answerQuestion(page, "A free, private test that I can stop within a week would feel safe.");
   }
 
+  await expect(page.locator(".progress-track")).toHaveAttribute(
+    "aria-label",
+    `Sources confirmed: 0 of ${skipLast ? 2 : 3}`,
+  );
   if (!skipLast) await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Use these words" }).click();
-  await page.getByRole("button", { name: "Build my three routes" }).click();
+  await page.getByLabel("Time available each week").fill("3");
+  await page.getByLabel("Maximum money for one test").fill("500");
+  await page.getByLabel("Currency").fill("INR");
+  await page.getByRole("button", { name: "Use these limits" }).click();
+  const closestDraft = page.locator(".workshop-route").filter({ hasText: "1. Closest" });
+  await closestDraft.getByLabel("Route title").fill("Try the work that already pulls me");
+  await page.getByLabel(/I have read these three starter routes/).check();
+  await page.getByRole("button", { name: "Save my three routes" }).click();
   await expect(page.getByRole("heading", { name: "Three directions. No winner picked for you." })).toBeVisible();
 }
 
