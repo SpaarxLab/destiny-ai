@@ -101,10 +101,45 @@ authoritative receipt. No second approval is required.
   high contrast, screen reader pass, 390px viewport, desktop, and clean console;
 - from `web/`: `npm run check`.
 
+## P3C — Cold-agent route lifecycle projections
+
+**Owner:** Harsh (Lane C) · **Linear:** SPX-17 · **Depends on:** integrated P3A and P8A
+
+### Owned paths
+
+- `web/src/domain/reads.ts`
+- `web/src/projections/workspace-reader.ts`
+- bounded projection fixtures and tests
+
+### Contract
+
+- cold orientation names the current three-route set, every route status, supersession lineage,
+  the participant decision still required, and any accepted hypothesis with its originating set
+  and selected route;
+- the latest public receipt summary is visible without exposing operation IDs or replay identity;
+- working-set and targeted reads cover route sets, individual routes, hypotheses, and public
+  receipts while preserving P2 entity, change, character, and UTF-8 byte bounds;
+- the expanded read contract carries an explicit projection-contract version and preserves the P2
+  `working_set.reflections` field for compatible consumers;
+- truncation, omitted refs, and missing targeted refs are explicit; a state-bound omission cursor
+  enumerates every omitted working-set ref in bounded pages;
+- participant-authored text is labelled untrusted content, and participant-only route actions are
+  pending human interactions rather than callable agent actions;
+- this packet adds no WebMCP write registration, UI, inference, or persistence mutation.
+
+### Required proof
+
+- empty, proposed, edited, partially rejected, all rejected, superseded, selected, and migrated
+  workspaces;
+- stale-cursor catch-up, truncated reads, targeted route/set/hypothesis/receipt refs, missing refs,
+  proposal cold read, and participant-choice cold reread;
+- provider-free `npm run check`.
+
 ## Rollback or recovery
 
-P3A owns a versioned migration and must preserve original bytes on migration failure. P3B can be
-reverted without changing product state. Neither packet performs remote or irreversible effects.
+P3A owns a versioned migration and must preserve original bytes on migration failure. P3B and P3C
+can be reverted without changing product state. None of these packets performs remote or
+irreversible effects.
 
 ## Out of scope
 
