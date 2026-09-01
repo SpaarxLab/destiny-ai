@@ -10,6 +10,7 @@ import {
 } from "../domain/reads";
 import { createEmptyWorkspace, workspaceSchema } from "../domain/workspace";
 import { MemoryWorkspaceStore } from "../storage/memory-workspace-store";
+import type { WorkspaceStore } from "../storage/workspace-store";
 import coldGolden from "./fixtures/cold-orientation.json";
 import confirmedGolden from "./fixtures/confirmed-orientation.json";
 import proposedGolden from "./fixtures/proposed-orientation.json";
@@ -39,9 +40,9 @@ describe("P2 read_workspace cold orientation", () => {
     expect(result).not.toHaveProperty("receipt");
   });
 
-  it("matches the participant-confirmed golden fixture", () => {
+  it("matches the participant-confirmed golden fixture", async () => {
     const { kernel, reader } = setup();
-    createParticipantCommandAdapter(kernel).saveReflection({
+    await createParticipantCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "I enjoy making complicated systems understandable.",
@@ -50,9 +51,9 @@ describe("P2 read_workspace cold orientation", () => {
     expect(reader.readWorkspace({ view: "orientation" }).data).toEqual(confirmedGolden);
   });
 
-  it("matches the proposed-content golden fixture and exposes the human boundary", () => {
+  it("matches the proposed-content golden fixture and exposes the human boundary", async () => {
     const { kernel, reader } = setup();
-    createTestCommandAdapter(kernel).saveReflection({
+    await createTestCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "The participant said they prefer bounded experiments.",
@@ -61,11 +62,11 @@ describe("P2 read_workspace cold orientation", () => {
     expect(reader.readWorkspace({ view: "orientation" }).data).toEqual(proposedGolden);
   });
 
-  it("returns only public changes after a caller-owned cursor", () => {
+  it("returns only public changes after a caller-owned cursor", async () => {
     const { kernel, reader } = setup();
     const initialRead = reader.readWorkspace();
     const cursor = initialRead.data?.view === "orientation" ? initialRead.data.cursor : "";
-    createParticipantCommandAdapter(kernel).saveReflection({
+    await createParticipantCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "A change after the cold read.",
@@ -81,6 +82,7 @@ describe("P2 read_workspace cold orientation", () => {
         effect: "APPLIED",
         afterVersion: 1,
         changedRefs: ["reflection-1"],
+        changedRefsTruncated: false,
         at: "2026-09-01T10:00:00.000Z",
       },
     ]);
@@ -126,19 +128,26 @@ describe("P2 read_workspace cold orientation", () => {
     expect(workingSet.data?.view).toBe("working_set");
     if (workingSet.data?.view !== "working_set") return;
     expect(workingSet.data.reflections).toHaveLength(READ_ENTITY_LIMIT);
+    expect(workingSet.data.reflections.map((reflection) => reflection.ref)).toEqual(
+      reflections.slice(-READ_ENTITY_LIMIT).map((reflection) => reflection.ref),
+    );
     expect(workingSet.data.truncated).toBe(true);
+    expect(workingSet.data.identity.stateVersion).toBe(workingSet.stateVersion);
+    expect(workingSet.data.availableActions).toEqual(workingSet.nextActions);
 
     const targeted = reader.readWorkspace({
       view: "entities",
-      refs: ["reflection-1", "reflection-missing"],
+      refs: ["reflection-1", "reflection-1", "reflection-missing", "reflection-missing"],
     });
     expect(targeted.data?.view).toBe("entities");
     if (targeted.data?.view !== "entities") return;
     expect(targeted.data.entities.map((entity) => entity.ref)).toEqual(["reflection-1"]);
     expect(targeted.data.missingRefs).toEqual(["reflection-missing"]);
+    expect(targeted.data.identity.stateVersion).toBe(targeted.stateVersion);
+    expect(targeted.data.availableActions).toEqual(targeted.nextActions);
   });
 
-  it("keeps maximal-input orientation inside the declared token budget", () => {
+  it("bounds and orders large change and pending-interaction projections", () => {
     const focusQuestion = "F".repeat(500);
     const proposed = Array.from({ length: 25 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
@@ -149,18 +158,134 @@ describe("P2 read_workspace cold orientation", () => {
       recordedBy: "agent_transcribed" as const,
       createdAt: "2026-09-01T10:00:00.000Z",
     }));
-    const store = new MemoryWorkspaceStore(workspaceSchema.parse({
+    const operations = proposed.map((reflection, index) => ({
+      operationId: `00000000-0000-4000-8000-${String(index + 101).padStart(12, "0")}`,
+      operationRef: `operation-${index + 1}-${"O".repeat(100)}`,
+      actor: "agent" as const,
+      command: "save_reflection",
+      effect: "PROPOSED" as const,
+      beforeVersion: index,
+      afterVersion: index + 1,
+      changedRefs: [reflection.ref, ...Array.from({ length: 4 }, (_, refIndex) =>
+        `related-${index + 1}-${refIndex}-${"R".repeat(95)}`)],
+      at: "2026-09-01T10:00:00.000Z",
+      requestIdentity: `INTERNAL-SECRET-${index}`,
+    }));
+    const workspace = workspaceSchema.parse({
       ...createEmptyWorkspace(),
       stateVersion: proposed.length,
       participant: { ...createEmptyWorkspace().participant, focusQuestion },
       reflections: proposed,
-    }));
-    const result = new WorkspaceReader(store).read({ view: "orientation" });
-    const serializedLength = JSON.stringify(result.data).length;
+      operations,
+    });
+    const store = new MemoryWorkspaceStore(workspace);
+    const result = new WorkspaceReader(store).read({
+      view: "orientation",
+      sinceCursor: `workspace:${workspace.id}:v0`,
+    });
+    const serialized = JSON.stringify(result);
+    const serializedLength = serialized.length;
+    const serializedBytes = new TextEncoder().encode(serialized).length;
 
-    expect(serializedLength).toBeLessThanOrEqual(ORIENTATION_MAX_SERIALIZED_CHARS);
-    expect(Math.ceil(serializedLength / 4)).toBeLessThanOrEqual(
-      ORIENTATION_ESTIMATED_TOKEN_BUDGET,
+    expect(result.data?.view).toBe("orientation");
+    if (result.data?.view !== "orientation") return;
+    expect(result.data.changes.truncated).toBe(true);
+    expect(result.data.pendingHumanInteractions.truncated).toBe(true);
+    expect(result.data.changes.items[0]?.afterVersion).toBe(1);
+    expect(result.data.changes.items.map((change) => change.afterVersion)).toEqual(
+      [...result.data.changes.items.map((change) => change.afterVersion)].sort((a, b) => a - b),
     );
+    expect(result.data.cursor).toBe(
+      `workspace:${workspace.id}:v${result.data.changes.items.at(-1)?.afterVersion ?? 0}`,
+    );
+    expect(serializedLength).toBeLessThanOrEqual(ORIENTATION_MAX_SERIALIZED_CHARS);
+    expect(serializedBytes).toBeLessThanOrEqual(ORIENTATION_ESTIMATED_TOKEN_BUDGET);
+    expect(JSON.stringify(result)).not.toContain("INTERNAL-SECRET");
+    expect(JSON.stringify(result)).not.toContain(operations[0].operationId);
+  });
+
+  it("pages every change without stranding an omitted operation", () => {
+    const operations = Array.from({ length: READ_ENTITY_LIMIT + 5 }, (_, index) => ({
+      operationId: `00000000-0000-4000-8000-${String(index + 101).padStart(12, "0")}`,
+      operationRef: `operation-${index + 1}`,
+      actor: "participant" as const,
+      command: "save_reflection",
+      effect: "APPLIED" as const,
+      beforeVersion: index,
+      afterVersion: index + 1,
+      changedRefs: [`reflection-${index + 1}`],
+      at: "2026-09-01T10:00:00.000Z",
+      requestIdentity: `internal-${index + 1}`,
+    }));
+    const workspace = workspaceSchema.parse({
+      ...createEmptyWorkspace(),
+      stateVersion: operations.length,
+      operations,
+    });
+    const reader = new WorkspaceReader(new MemoryWorkspaceStore(workspace));
+    let cursor = `workspace:${workspace.id}:v0`;
+    const deliveredVersions: number[] = [];
+
+    for (let page = 0; page < operations.length; page += 1) {
+      const result = reader.read({ view: "orientation", sinceCursor: cursor });
+      expect(result.data?.view).toBe("orientation");
+      if (result.data?.view !== "orientation") return;
+      expect(result.data.changes.items.length).toBeGreaterThan(0);
+      deliveredVersions.push(...result.data.changes.items.map((change) => change.afterVersion));
+      cursor = result.data.cursor;
+      if (!result.data.changes.truncated) break;
+    }
+
+    expect(deliveredVersions).toEqual(Array.from({ length: operations.length }, (_, index) => index + 1));
+    expect(cursor).toBe(`workspace:${workspace.id}:v25`);
+  });
+
+  it.each([
+    ["unknown view", { view: "unknown" }],
+    ["empty entity refs", { view: "entities", refs: [] }],
+    [
+      "too many entity refs",
+      {
+        view: "entities",
+        refs: Array.from({ length: READ_ENTITY_LIMIT + 1 }, (_, index) => `reflection-${index}`),
+      },
+    ],
+    ["extra working-set fields", { view: "working_set", refs: ["reflection-1"] }],
+    ["extra entity fields", { view: "entities", refs: ["reflection-1"], hidden: true }],
+  ])("rejects %s", (_case, input) => {
+    const { reader } = setup();
+    expect(reader.readWorkspace(input as never).error?.code).toBe("MALFORMED_INPUT");
+  });
+
+  it("keeps every successful read view mutation-free and receipt-free", () => {
+    const { store, reader } = setup();
+    const before = store.load();
+    const inputs = [
+      { view: "orientation" as const },
+      { view: "working_set" as const },
+      { view: "entities" as const, refs: ["reflection-missing"] },
+    ];
+
+    for (const input of inputs) {
+      const result = reader.readWorkspace(input);
+      expect(result.ok).toBe(true);
+      expect(result).not.toHaveProperty("receipt");
+      expect(store.load()).toEqual(before);
+    }
+  });
+
+  it("returns a typed storage failure when current truth cannot be loaded", () => {
+    const failingStore: WorkspaceStore = {
+      load() {
+        throw new Error("Simulated unreadable workspace.");
+      },
+      save() {},
+    };
+
+    expect(new WorkspaceReader(failingStore).read()).toMatchObject({
+      ok: false,
+      error: { code: "STORAGE_FAILURE", retry: "NEVER" },
+      stateVersion: 0,
+    });
   });
 });

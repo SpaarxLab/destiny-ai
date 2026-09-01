@@ -5,7 +5,7 @@ import { availableActionSchema, phaseSchema, reflectionSchema } from "./workspac
 export const READ_ENTITY_LIMIT = 20;
 export const READ_CHANGE_LIMIT = 20;
 export const ORIENTATION_MAX_SERIALIZED_CHARS = 6_000;
-export const ORIENTATION_ESTIMATED_TOKEN_BUDGET = 1_500;
+export const ORIENTATION_ESTIMATED_TOKEN_BUDGET = 3_000;
 
 const cursorSchema = z.string().min(1).max(200);
 
@@ -39,7 +39,8 @@ export const changeSummarySchema = z.strictObject({
   command: z.string().min(1).max(64),
   effect: z.enum(["APPLIED", "PROPOSED", "AWAITING_HUMAN", "COMPENSATED"]),
   afterVersion: z.number().int().nonnegative(),
-  changedRefs: z.array(z.string().min(1).max(128)),
+  changedRefs: z.array(z.string().min(1).max(128)).max(READ_ENTITY_LIMIT),
+  changedRefsTruncated: z.boolean(),
   at: z.string().datetime({ offset: true }),
 });
 export type ChangeSummary = z.infer<typeof changeSummarySchema>;

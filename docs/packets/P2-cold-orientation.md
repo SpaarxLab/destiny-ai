@@ -40,8 +40,9 @@ persistence, auth, sync, analytics, and participant research are out of scope.
 - orientation changes contain at most 20 public operation summaries and never expose
   `requestIdentity`;
 - working-set and targeted entity reads contain at most 20 entities;
-- orientation JSON is capped at 6,000 serialized characters, budgeted as at most 1,500
-  estimated tokens at four characters per token;
+- truncated change pages advance their cursor only through the last returned operation;
+- the complete orientation tool result is capped at 6,000 serialized characters and 3,000
+  UTF-8 bytes, using byte count as a conservative upper bound on token pieces;
 - reads never mutate the workspace and never return a write receipt;
 - available actions come from the same deterministic affordance projection used by commands;
 - unknown entity refs are returned explicitly and malformed/invalid cursor reads are typed.
@@ -70,10 +71,10 @@ one unit. P2 is read-only and creates no state requiring compensation.
 
 - branch/implementation SHA: `codex/spx-2-cold-orientation` /
   `eff533e234e48c8774216ff9aaba9ecd4b0af778`
-- verified: Node 24 `npm run check`; 16 focused P1/P2 tests; three golden orientation
+- verified: Node 24 `npm run check`; focused P1/P2 tests; three golden orientation
   fixtures; strict input/output schemas; cursor isolation; public delta; malformed and invalid
   cursor denial; bounded working-set/entity reads; no ledger/request identity; no mutation or
-  receipt; 6,000-character/1,500-estimated-token cap
+  receipt; recoverable change pagination; 6,000-character/3,000-byte result cap
 - browser proof: production journey rendered the P2 handoff, applied one participant
   reflection, and advanced both authoritative state and orientation cursor from `v1` to `v2`;
   proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty

@@ -276,9 +276,11 @@ and `entities` performs bounded targeted reads. There is no ambiguous “since l
 stored globally; the caller supplies a cursor, while a cold caller receives current truth.
 
 The P2 implementation fixes those bounds at 20 public change summaries and 20 working-set or
-targeted entities per read. Internal replay identities are never projected. The serialized
-orientation is capped at 6,000 characters, with a conservative 1,500-token estimate at four
-characters per token; truncation is explicit and callers can follow with targeted reads.
+targeted entities per read. Internal replay identities are never projected. Truncated change
+pages advance only through the last returned operation, so callers can continue without
+stranding older changes. The complete orientation tool result is capped at 6,000 serialized
+characters and 3,000 UTF-8 bytes; the byte count is used as a conservative upper bound on
+token pieces without assuming an English-only four-characters-per-token ratio.
 
 ### 8.2 Affordances
 

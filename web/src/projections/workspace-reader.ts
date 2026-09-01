@@ -1,5 +1,6 @@
 import { availableActions } from "../domain/affordances";
 import {
+  ORIENTATION_ESTIMATED_TOKEN_BUDGET,
   ORIENTATION_MAX_SERIALIZED_CHARS,
   READ_CHANGE_LIMIT,
   READ_ENTITY_LIMIT,
@@ -100,7 +101,7 @@ export class WorkspaceReader {
       };
     }
 
-    const cursor = cursorFor(workspace);
+    const cursor = changeResult.cursor;
     if (request.view === "working_set") {
       const truncated = workspace.reflections.length > READ_ENTITY_LIMIT;
       return {
@@ -124,13 +125,15 @@ export class WorkspaceReader {
     }
 
     const data = orientationFor(workspace, cursor, changeResult.changes);
-    return {
+    const result: ReadWorkspaceResult = {
       ok: true,
       data,
       nextActions: data.availableActions,
       stateVersion: workspace.stateVersion,
       guidance: "Cold orientation completed without changing state.",
     };
+    boundOrientationResult(result);
+    return result;
   }
 }
 
@@ -199,21 +202,6 @@ function orientationFor(
       "Use target refs and declared actions only. Proposed content requires human confirmation.",
   };
 
-  while (
-    JSON.stringify(projection).length > ORIENTATION_MAX_SERIALIZED_CHARS &&
-    projection.changes.items.length > 0
-  ) {
-    projection.changes.items.shift();
-    projection.changes.truncated = true;
-  }
-  while (
-    JSON.stringify(projection).length > ORIENTATION_MAX_SERIALIZED_CHARS &&
-    projection.pendingHumanInteractions.items.length > 0
-  ) {
-    projection.pendingHumanInteractions.items.pop();
-    projection.pendingHumanInteractions.truncated = true;
-  }
-
   return orientationProjectionSchema.parse(projection);
 }
 
@@ -221,12 +209,13 @@ function changesSince(
   workspace: Workspace,
   suppliedCursor?: string,
 ):
-  | { ok: true; changes: OrientationProjection["changes"] }
+  | { ok: true; changes: OrientationProjection["changes"]; cursor: string }
   | { ok: false; what: string } {
   if (suppliedCursor === undefined) {
     return {
       ok: true,
       changes: { sinceCursor: null, items: [], truncated: false },
+      cursor: cursorFor(workspace),
     };
   }
 
@@ -241,13 +230,20 @@ function changesSince(
   }
 
   const matching = workspace.operations.filter((operation) => operation.afterVersion > version);
+  const page = matching.slice(0, READ_CHANGE_LIMIT);
   return {
     ok: true,
     changes: {
       sinceCursor: suppliedCursor,
-      items: matching.slice(-READ_CHANGE_LIMIT).map(publicChange),
+      items: page.map(publicChange),
       truncated: matching.length > READ_CHANGE_LIMIT,
     },
+    cursor: cursorForVersion(
+      workspace,
+      matching.length > READ_CHANGE_LIMIT
+        ? page.at(-1)?.afterVersion ?? version
+        : workspace.stateVersion,
+    ),
   };
 }
 
@@ -257,13 +253,18 @@ function publicChange(operation: OperationRecord): ChangeSummary {
     command: operation.command,
     effect: operation.effect,
     afterVersion: operation.afterVersion,
-    changedRefs: operation.changedRefs,
+    changedRefs: operation.changedRefs.slice(0, READ_ENTITY_LIMIT),
+    changedRefsTruncated: operation.changedRefs.length > READ_ENTITY_LIMIT,
     at: operation.at,
   };
 }
 
 function cursorFor(workspace: Workspace): string {
-  return `workspace:${workspace.id}:v${workspace.stateVersion}`;
+  return cursorForVersion(workspace, workspace.stateVersion);
+}
+
+function cursorForVersion(workspace: Workspace, version: number): string {
+  return `workspace:${workspace.id}:v${version}`;
 }
 
 function identityFor(workspace: Workspace): WorkspaceIdentity {
@@ -278,4 +279,35 @@ function identityFor(workspace: Workspace): WorkspaceIdentity {
 
 function excerpt(text: string): string {
   return text.length <= 160 ? text : `${text.slice(0, 157)}...`;
+}
+
+function boundOrientationResult(result: ReadWorkspaceResult): void {
+  if (!result.ok || result.data?.view !== "orientation") {
+    return;
+  }
+
+  const projection = result.data;
+  while (overOrientationBudget(result) && projection.pendingHumanInteractions.items.length) {
+    projection.pendingHumanInteractions.items.pop();
+    projection.pendingHumanInteractions.truncated = true;
+  }
+  while (overOrientationBudget(result) && projection.changes.items.length) {
+    projection.changes.items.pop();
+    projection.changes.truncated = true;
+    const lastDeliveredVersion = projection.changes.items.at(-1)?.afterVersion;
+    projection.cursor =
+      lastDeliveredVersion === undefined
+        ? projection.changes.sinceCursor ?? projection.cursor
+        : `workspace:${projection.identity.workspaceRef}:v${lastDeliveredVersion}`;
+  }
+
+  orientationProjectionSchema.parse(projection);
+}
+
+function overOrientationBudget(result: ReadWorkspaceResult): boolean {
+  const serialized = JSON.stringify(result);
+  return (
+    serialized.length > ORIENTATION_MAX_SERIALIZED_CHARS ||
+    new TextEncoder().encode(serialized).length > ORIENTATION_ESTIMATED_TOKEN_BUDGET
+  );
 }
