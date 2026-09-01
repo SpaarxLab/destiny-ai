@@ -1,8 +1,9 @@
 # Destiny.AI — Product and System Contract
 
 **Status:** Current product/technical authority, revised 2026-09-01.
-**Build admission:** P1 and P2 are integrated. A0 admits D-014; P3A domain and P8A WebMCP
-foundation are the next independent outcomes. P3B journey stacks on P3A. Participant research
+**Build admission:** P1, P2, P3A, and P8A are integrated. P3C makes the P3 route lifecycle
+cold-readable through the bounded P8A read surface while P3B owns the participant journey. P8B
+then adds only the admitted route-proposal write adapter and agent evals. Participant research
 remains reviewer- and recruitment-gated.
 **Supersedes:** the original Destiny.AI brainstorm, the red/green whiteboards, the eight
 internal-agent concept, and the pre-review architecture in this file.
@@ -344,7 +345,7 @@ patterns are deterministic projections and can always be rebuilt.
 ```ts
 type ReadWorkspaceInput =
   | { view?: 'orientation'; sinceCursor?: string }
-  | { view: 'working_set'; sinceCursor?: string }
+  | { view: 'working_set'; sinceCursor?: string; omittedRefsCursor?: string }
   | { view: 'entities'; refs: string[] };
 ```
 
@@ -359,8 +360,19 @@ type ReadWorkspaceInput =
 - the highest relevant proof/confirmation status;
 - concise guidance.
 
-It does not return the full ledger by default. `working_set` returns current active entities
-and `entities` performs bounded targeted reads. There is no ambiguous “since last read”
+For the P3 collaboration it also returns the latest non-superseded route set as a compact
+three-route summary, route status and predecessor/successor lineage, the accepted hypothesis and
+its originating selected route, the latest public receipt summary, and an explicit participant
+decision when a proposed set still needs edit/reject/choice. Participant-only commands appear only
+as pending human interactions; they are never projected in callable `availableActions`.
+
+It does not return the full ledger by default. Every successful projection identifies the explicit
+`read-workspace/2.0.0` projection contract. `working_set` preserves the P2 `reflections` field for
+compatible consumers and returns current public reflections, route sets, and accepted hypotheses
+within one shared entity limit. It names omitted refs in bounded pages and returns a state-bound
+omission cursor until every omitted ref is enumerable. `entities` performs bounded targeted reads across reflections, route sets, individual
+route previews, hypotheses, and public operation-receipt summaries; unknown refs are returned in
+`missingRefs`. There is no ambiguous “since last read”
 stored globally; the caller supplies a cursor, while a cold caller receives current truth.
 
 The P2 implementation fixes those bounds at 20 public change summaries and 20 working-set or
@@ -368,7 +380,8 @@ targeted entities per read. Internal replay identities are never projected. Trun
 pages advance only through the last returned operation, so callers can continue without
 stranding older changes. The complete orientation tool result is capped at 6,000 serialized
 characters and 3,000 UTF-8 bytes; the byte count is used as a conservative upper bound on
-token pieces without assuming an English-only four-characters-per-token ratio.
+token pieces without assuming an English-only four-characters-per-token ratio. Every successful
+view labels participant-authored strings as untrusted content rather than agent instructions.
 
 ### 8.2 Affordances
 

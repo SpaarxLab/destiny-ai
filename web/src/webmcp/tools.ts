@@ -22,6 +22,7 @@ export const READ_WORKSPACE_INPUT_SCHEMA = {
       properties: {
         view: { type: "string", const: "working_set" },
         sinceCursor: { type: "string", minLength: 1, maxLength: 200 },
+        omittedRefsCursor: { type: "string", minLength: 1, maxLength: 200 },
       },
       required: ["view"],
       additionalProperties: false,
@@ -57,7 +58,7 @@ export function createWebMcpTools(
     {
       name: "read_workspace",
       description:
-        "Read bounded current Destiny.AI workspace truth without mutation. Use orientation for identity, proof summary, available actions, guidance, and cursor-based changes; use working_set for recent reflections; use entities for targeted reflection refs.",
+        "Read bounded current Destiny.AI workspace truth without mutation. Use orientation for identity, proof summary, route status, participant decisions, and cursor-based changes; use working_set for current reflections, route sets, and accepted hypotheses plus paged omitted refs; use entities for targeted reflections, route sets, individual routes, hypotheses, and public receipt summaries.",
       inputSchema: READ_WORKSPACE_INPUT_SCHEMA,
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute(input: unknown) {
