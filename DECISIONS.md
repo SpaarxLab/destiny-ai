@@ -77,15 +77,25 @@ No license is granted and the repository remains private until that release gate
 **Historical implementation:** `harsh41099/destiny-ai` was created private, then transferred
 to the SpaarxLab organization under D-010.
 
-### D-010 — Repository organization authority
+### D-010 — Repository organization authority (access amended by D-011)
 
 **Decision:** SpaarxLab, not Harsh's personal account, owns the canonical Destiny.AI
-repository. Keep Harsh as repository admin and add Devarsh and Tirth as collaborators after
-their exact GitHub usernames are supplied.
+repository. Keep Harsh as repository admin. The original per-repository collaborator plan is
+superseded by D-011.
 
 **Implemented:** [`SpaarxLab/destiny-ai`](https://github.com/SpaarxLab/destiny-ai) is private
 with `main` as the default branch. The transfer preserved repository history and GitHub
 Actions history.
+
+### D-011 — Team-wide repository access
+
+**Decision:** grant Devarsh and Tirth write access to every current and future SpaarxLab
+repository through GitHub's predefined `All-repository write` organization role. Do not
+broaden the base permission for unrelated or future organization members, and do not grant
+repository-admin or organization-owner authority.
+
+**Implemented:** `Devarsh009` and `Tirth262830` were assigned the role on 2026-09-01. GitHub
+confirmed both assignments in the SpaarxLab organization-role readback.
 
 ## Owner input still required before participant testing
 

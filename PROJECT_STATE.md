@@ -14,20 +14,21 @@
   documented in `RECOVERY.md`; nothing was deleted.
 - **GitHub remote:** `origin = https://github.com/SpaarxLab/destiny-ai.git`; private
   SpaarxLab repository; default branch `main`; Harsh has admin access. Remote candidate
-  `76e8dbd59743eaaaf8c1b48c4dfdc7f46d514c44` was pushed successfully and passed GitHub
-  Actions CI in run `33497021144`.
+  `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
+  Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
   started. Participant testing remains blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
-- **Next decision:** Harsh adds Devarsh and Tirth to the SpaarxLab repository by their exact
-  GitHub usernames, then names
-  the qualified safeguarding reviewer and records five adult participant commitments before
-  participant testing.
+- **Repository access:** `Devarsh009` and `Tirth262830` hold GitHub's `All-repository write`
+  organization role for SpaarxLab. It covers every current and future organization repository
+  without granting repository admin or organization-owner authority.
+- **Next decision:** Harsh names the qualified safeguarding reviewer and records five adult
+  participant commitments before participant testing.
 - **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
   committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build;
-  the private GitHub remote and pushed SHA were read back; GitHub Actions run `33497021144`
+  the private GitHub remote and pushed SHA were read back; GitHub Actions run `33497218996`
   passed on that exact candidate. This is foundation/static proof—not live WebMCP, deployed,
   participant, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all

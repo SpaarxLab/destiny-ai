@@ -5,14 +5,17 @@
 | Responsibility | Owner | Decision authority |
 |---|---|---|
 | Product authority and integration | Harsh | scope, contract admission, candidate identity |
-| Lane A — domain/commands/persistence | Devarsh | invariants, command kernel, migrations, receipts |
-| Lane B — human board/collaboration | Tirth | interaction design, accessibility, browser journeys |
+| Lane A — domain/commands/persistence | Devarsh (`Devarsh009`) | invariants, command kernel, migrations, receipts |
+| Lane B — human board/collaboration | Tirth (`Tirth262830`) | interaction design, accessibility, browser journeys |
 | Lane C — agent surface/evals/runtime | Harsh | WebMCP adapters, method, evals, live runtime proof |
 | Safeguarding review | **OWNER INPUT** | distress and referral copy |
 | Participant recruitment | Harsh | five adult participant commitments |
 
 Harsh is integration captain for the first four-week programme. This role can be delegated
 later by an explicit decision-record update; it does not rotate automatically.
+
+Devarsh and Tirth hold SpaarxLab's `All-repository write` GitHub organization role. Harsh
+retains repository-admin and product-authority responsibilities.
 
 ## Working agreement
 
