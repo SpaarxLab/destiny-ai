@@ -8,6 +8,7 @@ import {
   ORIENTATION_ESTIMATED_TOKEN_BUDGET,
   ORIENTATION_MAX_SERIALIZED_CHARS,
   READ_ENTITY_LIMIT,
+  READ_WORKSPACE_CONTRACT_VERSION,
 } from "../domain/reads";
 import { createEmptyWorkspace, workspaceSchema } from "../domain/workspace";
 import { MemoryWorkspaceStore } from "../storage/memory-workspace-store";
@@ -166,11 +167,16 @@ describe("P2 read_workspace cold orientation", () => {
     expect(workingSet.data?.view).toBe("working_set");
     if (workingSet.data?.view !== "working_set") return;
     expect(workingSet.data.entities).toHaveLength(READ_ENTITY_LIMIT);
+    expect(workingSet.data.reflections).toEqual(reflections.slice(-READ_ENTITY_LIMIT));
+    expect(workingSet.data.identity.readContractVersion)
+      .toBe(READ_WORKSPACE_CONTRACT_VERSION);
     expect(workingSet.data.totalEntities).toBe(READ_ENTITY_LIMIT + 1);
     expect(workingSet.data.entities.map((entity) =>
       entity.entityType === "operation_receipt" ? entity.operationRef : entity.ref,
     )).toEqual(reflections.slice(1).reverse().map((reflection) => reflection.ref));
     expect(workingSet.data.omittedEntityRefs).toEqual(["reflection-1"]);
+    expect(workingSet.data.omittedEntityRefsTruncated).toBe(false);
+    expect(workingSet.data.omittedRefsCursor).toBeNull();
     expect(workingSet.data.truncated).toBe(true);
     expect(workingSet.data.identity.stateVersion).toBe(workingSet.stateVersion);
     expect(workingSet.data.availableActions).toEqual(workingSet.nextActions);
@@ -187,6 +193,58 @@ describe("P2 read_workspace cold orientation", () => {
     expect(targeted.data.missingRefs).toEqual(["reflection-missing"]);
     expect(targeted.data.identity.stateVersion).toBe(targeted.stateVersion);
     expect(targeted.data.availableActions).toEqual(targeted.nextActions);
+  });
+
+  it("enumerates more than forty omitted working-set refs with a state-bound cursor", () => {
+    const reflections = Array.from({ length: READ_ENTITY_LIMIT * 2 + 5 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      ref: `reflection-${index + 1}`,
+      availableActions: [],
+      status: "confirmed" as const,
+      text: `Reflection ${index + 1}`,
+      recordedBy: "participant" as const,
+      createdAt: "2026-09-01T10:00:00.000Z",
+    }));
+    const store = new MemoryWorkspaceStore(workspaceSchema.parse({
+      ...createEmptyWorkspace(),
+      reflections,
+    }));
+    const reader = createTestReadAdapter(new WorkspaceReader(store));
+
+    const first = reader.readWorkspace({ view: "working_set" });
+    expect(first.data?.view).toBe("working_set");
+    if (first.data?.view !== "working_set") return;
+    expect(first.data.reflections.map((reflection) => reflection.ref))
+      .toEqual(reflections.slice(-READ_ENTITY_LIMIT).map((reflection) => reflection.ref));
+    expect(first.data.omittedEntityRefs).toEqual(
+      reflections.slice(5, 25).reverse().map((reflection) => reflection.ref),
+    );
+    expect(first.data.omittedEntityRefsTruncated).toBe(true);
+    expect(first.data.omittedRefsCursor).toBe(
+      `workspace:${store.load().id}:v0:working-set-omitted:40`,
+    );
+
+    const second = reader.readWorkspace({
+      view: "working_set",
+      omittedRefsCursor: first.data.omittedRefsCursor!,
+    });
+    expect(second.data?.view).toBe("working_set");
+    if (second.data?.view !== "working_set") return;
+    expect(second.data.omittedEntityRefs).toEqual(
+      reflections.slice(0, 5).reverse().map((reflection) => reflection.ref),
+    );
+    expect(second.data.omittedEntityRefsTruncated).toBe(false);
+    expect(second.data.omittedRefsCursor).toBeNull();
+
+    const invalid = reader.readWorkspace({
+      view: "working_set",
+      omittedRefsCursor: first.data.omittedRefsCursor!.replace(":v0:", ":v1:"),
+    });
+    expect(invalid).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_CURSOR", retry: "NEVER" },
+      stateVersion: 0,
+    });
   });
 
   it("bounds and orders large change and pending-interaction projections", () => {

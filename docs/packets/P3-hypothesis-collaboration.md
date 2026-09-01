@@ -119,7 +119,10 @@ authoritative receipt. No second approval is required.
 - the latest public receipt summary is visible without exposing operation IDs or replay identity;
 - working-set and targeted reads cover route sets, individual routes, hypotheses, and public
   receipts while preserving P2 entity, change, character, and UTF-8 byte bounds;
-- truncation, omitted refs, and missing targeted refs are explicit;
+- the expanded read contract carries an explicit projection-contract version and preserves the P2
+  `working_set.reflections` field for compatible consumers;
+- truncation, omitted refs, and missing targeted refs are explicit; a state-bound omission cursor
+  enumerates every omitted working-set ref in bounded pages;
 - participant-authored text is labelled untrusted content, and participant-only route actions are
   pending human interactions rather than callable agent actions;
 - this packet adds no WebMCP write registration, UI, inference, or persistence mutation.

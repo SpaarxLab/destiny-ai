@@ -14,6 +14,7 @@ export const READ_CHANGE_LIMIT = 20;
 export const PUBLIC_CHANGED_REF_LIMIT = 5;
 export const ORIENTATION_MAX_SERIALIZED_CHARS = 6_000;
 export const ORIENTATION_ESTIMATED_TOKEN_BUDGET = 3_000;
+export const READ_WORKSPACE_CONTRACT_VERSION = "read-workspace/2.0.0";
 
 const cursorSchema = z.string().min(1).max(200);
 const refSchema = z.string().min(1).max(128);
@@ -34,6 +35,7 @@ export const readWorkspaceInputSchema = z.union([
   z.strictObject({
     view: z.literal("working_set"),
     sinceCursor: cursorSchema.optional(),
+    omittedRefsCursor: cursorSchema.optional(),
   }),
   z.strictObject({
     view: z.literal("entities"),
@@ -46,6 +48,7 @@ export const workspaceIdentitySchema = z.strictObject({
   workspaceRef: z.string().uuid(),
   schemaVersion: z.number().int().positive(),
   contractVersion: z.string().min(1).max(32),
+  readContractVersion: z.literal(READ_WORKSPACE_CONTRACT_VERSION),
   stateVersion: z.number().int().nonnegative(),
   phase: phaseSchema,
 });
@@ -92,6 +95,10 @@ export const hypothesisSummarySchema = z.strictObject({
 
 const publicReflectionSchema = reflectionSchema.omit({ availableActions: true }).extend({
   entityType: z.literal("reflection"),
+  availableActions: z.array(agentAvailableActionSchema).max(READ_ENTITY_LIMIT),
+});
+
+const compatibleWorkingReflectionSchema = reflectionSchema.omit({ availableActions: true }).extend({
   availableActions: z.array(agentAvailableActionSchema).max(READ_ENTITY_LIMIT),
 });
 
@@ -194,9 +201,13 @@ export type OrientationProjection = z.infer<typeof orientationProjectionSchema>;
 export const workingSetProjectionSchema = z.strictObject({
   view: z.literal("working_set"),
   identity: workspaceIdentitySchema,
+  // Kept for consumers of the P2 working-set contract. New consumers should use `entities`.
+  reflections: z.array(compatibleWorkingReflectionSchema).max(READ_ENTITY_LIMIT),
   entities: z.array(publicReadEntitySchema).max(READ_ENTITY_LIMIT),
   totalEntities: z.number().int().nonnegative(),
   omittedEntityRefs: z.array(refSchema).max(READ_ENTITY_LIMIT),
+  omittedEntityRefsTruncated: z.boolean(),
+  omittedRefsCursor: cursorSchema.nullable(),
   truncated: z.boolean(),
   changes: changesSchema,
   cursor: cursorSchema,

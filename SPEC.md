@@ -345,7 +345,7 @@ patterns are deterministic projections and can always be rebuilt.
 ```ts
 type ReadWorkspaceInput =
   | { view?: 'orientation'; sinceCursor?: string }
-  | { view: 'working_set'; sinceCursor?: string }
+  | { view: 'working_set'; sinceCursor?: string; omittedRefsCursor?: string }
   | { view: 'entities'; refs: string[] };
 ```
 
@@ -366,9 +366,11 @@ its originating selected route, the latest public receipt summary, and an explic
 decision when a proposed set still needs edit/reject/choice. Participant-only commands appear only
 as pending human interactions; they are never projected in callable `availableActions`.
 
-It does not return the full ledger by default. `working_set` returns current public reflections,
-route sets, and accepted hypotheses within one shared entity limit and names omitted refs when it
-truncates. `entities` performs bounded targeted reads across reflections, route sets, individual
+It does not return the full ledger by default. Every successful projection identifies the explicit
+`read-workspace/2.0.0` projection contract. `working_set` preserves the P2 `reflections` field for
+compatible consumers and returns current public reflections, route sets, and accepted hypotheses
+within one shared entity limit. It names omitted refs in bounded pages and returns a state-bound
+omission cursor until every omitted ref is enumerable. `entities` performs bounded targeted reads across reflections, route sets, individual
 route previews, hypotheses, and public operation-receipt summaries; unknown refs are returned in
 `missingRefs`. There is no ambiguous “since last read”
 stored globally; the caller supplies a cursor, while a cold caller receives current truth.

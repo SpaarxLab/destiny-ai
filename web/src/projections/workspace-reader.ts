@@ -5,6 +5,7 @@ import {
   PUBLIC_CHANGED_REF_LIMIT,
   READ_CHANGE_LIMIT,
   READ_ENTITY_LIMIT,
+  READ_WORKSPACE_CONTRACT_VERSION,
   entitiesProjectionSchema,
   orientationProjectionSchema,
   readWorkspaceInputSchema,
@@ -121,19 +122,42 @@ export class WorkspaceReader {
     if (request.view === "working_set") {
       const workingEntities = currentWorkingEntities(workspace);
       const entities = workingEntities.slice(0, READ_ENTITY_LIMIT);
-      const omittedEntityRefs = workingEntities
-        .slice(READ_ENTITY_LIMIT)
-        .map((entity) => entityRef(entity))
-        .slice(0, READ_ENTITY_LIMIT);
+      const omittedPage = omittedEntityRefsPage(
+        workspace,
+        workingEntities,
+        request.omittedRefsCursor,
+      );
+      if (!omittedPage.ok) {
+        return {
+          ok: false,
+          error: {
+            code: "INVALID_CURSOR",
+            what: omittedPage.what,
+            retry: "NEVER",
+            insteadDo: "Discard this omission cursor and reread the current working set.",
+          },
+          nextActions: availableActions(workspace),
+          stateVersion: workspace.stateVersion,
+          guidance: "No state changed. The omission cursor did not identify this working set.",
+        };
+      }
       const truncated = workingEntities.length > entities.length;
       return {
         ok: true,
         data: workingSetProjectionSchema.parse({
           view: "working_set",
           identity: identityFor(workspace),
+          reflections: workspace.reflections
+            .slice(-READ_ENTITY_LIMIT)
+            .map((reflection) => ({
+              ...reflection,
+              availableActions: agentActions(reflection.availableActions),
+            })),
           entities,
           totalEntities: workingEntities.length,
-          omittedEntityRefs,
+          omittedEntityRefs: omittedPage.refs,
+          omittedEntityRefsTruncated: omittedPage.truncated,
+          omittedRefsCursor: omittedPage.cursor,
           truncated,
           changes: changeResult.changes,
           cursor,
@@ -160,6 +184,46 @@ export class WorkspaceReader {
     boundOrientationResult(result);
     return result;
   }
+}
+
+function omittedEntityRefsPage(
+  workspace: Workspace,
+  workingEntities: PublicReadEntity[],
+  suppliedCursor?: string,
+):
+  | { ok: true; refs: string[]; truncated: boolean; cursor: string | null }
+  | { ok: false; what: string } {
+  let offset = READ_ENTITY_LIMIT;
+  if (suppliedCursor !== undefined) {
+    const match = /^workspace:([0-9a-f-]{36}):v(\d+):working-set-omitted:(\d+)$/i
+      .exec(suppliedCursor);
+    if (!match || match[1] !== workspace.id) {
+      return { ok: false, what: "The omission cursor is malformed or belongs to another workspace." };
+    }
+
+    const version = Number(match[2]);
+    offset = Number(match[3]);
+    if (
+      !Number.isSafeInteger(version) || version !== workspace.stateVersion ||
+      !Number.isSafeInteger(offset) || offset < READ_ENTITY_LIMIT || offset >= workingEntities.length
+    ) {
+      return { ok: false, what: "The omission cursor is stale or outside this working set." };
+    }
+  }
+
+  const refs = workingEntities
+    .slice(offset, offset + READ_ENTITY_LIMIT)
+    .map((entity) => entityRef(entity));
+  const nextOffset = offset + refs.length;
+  const truncated = nextOffset < workingEntities.length;
+  return {
+    ok: true,
+    refs,
+    truncated,
+    cursor: truncated
+      ? `workspace:${workspace.id}:v${workspace.stateVersion}:working-set-omitted:${nextOffset}`
+      : null,
+  };
 }
 
 function orientationFor(
@@ -446,6 +510,7 @@ function identityFor(workspace: Workspace): WorkspaceIdentity {
     workspaceRef: workspace.id,
     schemaVersion: workspace.schemaVersion,
     contractVersion: workspace.contractVersion,
+    readContractVersion: READ_WORKSPACE_CONTRACT_VERSION,
     stateVersion: workspace.stateVersion,
     phase: workspace.phase,
   };

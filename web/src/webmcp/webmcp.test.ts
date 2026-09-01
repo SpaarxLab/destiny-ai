@@ -67,14 +67,17 @@ describe("P8A native WebMCP foundation", () => {
       "Use orientation for identity, proof summary",
     );
     expect(runtime.latest("read_workspace").description).toContain(
-      "use working_set for recent reflections",
+      "use working_set for current reflections, route sets, and accepted hypotheses",
     );
     expect(runtime.latest("read_workspace").description).toContain(
-      "use entities for targeted reflection refs",
+      "individual routes, hypotheses, and public receipt summaries",
     );
     expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf).toHaveLength(3);
     expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf.every((schema) =>
       schema.additionalProperties === false)).toBe(true);
+    expect(READ_WORKSPACE_INPUT_SCHEMA.oneOf[1].properties).toHaveProperty(
+      "omittedRefsCursor",
+    );
     expect(runtime.latest("get_method_guide").inputSchema).toEqual({
       type: "object",
       properties: {},

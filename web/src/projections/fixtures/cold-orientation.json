@@ -4,6 +4,7 @@
     "workspaceRef": "00000000-0000-4000-8000-000000000001",
     "schemaVersion": 2,
     "contractVersion": "1.1.0",
+    "readContractVersion": "read-workspace/2.0.0",
     "stateVersion": 0,
     "phase": "EXPLORING"
   },
