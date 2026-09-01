@@ -62,9 +62,14 @@ usefulness, production readiness, or challenge submission readiness.
 Participant sessions remain blocked until a qualified safeguarding reviewer approves the
 distress/referral copy and five adult commitments are recorded.
 
-## Still-unconfigured integrations
+## Integration and workspace-role receipt
 
-The Linear GitHub integration is intentionally not installed by this receipt. Installing it
-changes external access scope and requires an explicit repository-scope decision. Devarsh and
-Tirth also remain Linear workspace admins until Harsh explicitly chooses whether to reduce
-them to members; ticket ownership does not require admin access.
+On 2026-09-01 Harsh selected all-repository scope for Linear's GitHub integration. The
+`Linear Code` GitHub App is now connected to the SpaarxLab organization, and GitHub reports
+`All repositories`, covering all current and future repositories. Linear reports `SpaarxLab`
+under Connected organizations and confirms that issues can now be linked with pull requests.
+
+Harsh also selected Member roles for Devarsh and Tirth. That change cannot be applied while
+the workspace remains on Linear Free: Linear makes every Free-workspace user an Admin, and
+the live billing page confirms `Free plan · 3 users`. Devarsh and Tirth therefore remain
+Admins. A paid-plan upgrade is a separate commercial decision and has not been authorized.
