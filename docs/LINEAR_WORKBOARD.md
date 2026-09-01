@@ -16,7 +16,7 @@ stop and ask Harsh to resolve the conflict before implementation.
 
 | Milestone | Target | Ticket | Owner | Status | Dependency |
 |---|---:|---|---|---|---|
-| M1 — Truth & command spine | Sep 8 | [SPX-1 — P1 Build the shared command spine](https://linear.app/harsh-shah/issue/SPX-1/p1-build-the-shared-command-spine) | Devarsh | In Progress; due Sep 4 | P0B admitted |
+| M1 — Truth & command spine | Sep 8 | [SPX-1 — P1 Build the shared command spine](https://linear.app/harsh-shah/issue/SPX-1/p1-build-the-shared-command-spine) | Devarsh | In Review; PR #1 clean; due Sep 4 | P0B admitted |
 | M1 — Truth & command spine | Sep 8 | [SPX-2 — P2 Deliver cold-agent orientation](https://linear.app/harsh-shah/issue/SPX-2/p2-deliver-cold-agent-orientation) | Devarsh | In Progress; branch and local proof attached | SPX-1 PR #1 open; integration blocked until merge |
 | M2 — Human-agent collaboration | Sep 15 | [SPX-3 — P3 Build quote-backed hypothesis collaboration](https://linear.app/harsh-shah/issue/SPX-3/p3-build-quote-backed-hypothesis-collaboration) | Tirth | Backlog | SPX-2 |
 | M2 — Human-agent collaboration | Sep 15 | [SPX-4 — P4 Build the cost-capped experiment loop](https://linear.app/harsh-shah/issue/SPX-4/p4-build-the-cost-capped-experiment-loop) | Devarsh | Backlog | SPX-3 |
@@ -26,7 +26,7 @@ stop and ask Harsh to resolve the conflict before implementation.
 | M4 — Polish, runtime & proof | Sep 29 | [SPX-8 — P8 Prove WebMCP runtime and release candidate](https://linear.app/harsh-shah/issue/SPX-8/p8-prove-webmcp-runtime-and-release-candidate) | Harsh | Backlog | SPX-6 and SPX-7 |
 
 Verified board balance: eight packets; two per milestone; Devarsh owns four, Tirth two, and
-Harsh two. SPX-1 is `In Progress`; P1 implementation commit `009b7f9` passed its local checks
+Harsh two. SPX-1 is `In Review`; P1 implementation commit `009b7f9` passed its local checks
 and browser proof, and PR #1 is open against `main`. SPX-2 implementation started on a
 dependency-closed stacked branch, but remains integration-blocked until PR #1 merges. The
 live Linear SPX-2 ticket is `In Progress` and records the implementation branch, local checks,

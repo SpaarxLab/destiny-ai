@@ -18,7 +18,7 @@
   Actions CI in run `33497218996`.
 - **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
   `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
-  open against `main`. P1 is `In Progress` on the Linear delivery board with a 4 September
+  open against `main`. P1 is `In Review` on the Linear delivery board with a 4 September
   due date. P2 Cold Orientation is active locally on dependency-closed branch
   `codex/spx-2-cold-orientation`, stacked on P1, and remains blocked from integration until P1
   merges; SPX-2 is `In Progress` on Linear with the branch and local proof attached.
