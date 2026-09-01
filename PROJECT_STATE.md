@@ -8,7 +8,8 @@
 - **Current authority:** `SPEC.md` (current product/system contract), `DECISIONS.md`
   (accepted choices), and `PLAN.md` (approved delivery programme; P1 admitted).
   `SYSTEM_REVIEW.md` is supporting evidence, not competing authority.
-- **Canonical repo/worktree:** `/Users/harsh/career-lab`, branch `main`; foundation
+- **Canonical repo/worktree:** `/Users/harsh/career-lab`; integration branch `main`; active P1
+  branch `codex/p1-command-spine`; foundation
   baseline `752ab8efc878b6a133a3be4bd74f94c5196b3631`. The Next.js app remains in `web/`.
   Original nested-repository history and dirty-overlay recovery are preserved at the path
   documented in `RECOVERY.md`; nothing was deleted.
@@ -53,9 +54,10 @@
   build. Three golden orientation fixtures, caller-owned cursor isolation, bounded reads, and
   the 1,500-estimated-token cap passed. A local production-browser journey applied one
   participant reflection and advanced authoritative state plus orientation cursor from
-  `v1` to `v2`; browser warning/error logs were empty. P0A remote CI evidence remains GitHub
-  Actions run `33497218996`. This is local/static journey proof—not live WebMCP, deployed,
-  participant, `main` integration, or submission proof.
+  `v1` to `v2`; browser warning/error logs were empty. P1 hardening commit
+  `c5ac83c72fd060729390062cd740ecef60edefc7` separately passed 20 focused command and
+  storage tests and exact-head GitHub CI as part of PR #1. This is local/static journey and
+  PR CI proof—not live WebMCP, deployed, participant, `main` integration, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
   pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
   plan" MVP and the 8-internal-agents concept.

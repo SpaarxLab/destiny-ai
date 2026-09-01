@@ -4,7 +4,7 @@ import type { Actor } from "../domain/workspace";
 import type { CommandKernel } from "../commands/command-kernel";
 
 export interface TestCommandAdapter {
-  saveReflection(input: SaveReflectionInput): SaveReflectionResult;
+  saveReflection(input: SaveReflectionInput): Promise<SaveReflectionResult>;
 }
 
 export function createTestCommandAdapter(

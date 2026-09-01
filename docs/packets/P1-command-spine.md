@@ -41,6 +41,9 @@ analytics, and participant research are out of scope.
 - same operation id plus different intent is `OPERATION_CONFLICT`;
 - a stale expected version is `STALE_STATE` and requires a reread plus a new operation id;
 - an accepted command atomically persists the next snapshot and its immutable receipt;
+- browser writes serialize through one same-origin Web Lock before the store rechecks the
+  expected version and persists;
+- reading an absent workspace does not create an unreceipted bootstrap write;
 - participant reflections are committed; agent-transcribed reflections are visible proposals;
 - all failures use the shared typed result envelope and preserve current state.
 
@@ -84,17 +87,19 @@ appear during the packet.
 
 ## Remaining unknowns
 
-- multi-tab serialization beyond a best-effort local compare-before-save belongs to storage
-  hardening unless it blocks the P1 proof;
+- live WebMCP runtimes still need to confirm Web Locks availability as part of P8's runtime
+  matrix; unsupported browsers fail closed rather than accepting an unsafe write;
 - P2 will define the bounded orientation projection and agent-facing read budget;
 - participant research remains blocked by the safeguarding reviewer and recruitment gate.
 
 ## Closeout receipt
 
-- branch/SHA: `codex/p1-command-spine` / implementation commit
-  `009b7f999c3b8b99740f465058bdedba6f403ca1`
-- verified: Node 24 `npm run check`; 9 focused contract tests; strict schema, wrong-phase,
-  stale, replay, conflict, receipt, and persistence-failure proof; local production-browser
+- branch/SHA: `codex/p1-command-spine` / hardened candidate
+  `c5ac83c72fd060729390062cd740ecef60edefc7`
+- verified: Node 24 `npm run check`; 20 focused contract tests; strict schema, wrong-phase,
+  stale, concurrent replay/conflict, cross-tab serialization, bootstrap, corrupt-storage
+  preservation, receipt, and
+  persistence-failure proof; local production-browser
   journey rendered one confirmed reflection, one `APPLIED` receipt, and state `0 -> 1` with
   no browser errors
 - unverified: live WebMCP, deployed runtime, participants, release candidate

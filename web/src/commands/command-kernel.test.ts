@@ -24,7 +24,7 @@ function setup(initial = createEmptyWorkspace()) {
 }
 
 describe("P1 save_reflection command spine", () => {
-  it("gives the participant UI adapter and test adapter identical command semantics", () => {
+  it("gives the participant UI adapter and test adapter identical command semantics", async () => {
     const participantRuntime = setup();
     const testRuntime = setup();
     const input = {
@@ -33,10 +33,10 @@ describe("P1 save_reflection command spine", () => {
       text: "I enjoy making complicated systems understandable.",
     };
 
-    const participantResult = createParticipantCommandAdapter(
+    const participantResult = await createParticipantCommandAdapter(
       participantRuntime.kernel,
     ).saveReflection(input);
-    const testResult = createTestCommandAdapter(
+    const testResult = await createTestCommandAdapter(
       testRuntime.kernel,
       "participant",
     ).saveReflection(input);
@@ -45,9 +45,9 @@ describe("P1 save_reflection command spine", () => {
     expect(testRuntime.store.load()).toEqual(participantRuntime.store.load());
   });
 
-  it("atomically saves one confirmed participant reflection and one public receipt", () => {
+  it("atomically saves one confirmed participant reflection and one public receipt", async () => {
     const { store, kernel } = setup();
-    const result = createParticipantCommandAdapter(kernel).saveReflection({
+    const result = await createParticipantCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "  I enjoy making complicated systems understandable.  ",
@@ -77,9 +77,9 @@ describe("P1 save_reflection command spine", () => {
     expect(afterState.stateVersion).toBe(1);
   });
 
-  it("stores an agent transcription as a visible proposal", () => {
+  it("stores an agent transcription as a visible proposal", async () => {
     const { store, kernel } = setup();
-    const result = createTestCommandAdapter(kernel).saveReflection({
+    const result = await createTestCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "The participant said they prefer bounded experiments.",
@@ -92,17 +92,26 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load().stateVersion).toBe(1);
   });
 
-  it("rejects malformed and extra fields without mutation", () => {
-    const { store, kernel } = setup();
-    const result = kernel.execute({
-      name: "save_reflection",
-      actor: "participant",
-      input: {
+  it.each([
+    ["empty text", { operationId: operationOne, expectedVersion: 0, text: "" }],
+    [
+      "unknown fields",
+      {
         operationId: operationOne,
         expectedVersion: 0,
-        text: "",
+        text: "Valid text.",
         hiddenWrite: true,
       },
+    ],
+    ["invalid operation id", { operationId: "not-a-uuid", expectedVersion: 0, text: "Valid text." }],
+    ["negative version", { operationId: operationOne, expectedVersion: -1, text: "Valid text." }],
+    ["oversized text", { operationId: operationOne, expectedVersion: 0, text: "x".repeat(2_001) }],
+  ])("rejects %s without mutation", async (_case, input) => {
+    const { store, kernel } = setup();
+    const result = await kernel.execute({
+      name: "save_reflection",
+      actor: "participant",
+      input,
     });
 
     expect(result.ok).toBe(false);
@@ -110,13 +119,28 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load()).toEqual(createEmptyWorkspace());
   });
 
-  it("denies save_reflection outside EXPLORING", () => {
+  it("returns storage failure when a stale-write reread also fails", async () => {
+    const kernel = new CommandKernel(new FailingStaleReloadStore(), environment());
+    const result = await createParticipantCommandAdapter(kernel).saveReflection({
+      operationId: operationOne,
+      expectedVersion: 0,
+      text: "The concurrent after-state cannot be reread.",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "STORAGE_FAILURE", retry: "SAME_OPERATION_ID" },
+      stateVersion: 0,
+    });
+  });
+
+  it("denies save_reflection outside EXPLORING", async () => {
     const testingWorkspace = workspaceSchema.parse({
       ...createEmptyWorkspace(),
       phase: "TESTING",
     });
     const { store, kernel } = setup(testingWorkspace);
-    const result = createParticipantCommandAdapter(kernel).saveReflection({
+    const result = await createParticipantCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "This should not be written in the testing phase.",
@@ -127,16 +151,16 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load().stateVersion).toBe(0);
   });
 
-  it("returns stale-state guidance and changed refs without mutation", () => {
+  it("returns stale-state guidance and changed refs without mutation", async () => {
     const { store, kernel } = setup();
     const adapter = createParticipantCommandAdapter(kernel);
-    adapter.saveReflection({
+    await adapter.saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "First reflection.",
     });
 
-    const stale = adapter.saveReflection({
+    const stale = await adapter.saveReflection({
       operationId: operationTwo,
       expectedVersion: 0,
       text: "A command based on an old read.",
@@ -152,15 +176,15 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load().reflections).toHaveLength(1);
   });
 
-  it("returns the original receipt for a same-intent replay without applying twice", () => {
+  it("returns the original receipt for a same-intent replay without applying twice", async () => {
     const { store, kernel } = setup();
     const adapter = createParticipantCommandAdapter(kernel);
-    const first = adapter.saveReflection({
+    const first = await adapter.saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "Retry-safe reflection.",
     });
-    const replay = adapter.saveReflection({
+    const replay = await adapter.saveReflection({
       operationId: operationOne,
       expectedVersion: 1,
       text: "Retry-safe reflection.",
@@ -174,15 +198,15 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load().operations).toHaveLength(1);
   });
 
-  it("rejects reuse of an operation id for a different intent", () => {
+  it("rejects reuse of an operation id for a different intent", async () => {
     const { store, kernel } = setup();
     const adapter = createParticipantCommandAdapter(kernel);
-    adapter.saveReflection({
+    await adapter.saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "Original intent.",
     });
-    const conflict = adapter.saveReflection({
+    const conflict = await adapter.saveReflection({
       operationId: operationOne,
       expectedVersion: 1,
       text: "Different intent.",
@@ -194,11 +218,11 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load().reflections[0].text).toBe("Original intent.");
   });
 
-  it("reports persistence failure and retains the prior workspace", () => {
+  it("reports persistence failure and retains the prior workspace", async () => {
     const initial = createEmptyWorkspace();
     const store = new FailingSaveStore(initial);
     const kernel = new CommandKernel(store, environment());
-    const result = createParticipantCommandAdapter(kernel).saveReflection({
+    const result = await createParticipantCommandAdapter(kernel).saveReflection({
       operationId: operationOne,
       expectedVersion: 0,
       text: "This write will fail.",
@@ -225,6 +249,29 @@ class FailingSaveStore implements WorkspaceStore {
       "PERSISTENCE_FAILED",
       "Simulated quota failure.",
       this.workspace.stateVersion,
+    );
+  }
+}
+
+class FailingStaleReloadStore implements WorkspaceStore {
+  private loads = 0;
+
+  load(): Workspace {
+    this.loads += 1;
+    if (this.loads > 1) {
+      throw new WorkspaceStoreError(
+        "CORRUPT_WORKSPACE",
+        "Simulated reload failure.",
+      );
+    }
+    return createEmptyWorkspace();
+  }
+
+  save(): void {
+    throw new WorkspaceStoreError(
+      "STALE_WRITE",
+      "Simulated concurrent write.",
+      1,
     );
   }
 }

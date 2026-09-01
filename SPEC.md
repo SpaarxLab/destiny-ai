@@ -397,7 +397,7 @@ Tool handlers are mechanically thin:
 ```ts
 async function executeWebMcpTool(input: unknown) {
   const command = parseToolInput(input);
-  const result = commandKernel.execute(command);
+  const result = await commandKernel.execute(command);
   renderAuthoritativeState(result.stateVersion);
   return toWebMcpResult(result);
 }
@@ -422,7 +422,12 @@ the metaphor must not make the product harder for a distressed or uncertain pers
 
 - Next.js + TypeScript; shared Zod schemas; one client command kernel.
 - One versioned local workspace in localStorage for the challenge MVP.
-- Each accepted command atomically writes the next snapshot and receipt.
+- Each accepted command atomically writes the next snapshot and receipt. Browser writes are
+  serialized across same-origin tabs with the Web Locks API; a command whose expected version
+  became stale while waiting for the lock is denied before persistence.
+- Reading an absent workspace returns the validated initial snapshot without creating an
+  unreceipted persistence write. The first accepted command persists the first authoritative
+  snapshot and receipt together.
 - Startup validates and migrates `schemaVersion`; migration failure preserves the original
   bytes and offers export/reset rather than guessing.
 - Import validates into a preview before replacement.

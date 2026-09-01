@@ -3,10 +3,15 @@ import { WorkspaceStoreError, type WorkspaceStore } from "./workspace-store";
 
 export const LOCAL_WORKSPACE_KEY = "destiny-ai.workspace.v1";
 
+export interface WorkspaceLockManager {
+  request<T>(name: string, callback: () => T | PromiseLike<T>): Promise<T>;
+}
+
 export class LocalWorkspaceStore implements WorkspaceStore {
   constructor(
     private readonly storage: Storage,
     private readonly initialWorkspace: Workspace,
+    private readonly locks: WorkspaceLockManager,
     private readonly key = LOCAL_WORKSPACE_KEY,
   ) {}
 
@@ -14,9 +19,7 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     const raw = this.storage.getItem(this.key);
 
     if (raw === null) {
-      const initial = workspaceSchema.parse(this.initialWorkspace);
-      this.persist(initial);
-      return initial;
+      return workspaceSchema.parse(this.initialWorkspace);
     }
 
     try {
@@ -29,17 +32,19 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     }
   }
 
-  save(expectedVersion: number, nextWorkspace: Workspace): void {
-    const current = this.load();
-    if (current.stateVersion !== expectedVersion) {
-      throw new WorkspaceStoreError(
-        "STALE_WRITE",
-        "The workspace changed before the command could be saved.",
-        current.stateVersion,
-      );
-    }
+  async save(expectedVersion: number, nextWorkspace: Workspace): Promise<void> {
+    await this.locks.request(`${this.key}.write`, async () => {
+      const current = this.load();
+      if (current.stateVersion !== expectedVersion) {
+        throw new WorkspaceStoreError(
+          "STALE_WRITE",
+          "The workspace changed before the command could be saved.",
+          current.stateVersion,
+        );
+      }
 
-    this.persist(workspaceSchema.parse(nextWorkspace));
+      this.persist(workspaceSchema.parse(nextWorkspace));
+    });
   }
 
   private persist(workspace: Workspace): void {

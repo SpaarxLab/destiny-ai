@@ -50,5 +50,7 @@ Built for the OpenAI WebMCP Challenge.
 
 The system contract and foundation plan are approved. One canonical repository now contains
 the plans and the application; the previous nested history is preserved in `RECOVERY.md`.
-Product implementation has not started, but P1 is admitted. Participant testing remains
-blocked until Harsh names the safeguarding reviewer and records five adult commitments.
+P1 Command Spine is implemented on its packet branch and is undergoing integration review.
+It proves one governed `save_reflection` path through the participant UI and deterministic
+test adapter. Participant testing remains blocked until Harsh names the safeguarding reviewer
+and records five adult commitments.
