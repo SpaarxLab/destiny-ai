@@ -227,7 +227,7 @@ describe("P8A native WebMCP foundation", () => {
     );
     expect(workingSet.data?.view).toBe("working_set");
     if (workingSet.data?.view === "working_set") {
-      expect(workingSet.data.reflections).toHaveLength(READ_ENTITY_LIMIT);
+      expect(workingSet.data.entities).toHaveLength(READ_ENTITY_LIMIT);
       expect(workingSet.data.truncated).toBe(true);
     }
 

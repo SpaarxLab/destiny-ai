@@ -2,7 +2,7 @@
 
 **Status:** PROPOSED · **Owner:** Harsh (Lane C)
 **Linear:** SPX-10, child of SPX-8 · **Integration destination:** `main`
-**Depends on:** integrated P3A/P3B and P8A
+**Depends on:** integrated P3A/P3B, P3C bounded route reads, and P8A
 
 ## Operator-visible outcome
 
@@ -58,7 +58,9 @@ data remain unchanged.
 ## Remaining unknowns
 
 Real Chrome/ChatGPT availability and deployed identity belong to P8C. Executing tests, evidence, and
-revision tools belong to P4/P5/P10.
+revision tools belong to P4/P5/P10. P8B still owns `propose_route_set` WebMCP registration, schema
+parity, thin command execution, isolated agent sessions, and the full hard-invariant eval suite;
+P3C proves only the bounded read/readback substrate.
 
 ## Closeout receipt
 
