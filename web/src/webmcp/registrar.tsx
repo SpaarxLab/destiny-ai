@@ -13,11 +13,13 @@ export function WebMcpRegistrar({
   commandAdapter,
   stateVersion,
   onWorkspaceChanged,
+  onWorkspaceSyncError,
 }: {
   reader: WorkspaceReader | null;
   commandAdapter?: WebMcpCommandAdapter | null;
   stateVersion?: number | null;
   onWorkspaceChanged?: (stateVersion: number) => void;
+  onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
 }) {
   const manager = useRef<WebMcpRegistrationManager | null>(null);
   const [state, setState] = useState<WebMcpRegistrationState>({ status: "unsupported" });
@@ -40,6 +42,7 @@ export function WebMcpRegistrar({
     void registration.replace(reader, {
       ...(commandAdapter ? { commandAdapter } : {}),
       ...(onWorkspaceChanged ? { onWorkspaceChanged } : {}),
+      ...(onWorkspaceSyncError ? { onWorkspaceSyncError } : {}),
     }).then((nextState) => {
       if (!cancelled && nextState) setState(nextState);
     });
@@ -48,7 +51,7 @@ export function WebMcpRegistrar({
       cancelled = true;
       registration.stop();
     };
-  }, [commandAdapter, onWorkspaceChanged, reader, stateVersion]);
+  }, [commandAdapter, onWorkspaceChanged, onWorkspaceSyncError, reader, stateVersion]);
 
   const copy = agentStatusCopy(state);
 

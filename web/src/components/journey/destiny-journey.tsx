@@ -133,6 +133,10 @@ export function DestinyJourney() {
     }
   }, []);
 
+  const handleWebMcpWorkspaceSyncError = useCallback(() => {
+    setStatusMessage("Your routes were saved, but this screen could not refresh. Reload to see them.");
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     if (!hasPresentedInitialScreen.current) {
@@ -471,6 +475,7 @@ export function DestinyJourney() {
           <WebMcpRegistrar
             commandAdapter={webMcpAdapter}
             onWorkspaceChanged={handleWebMcpWorkspaceChanged}
+            onWorkspaceSyncError={handleWebMcpWorkspaceSyncError}
             reader={reader}
             stateVersion={workspace?.stateVersion}
           />

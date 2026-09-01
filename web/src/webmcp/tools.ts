@@ -9,6 +9,7 @@ import {
 import type { WebMcpToolDefinition } from "./runtime";
 import {
   canRegisterProposeRouteSet,
+  canRegisterProposeRouteSetReplay,
   createProposeRouteSetTool,
 } from "./tools/propose-route-set";
 
@@ -61,6 +62,9 @@ export function createWebMcpTools(
   options: Readonly<{
     commandAdapter?: WebMcpCommandAdapter;
     onWorkspaceChanged?: (stateVersion: number) => void;
+    onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
+    replayableProposalOperationIds?: ReadonlySet<string>;
+    onProposalCommitted?: (operationId: string) => void;
   }> = {},
 ): readonly WebMcpToolDefinition[] {
   const tools: WebMcpToolDefinition[] = [
@@ -109,11 +113,22 @@ export function createWebMcpTools(
     },
   ];
 
-  if (options.commandAdapter && canRegisterProposeRouteSet(reader)) {
+  const proposalAvailable = canRegisterProposeRouteSet(reader);
+  const replayableOperationIds = options.replayableProposalOperationIds ?? new Set<string>();
+  const proposalReplayAvailable = replayableOperationIds.size > 0 &&
+    canRegisterProposeRouteSetReplay(reader);
+  if (options.commandAdapter && (proposalAvailable || proposalReplayAvailable)) {
     tools.push(createProposeRouteSetTool(
       options.commandAdapter,
+      reader,
       signal,
-      options.onWorkspaceChanged,
+      {
+        replayOnly: !proposalAvailable,
+        replayableOperationIds,
+        onProposalCommitted: options.onProposalCommitted,
+        onWorkspaceChanged: options.onWorkspaceChanged,
+        onWorkspaceSyncError: options.onWorkspaceSyncError,
+      },
     ));
   }
 

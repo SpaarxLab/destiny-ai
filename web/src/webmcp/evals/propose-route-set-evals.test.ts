@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { p3Workspace, validRoutes } from "../../commands/fixtures/p3-route-set";
 import { workspaceSchema } from "../../domain/workspace";
+import { webMcpProposeRouteSetResultSchema } from "../contracts";
 import { createProviderOffEvalContext } from "./provider-off-harness";
 
 const ids = {
@@ -32,6 +33,24 @@ describe("P8B provider-off propose_route_set evals", () => {
       },
       stateVersion: 1,
     });
+    expect(webMcpProposeRouteSetResultSchema.parse(result)).toEqual(result);
+    expect(result).not.toHaveProperty("data.routeSet.availableActions");
+    expect(result).toMatchObject({
+      data: {
+        routeSet: {
+          pendingHumanInteractions: {
+            total: 3,
+            items: [
+              { kind: "REVISE_OR_REJECT_ROUTE_SET" },
+              { kind: "CHOOSE_ROUTE" },
+              { kind: "RESOLVE_ROUTE_SET" },
+            ],
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('"actor":"participant"');
+    expect(JSON.stringify(result)).not.toContain('"requestIdentity"');
     expect(context.store.load().routeProposalSets[0].routes.map((route) =>
       route.sourceQuotes[0].reflectionRef)).toEqual([
       "reflection-grounded",
@@ -166,6 +185,21 @@ describe("P8B provider-off propose_route_set evals", () => {
     await context.discover();
     const first = await context.runtime.invoke("propose_route_set", routeInput());
 
+    const stale = await context.runtime.invoke("propose_route_set", {
+      ...routeInput(ids.retry),
+      expectedVersion: 0,
+      supersedesRouteSetRef: "route-set-1",
+    });
+    expect(stale).toMatchObject({
+      ok: false,
+      error: { code: "STALE_STATE", retry: "REREAD_THEN_NEW_OPERATION" },
+      stateVersion: 1,
+    });
+
+    const cachedBeforeReplacement = context.runtime.cached("propose_route_set");
+    await context.discover();
+    expect(context.runtime.activeToolNames()).toContain("propose_route_set");
+
     const replay = await context.runtime.invoke("propose_route_set", routeInput());
     expect(replay).toMatchObject({
       ok: true,
@@ -174,6 +208,25 @@ describe("P8B provider-off propose_route_set evals", () => {
       guidance: expect.stringContaining("Replay detected"),
     });
     expect(context.store.load().stateVersion).toBe(1);
+
+    const staleRegistration = await cachedBeforeReplacement.execute(routeInput());
+    expect(webMcpProposeRouteSetResultSchema.parse(staleRegistration)).toEqual(staleRegistration);
+    expect(staleRegistration).toMatchObject({
+      ok: false,
+      error: { code: "STALE_REGISTRATION", retry: "NEVER" },
+    });
+
+    const deniedNewProposal = await context.runtime.invoke("propose_route_set", {
+      ...routeInput(ids.retry),
+      expectedVersion: 1,
+      supersedesRouteSetRef: "route-set-1",
+    });
+    expect(deniedNewProposal).toMatchObject({
+      ok: false,
+      error: { code: "WRONG_LIFECYCLE", retry: "NEVER" },
+      stateVersion: 1,
+    });
+    expect(context.store.load().routeProposalSets).toHaveLength(1);
 
     const conflictRoutes = validRoutes();
     conflictRoutes[0].title = "Different intent under a reused operation id";
@@ -187,17 +240,42 @@ describe("P8B provider-off propose_route_set evals", () => {
       stateVersion: 1,
     });
 
-    const stale = await context.runtime.invoke("propose_route_set", {
-      ...routeInput(ids.retry),
-      expectedVersion: 0,
-      supersedesRouteSetRef: "route-set-1",
+    expect(context.store.load().routeProposalSets).toHaveLength(1);
+    context.store.replace(workspaceSchema.parse({
+      ...context.store.load(),
+      phase: "TESTING",
+    }));
+    await context.discover();
+    expect(context.runtime.activeToolNames()).not.toContain("propose_route_set");
+  });
+
+  it("returns the committed receipt when visible workspace synchronization throws", async () => {
+    const context = createProviderOffEvalContext(p3Workspace());
+    const syncErrors: Array<{ error: unknown; stateVersion: number }> = [];
+    await context.manager.replace(context.reader, {
+      commandAdapter: context.webMcpAdapter,
+      onWorkspaceChanged: () => {
+        throw new Error("simulated projection refresh failure");
+      },
+      onWorkspaceSyncError: (error, stateVersion) => {
+        syncErrors.push({ error, stateVersion });
+      },
     });
-    expect(stale).toMatchObject({
-      ok: false,
-      error: { code: "STALE_STATE", retry: "REREAD_THEN_NEW_OPERATION" },
+
+    const result = await context.runtime.invoke("propose_route_set", routeInput());
+
+    expect(result).toMatchObject({
+      ok: true,
+      receipt: { operationId: ids.routes, afterVersion: 1 },
       stateVersion: 1,
     });
+    expect(context.store.load().stateVersion).toBe(1);
     expect(context.store.load().routeProposalSets).toHaveLength(1);
+    expect(syncErrors).toHaveLength(1);
+    expect(syncErrors[0]).toMatchObject({ stateVersion: 1 });
+    expect(syncErrors[0].error).toEqual(
+      new Error("simulated projection refresh failure"),
+    );
   });
 
   it("rechecks cached invocations against live phase and lifecycle authority", async () => {

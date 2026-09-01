@@ -74,12 +74,24 @@ describe("P8B WebMCP catalogue audit", () => {
     expect(unresolved.runtime.activeToolNames()).toEqual([
       "read_workspace",
       "get_method_guide",
+      "propose_route_set",
     ]);
-    await expect(invokeOnlyIfAvailable(
+    const deniedNewProposal = await invokeOnlyIfAvailable(
       unresolved.runtime,
       "propose_route_set",
-      { operationId: "00000000-0000-4000-8000-000000008002" },
-    )).resolves.toEqual({ invoked: false });
+      {
+        operationId: "00000000-0000-4000-8000-000000008002",
+        expectedVersion: 1,
+        outcome: "routes",
+        routes: validRoutes(),
+        supersedesRouteSetRef: "route-set-1",
+      },
+    );
+    expect(deniedNewProposal).toMatchObject({
+      invoked: true,
+      result: { ok: false, error: { code: "WRONG_LIFECYCLE" }, stateVersion: 1 },
+    });
+    expect(unresolved.store.load().routeProposalSets).toHaveLength(1);
   });
 });
 

@@ -14,6 +14,7 @@ type WebMcpRegistrationOutcome = WebMcpRegistrationState | null;
 export class WebMcpRegistrationManager {
   private activeController: AbortController | null = null;
   private generation = 0;
+  private readonly replayableProposalOperationIds = new Set<string>();
 
   constructor(
     private readonly resolveRuntime: RuntimeResolver = () => detectModelContext(),
@@ -24,6 +25,7 @@ export class WebMcpRegistrationManager {
     options: Readonly<{
       commandAdapter?: WebMcpCommandAdapter;
       onWorkspaceChanged?: (stateVersion: number) => void;
+      onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
     }> = {},
   ): Promise<WebMcpRegistrationOutcome> {
     const generation = ++this.generation;
@@ -33,7 +35,14 @@ export class WebMcpRegistrationManager {
 
     const controller = new AbortController();
     this.activeController = controller;
-    const tools = createWebMcpTools(reader, controller.signal, options);
+    const tools = createWebMcpTools(reader, controller.signal, {
+      ...options,
+      replayableProposalOperationIds: this.replayableProposalOperationIds,
+      onProposalCommitted: (operationId) => {
+        this.replayableProposalOperationIds.clear();
+        this.replayableProposalOperationIds.add(operationId);
+      },
+    });
 
     try {
       await Promise.all(

@@ -34,6 +34,11 @@ repairs and chooses one through the UI; ChatGPT rereads and accurately reports t
 - insufficient signal returns a focused follow-up without mutation;
 - participant-authored strings remain untrusted content, never instructions to the agent;
 - registration filters by page/phase, while the command kernel rechecks cached invocations;
+- a WebMCP-authored unresolved proposal keeps an exact-replay path to its original receipt while
+  the kernel denies new proposal intents;
+- public write results are strictly runtime-validated, expose only agent affordances, and preserve
+  participant decisions as pending human interactions;
+- visible-workspace refresh failures are surfaced separately and never hide a committed receipt;
 - unsupported WebMCP leaves the human journey complete;
 - no inference provider, send tool, hidden memory, permission earning, or second writer.
 
