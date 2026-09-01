@@ -64,47 +64,13 @@ export class CommandKernel {
 
     const command = parsed.data;
     const requestIdentity = reflectionRequestIdentity(command);
-    const existing = workspace.operations.find(
-      (operation) => operation.operationId === command.input.operationId,
+    const priorOperation = this.priorOperationResult(
+      workspace,
+      command.input.operationId,
+      requestIdentity,
     );
-
-    if (existing) {
-      if (existing.requestIdentity !== requestIdentity) {
-        return {
-          ok: false,
-          error: {
-            code: "OPERATION_CONFLICT",
-            what: "This operationId already belongs to a different command intent.",
-            retry: "NEVER",
-            insteadDo: "Use a new operationId for the new intended effect.",
-            changedRefs: existing.changedRefs,
-          },
-          nextActions: availableActions(workspace),
-          stateVersion: workspace.stateVersion,
-          guidance: "The existing operation was preserved and no state changed.",
-        };
-      }
-
-      const reflection = reflectionFromReceipt(workspace, existing);
-      if (!reflection) {
-        return this.storageFailure(
-          new WorkspaceStoreError(
-            "CORRUPT_WORKSPACE",
-            "The replay receipt no longer points to its reflection.",
-            workspace.stateVersion,
-          ),
-          workspace.stateVersion,
-        );
-      }
-
-      return {
-        ok: true,
-        data: { reflection },
-        receipt: publicReceipt(existing),
-        nextActions: availableActions(workspace),
-        stateVersion: workspace.stateVersion,
-        guidance: "Replay detected. The original receipt was returned without a new effect.",
-      };
+    if (priorOperation) {
+      return priorOperation;
     }
 
     if (command.input.expectedVersion !== workspace.stateVersion) {
@@ -160,13 +126,18 @@ export class CommandKernel {
       await this.store.save(workspace.stateVersion, nextWorkspace);
     } catch (error) {
       if (error instanceof WorkspaceStoreError && error.code === "STALE_WRITE") {
-        let current = workspace;
+        let current: Workspace;
         try {
           current = this.store.load();
-        } catch {
-          // The original workspace still provides a safe typed response.
+        } catch (reloadError) {
+          return this.storageFailure(reloadError, workspace.stateVersion);
         }
-        return staleResult(current, command.input.expectedVersion);
+        const concurrentOperation = this.priorOperationResult(
+          current,
+          command.input.operationId,
+          requestIdentity,
+        );
+        return concurrentOperation ?? staleResult(current, command.input.expectedVersion);
       }
 
       return this.storageFailure(error, workspace.stateVersion);
@@ -200,6 +171,56 @@ export class CommandKernel {
       nextActions: [],
       stateVersion,
       guidance: "Storage did not confirm a new authoritative state.",
+    };
+  }
+
+  private priorOperationResult(
+    workspace: Workspace,
+    operationId: string,
+    requestIdentity: string,
+  ): SaveReflectionResult | null {
+    const existing = workspace.operations.find(
+      (operation) => operation.operationId === operationId,
+    );
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.requestIdentity !== requestIdentity) {
+      return {
+        ok: false,
+        error: {
+          code: "OPERATION_CONFLICT",
+          what: "This operationId already belongs to a different command intent.",
+          retry: "NEVER",
+          insteadDo: "Use a new operationId for the new intended effect.",
+          changedRefs: existing.changedRefs,
+        },
+        nextActions: availableActions(workspace),
+        stateVersion: workspace.stateVersion,
+        guidance: "The existing operation was preserved and no state changed.",
+      };
+    }
+
+    const reflection = reflectionFromReceipt(workspace, existing);
+    if (!reflection) {
+      return this.storageFailure(
+        new WorkspaceStoreError(
+          "CORRUPT_WORKSPACE",
+          "The replay receipt no longer points to its reflection.",
+          workspace.stateVersion,
+        ),
+        workspace.stateVersion,
+      );
+    }
+
+    return {
+      ok: true,
+      data: { reflection },
+      receipt: publicReceipt(existing),
+      nextActions: availableActions(workspace),
+      stateVersion: workspace.stateVersion,
+      guidance: "Replay detected. The original receipt was returned without a new effect.",
     };
   }
 }

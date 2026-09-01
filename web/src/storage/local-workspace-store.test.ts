@@ -58,6 +58,87 @@ describe("LocalWorkspaceStore", () => {
     expect(workspace.operations).toHaveLength(1);
   });
 
+  it("returns the original receipt when two tabs concurrently retry one operation", async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLockManager();
+    const firstStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const secondStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const input = {
+      operationId: operationOne,
+      expectedVersion: 0,
+      text: "One retry-safe write from two tabs.",
+    };
+
+    const [firstResult, secondResult] = await Promise.all([
+      createParticipantCommandAdapter(new CommandKernel(firstStore)).saveReflection(input),
+      createParticipantCommandAdapter(new CommandKernel(secondStore)).saveReflection(input),
+    ]);
+
+    expect(firstResult.ok).toBe(true);
+    expect(secondResult.ok).toBe(true);
+    expect(secondResult.receipt).toEqual(firstResult.receipt);
+    expect([firstResult.guidance, secondResult.guidance]).toContain(
+      "Replay detected. The original receipt was returned without a new effect.",
+    );
+    expect(firstStore.load().reflections).toHaveLength(1);
+    expect(firstStore.load().operations).toHaveLength(1);
+  });
+
+  it("returns an operation conflict when two tabs reuse one id for different intent", async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLockManager();
+    const firstStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+    const secondStore = new LocalWorkspaceStore(storage, createEmptyWorkspace(), locks);
+
+    const results = await Promise.all([
+      createParticipantCommandAdapter(new CommandKernel(firstStore)).saveReflection({
+        operationId: operationOne,
+        expectedVersion: 0,
+        text: "Intent from tab one.",
+      }),
+      createParticipantCommandAdapter(new CommandKernel(secondStore)).saveReflection({
+        operationId: operationOne,
+        expectedVersion: 0,
+        text: "Different intent from tab two.",
+      }),
+    ]);
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.find((result) => !result.ok)?.error).toMatchObject({
+      code: "OPERATION_CONFLICT",
+      retry: "NEVER",
+    });
+    expect(firstStore.load().reflections).toHaveLength(1);
+    expect(firstStore.load().operations).toHaveLength(1);
+  });
+
+  it("preserves corrupt bytes and returns a typed storage failure", async () => {
+    const storage = new MemoryStorage();
+    const corruptBytes = "{not-json";
+    storage.setItem(LOCAL_WORKSPACE_KEY, corruptBytes);
+    const store = new LocalWorkspaceStore(
+      storage,
+      createEmptyWorkspace(),
+      new SerialLockManager(),
+    );
+
+    expect(() => store.load()).toThrowError(/original bytes were preserved/i);
+    const result = await createParticipantCommandAdapter(
+      new CommandKernel(store),
+    ).saveReflection({
+      operationId: operationOne,
+      expectedVersion: 0,
+      text: "This must not overwrite corrupt storage.",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "STORAGE_FAILURE", retry: "SAME_OPERATION_ID" },
+      stateVersion: 0,
+    });
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(corruptBytes);
+  });
+
   it("returns a typed storage failure when the browser lock cannot be acquired", async () => {
     const storage = new MemoryStorage();
     const store = new LocalWorkspaceStore(

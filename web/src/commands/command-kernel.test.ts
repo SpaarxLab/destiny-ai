@@ -92,22 +92,46 @@ describe("P1 save_reflection command spine", () => {
     expect(store.load().stateVersion).toBe(1);
   });
 
-  it("rejects malformed and extra fields without mutation", async () => {
+  it.each([
+    ["empty text", { operationId: operationOne, expectedVersion: 0, text: "" }],
+    [
+      "unknown fields",
+      {
+        operationId: operationOne,
+        expectedVersion: 0,
+        text: "Valid text.",
+        hiddenWrite: true,
+      },
+    ],
+    ["invalid operation id", { operationId: "not-a-uuid", expectedVersion: 0, text: "Valid text." }],
+    ["negative version", { operationId: operationOne, expectedVersion: -1, text: "Valid text." }],
+    ["oversized text", { operationId: operationOne, expectedVersion: 0, text: "x".repeat(2_001) }],
+  ])("rejects %s without mutation", async (_case, input) => {
     const { store, kernel } = setup();
     const result = await kernel.execute({
       name: "save_reflection",
       actor: "participant",
-      input: {
-        operationId: operationOne,
-        expectedVersion: 0,
-        text: "",
-        hiddenWrite: true,
-      },
+      input,
     });
 
     expect(result.ok).toBe(false);
     expect(result.error?.code).toBe("MALFORMED_INPUT");
     expect(store.load()).toEqual(createEmptyWorkspace());
+  });
+
+  it("returns storage failure when a stale-write reread also fails", async () => {
+    const kernel = new CommandKernel(new FailingStaleReloadStore(), environment());
+    const result = await createParticipantCommandAdapter(kernel).saveReflection({
+      operationId: operationOne,
+      expectedVersion: 0,
+      text: "The concurrent after-state cannot be reread.",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "STORAGE_FAILURE", retry: "SAME_OPERATION_ID" },
+      stateVersion: 0,
+    });
   });
 
   it("denies save_reflection outside EXPLORING", async () => {
@@ -225,6 +249,29 @@ class FailingSaveStore implements WorkspaceStore {
       "PERSISTENCE_FAILED",
       "Simulated quota failure.",
       this.workspace.stateVersion,
+    );
+  }
+}
+
+class FailingStaleReloadStore implements WorkspaceStore {
+  private loads = 0;
+
+  load(): Workspace {
+    this.loads += 1;
+    if (this.loads > 1) {
+      throw new WorkspaceStoreError(
+        "CORRUPT_WORKSPACE",
+        "Simulated reload failure.",
+      );
+    }
+    return createEmptyWorkspace();
+  }
+
+  save(): void {
+    throw new WorkspaceStoreError(
+      "STALE_WRITE",
+      "Simulated concurrent write.",
+      1,
     );
   }
 }
