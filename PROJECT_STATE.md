@@ -16,8 +16,9 @@
   SpaarxLab repository; default branch `main`; Harsh has admin access. Remote candidate
   `aee041473064b2a476ef97e7ea85768d84d36f5f` was pushed successfully and passed GitHub
   Actions CI in run `33497218996`.
-- **Phase:** P0A integrated; P0B admits product implementation. P1 is ready but has not
-  started. Participant testing remains blocked on reviewer approval and recruitment.
+- **Phase:** P0A integrated; P0B admits product implementation. P1 Command Spine is active on
+  `codex/p1-command-spine`. Participant testing remains blocked on reviewer approval and
+  recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
   board/collaboration); Harsh = product authority, integration captain, and Lane C
   (agent/evals/runtime).
@@ -26,11 +27,13 @@
   without granting repository admin or organization-owner authority.
 - **Next decision:** Harsh names the qualified safeguarding reviewer and records five adult
   participant commitments before participant testing.
-- **Last verified evidence:** P0A packet receipt: old bundle verified complete; root baseline
-  committed; `web/npm run check` passed ESLint, TypeScript, and Next.js production build;
-  the private GitHub remote and pushed SHA were read back; GitHub Actions run `33497218996`
-  passed on that exact candidate. This is foundation/static proof—not live WebMCP, deployed,
-  participant, or submission proof.
+- **Last verified evidence:** on the uncommitted `codex/p1-command-spine` working tree based at
+  `045af62322fbd1c2816b2da06eb7cf6815361c88`, Node 24 `web/npm run check` passed 9 focused
+  command tests, ESLint, generated route types, TypeScript, and the Next.js production build.
+  A local production-browser journey saved one participant reflection and rendered one
+  `APPLIED` receipt with state version `0 -> 1`; browser error logs were empty. P0A remote CI
+  evidence remains GitHub Actions run `33497218996`. This is local/static journey proof—not
+  live WebMCP, deployed, participant, integration, or submission proof.
 - **Supersedes:** whiteboard sketches (red architecture / green 8-agent boards) and all
   pre-2026-09-01 brainstorm framings, including the original "student reflection + 7-day
   plan" MVP and the 8-internal-agents concept.

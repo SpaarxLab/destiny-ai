@@ -173,13 +173,20 @@ interface Workspace {
   planItems: PlanItem[];
   outbox: OutreachDraft[];
   teachings: HumanTeaching[];
-  operations: OperationReceipt[];
+  operations: OperationRecord[];
 }
 
 interface AgentAddressable {
   id: string;
   ref: string;
   availableActions: AvailableAction[];
+}
+
+interface Reflection extends AgentAddressable {
+  status: 'proposed' | 'confirmed';
+  text: string;
+  recordedBy: 'participant' | 'agent_transcribed';
+  createdAt: string;
 }
 
 interface Hypothesis extends AgentAddressable {
@@ -228,11 +235,17 @@ interface OperationReceipt {
   at: string;
   compensatesOperationRef?: string;
 }
+
+interface OperationRecord extends OperationReceipt {
+  requestIdentity: string; // internal canonical intent used for replay-conflict checks
+}
 ```
 
 The workspace snapshot is canonical for current state. Operation receipts are canonical for
-what happened. Orientation, counts, “story so far,” and collaboration patterns are
-deterministic projections and can always be rebuilt.
+what happened. A stored operation record adds the canonical request identity needed to
+distinguish a retry from reuse of an operation id for a different intent; that internal value
+is not returned in the public receipt. Orientation, counts, “story so far,” and collaboration
+patterns are deterministic projections and can always be rebuilt.
 
 ## 8. Agent driver's-seat contract
 
