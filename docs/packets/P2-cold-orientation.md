@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE — implementation complete; integration blocked on P1
 **Owner:** Devarsh (Lane A), with Harsh (Lane C) required for integration/runtime review
-**Branch/worktree:** `codex/p2-cold-orientation` in the current canonical checkout
+**Branch/worktree:** `codex/spx-2-cold-orientation` in the current canonical checkout
 **Integration destination:** `main`, only after P1 PR #1 merges
 **Depends on:** P1 commit `44acf7d` and https://github.com/SpaarxLab/destiny-ai/pull/1
 
@@ -66,7 +66,7 @@ one unit. P2 is read-only and creates no state requiring compensation.
 
 ## Closeout receipt
 
-- branch/implementation SHA: `codex/p2-cold-orientation` /
+- branch/implementation SHA: `codex/spx-2-cold-orientation` /
   `eff533e234e48c8774216ff9aaba9ecd4b0af778`
 - verified: Node 24 `npm run check`; 16 focused P1/P2 tests; three golden orientation
   fixtures; strict input/output schemas; cursor isolation; public delta; malformed and invalid

@@ -20,7 +20,7 @@
   `codex/p1-command-spine` with [PR #1](https://github.com/SpaarxLab/destiny-ai/pull/1)
   open against `main`. P1 is `In Progress` on the Linear delivery board with a 4 September
   due date. P2 Cold Orientation is active locally on dependency-closed branch
-  `codex/p2-cold-orientation`, stacked on P1, and remains blocked from integration until P1
+  `codex/spx-2-cold-orientation`, stacked on P1, and remains blocked from integration until P1
   merges; SPX-2 still requires its Linear status/evidence update. Participant testing remains
   blocked on reviewer approval and recruitment.
 - **Owner:** Devarsh = Lane A (domain/commands/persistence); Tirth = Lane B (human
