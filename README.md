@@ -66,7 +66,7 @@ cd web
 npm ci
 npm run dev                 # http://localhost:3000
 npm run check               # vitest, eslint, typecheck, production build
-npx playwright test tests/journey.spec.ts
+npm run test:browser        # journey plus browser-context isolation
 npx playwright test -c playwright.live.config.ts   # real Google Chrome with WebMCP enabled; requires Chrome installed
 ```
 
@@ -89,6 +89,9 @@ LAB_ASSISTANT_LABEL=Lab assistant
 "Ask the lab assistant" only when enabled and sends your confirmed words only after you tick the
 consent sentence. The server drafts, checks the draft against your words and limits, and returns
 it; your browser submits it through the same command kernel as ChatGPT's proposals.
+
+Keep the provider disabled on a public deployment unless the endpoint is behind authenticated,
+rate-limited infrastructure. The candidate and every WebMCP path work with it disabled.
 
 ## Where things live
 

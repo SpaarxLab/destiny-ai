@@ -31,7 +31,7 @@ status. A task is not complete because a ticket says so; its packet and PR must 
 | P0A, P1, P2 (command spine, cold orientation) | integrated | `main` (PR #1, PR #2) |
 | P3A route domain, P3B journey, P3C route projections, P8A WebMCP reads | integrated | `main` (PR #5-#8) |
 | P8B `propose_route_set` WebMCP write tool and evals | committed, not integrated | `codex/spx-10-p8b` (`945ff0f`, `44fcf23`) |
-| P11 candidate v2 (D-015): follow-up questions, replace-what-you-set-aside, limits and reopen commands, declarative draft form, rebuilt Route Room, activity and agent view, embedded lab assistant, simulator, real-Chrome suite | committed at `4b25498` (code) with docs following in the next commit | `codex/spx-18-candidate-v2` |
+| P11 candidate v2 (D-015): follow-up questions, replace-what-you-set-aside, limits and reopen commands, declarative draft form, rebuilt Route Room, activity and agent view, embedded lab assistant, simulator, real-Chrome suite | application candidate `7909cc7` after five-reviewer landing fixes; evidence docs follow on the same branch | `codex/spx-18-candidate-v2` |
 
 ## Accepted experience
 
@@ -49,11 +49,12 @@ status. A task is not complete because a ticket says so; its packet and PR must 
 All local, on the worktree above, with no inference provider configured:
 
 - `npx tsc --noEmit`: clean.
-- `npx vitest run`: 14 files, 180 tests pass (domain, kernel, storage, reader, adapters, WebMCP
+- `npx vitest run`: 14 files, 182 tests pass (domain, kernel, storage, reader, adapters, WebMCP
   contracts and evals, inference provider-off suite, simulator, journey state).
 - `npx eslint .`: clean.
-- `npx playwright test tests/journey.spec.ts`: 10 passed (human path, manual drafts, edit/set
-  aside/choose/reopen, start over, agent view, keyboard, 390px matrix, simulated visiting agent).
+- `npm run test:browser`: 11 passed (human path, manual drafts, edit/set aside/choose/reopen,
+  serialized start over, agent view focus/Escape, keyboard, 390px matrix, simulated visiting agent,
+  and isolated browser contexts).
 - Real Google Chrome 152 with the `enable-webmcp-testing` flag persisted in a throwaway profile:
   `document.modelContext` is present with `registerTool`, `getTools`, `executeTool`, `ontoolchange`;
   `executeTool` returns our results as JSON strings; declarative `<form toolname>` tools are

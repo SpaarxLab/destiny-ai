@@ -1,12 +1,14 @@
 # P11 local proof receipt
 
-Candidate: branch `codex/spx-18-candidate-v2`, commit `4b25498`, worktree
-`/Users/harsh/.codex/worktrees/fbf7/career-lab`, Node 24.14.1, npm 10.9.8, Google Chrome 152.0.7977.65.
+Application candidate: branch `codex/spx-18-candidate-v2`, code commit `7909cc7`, verified in the
+isolated landing worktree `/Users/harsh/.codex/worktrees/spx18-review/career-lab`, Node 24.14.1,
+npm 10.9.8, Google Chrome 152.0.7977.65. This receipt is the documentation commit immediately on
+top of that application candidate.
 
 | Command (from `web/`) | Result |
 |---|---|
-| `npm run check` | vitest 14 files / 180 tests pass; eslint clean; `next typegen && tsc --noEmit` clean; `next build` ok (`/` static, `/api/lab-assistant/*` dynamic) |
-| `npx playwright test tests/journey.spec.ts` | 10 passed (Chromium, fake `document.modelContext` injected for the agent story) |
+| `npm run check` | vitest 14 files / 182 tests pass; eslint clean; `next typegen && tsc --noEmit` clean; `next build` ok (`/` static, `/api/lab-assistant/*` dynamic) |
+| `npm run test:browser` | 11 passed (10 journey cases plus browser-context isolation; Chromium, fake `document.modelContext` injected for the agent story) |
 | `npx playwright test -c playwright.live.config.ts` | 6 passed in real Chrome with the `enable-webmcp-testing` flag persisted in a temporary profile |
 
 ## What the real-Chrome suite proves
@@ -14,7 +16,7 @@ Candidate: branch `codex/spx-18-candidate-v2`, commit `4b25498`, worktree
 All agent steps go through `document.modelContext.getTools()` and `executeTool()` in the browser's
 own WebMCP implementation; all human steps are Playwright clicks on the rendered page.
 
-1. First load registers read tools only; the badge reports the connection.
+1. First load registers read tools only; the badge reports browser capability without claiming that ChatGPT has connected.
 2. `read_workspace` and `get_method_guide` return typed envelopes (serialized as JSON strings by Chrome).
 3. The declarative `draft_words` form receives `respondWith` on an agent-invoked submit
    (`event.agentInvoked === true`), stages the text, and does not save; the human confirms.
