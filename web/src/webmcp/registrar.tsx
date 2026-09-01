@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { WorkspaceReader } from "../projections/workspace-reader";
 import {
   WebMcpRegistrationManager,
   type WebMcpRegistrationState,
 } from "./lifecycle";
 
-export function WebMcpRegistrar({ reader }: { reader: WorkspaceReader | null }) {
+export function WebMcpRegistrar({
+  reader,
+  commandAdapter,
+  stateVersion,
+  onWorkspaceChanged,
+}: {
+  reader: WorkspaceReader | null;
+  commandAdapter?: WebMcpCommandAdapter | null;
+  stateVersion?: number | null;
+  onWorkspaceChanged?: (stateVersion: number) => void;
+}) {
   const manager = useRef<WebMcpRegistrationManager | null>(null);
   const [state, setState] = useState<WebMcpRegistrationState>({ status: "unsupported" });
 
@@ -26,7 +37,10 @@ export function WebMcpRegistrar({ reader }: { reader: WorkspaceReader | null }) 
       };
     }
 
-    void registration.replace(reader).then((nextState) => {
+    void registration.replace(reader, {
+      ...(commandAdapter ? { commandAdapter } : {}),
+      ...(onWorkspaceChanged ? { onWorkspaceChanged } : {}),
+    }).then((nextState) => {
       if (!cancelled && nextState) setState(nextState);
     });
 
@@ -34,7 +48,7 @@ export function WebMcpRegistrar({ reader }: { reader: WorkspaceReader | null }) 
       cancelled = true;
       registration.stop();
     };
-  }, [reader]);
+  }, [commandAdapter, onWorkspaceChanged, reader, stateVersion]);
 
   const copy = agentStatusCopy(state);
 

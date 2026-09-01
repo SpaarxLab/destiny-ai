@@ -1,4 +1,5 @@
 import type { ReadWorkspaceInput } from "../domain/reads";
+import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { WorkspaceReader } from "../projections/workspace-reader";
 import {
   getMethodGuide,
@@ -6,6 +7,10 @@ import {
   webMcpReadWorkspaceResultSchema,
 } from "./contracts";
 import type { WebMcpToolDefinition } from "./runtime";
+import {
+  canRegisterProposeRouteSet,
+  createProposeRouteSetTool,
+} from "./tools/propose-route-set";
 
 export const READ_WORKSPACE_INPUT_SCHEMA = {
   oneOf: [
@@ -53,8 +58,12 @@ const EMPTY_INPUT_SCHEMA = {
 export function createWebMcpTools(
   reader: WorkspaceReader,
   signal: AbortSignal,
+  options: Readonly<{
+    commandAdapter?: WebMcpCommandAdapter;
+    onWorkspaceChanged?: (stateVersion: number) => void;
+  }> = {},
 ): readonly WebMcpToolDefinition[] {
-  return [
+  const tools: WebMcpToolDefinition[] = [
     {
       name: "read_workspace",
       description:
@@ -99,6 +108,16 @@ export function createWebMcpTools(
       },
     },
   ];
+
+  if (options.commandAdapter && canRegisterProposeRouteSet(reader)) {
+    tools.push(createProposeRouteSetTool(
+      options.commandAdapter,
+      signal,
+      options.onWorkspaceChanged,
+    ));
+  }
+
+  return tools;
 }
 
 function isEmptyRecord(value: unknown): value is Record<string, never> {

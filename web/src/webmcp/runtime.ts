@@ -5,8 +5,8 @@ export interface WebMcpToolDefinition {
   description: string;
   inputSchema: JsonSchema;
   annotations: Readonly<{
-    readOnlyHint: true;
-    untrustedContentHint?: true;
+    readOnlyHint: boolean;
+    untrustedContentHint?: boolean;
   }>;
   execute(input: unknown): unknown | Promise<unknown>;
 }
