@@ -1,9 +1,9 @@
 # Packet P2 — Cold Orientation
 
-**Status:** ACCEPTED CANDIDATE — dependency-ordered landing in progress
+**Status:** INTEGRATED — PR #2 merged to `main`
 **Owner:** Devarsh (Lane A), with Harsh (Lane C) required for integration/runtime review
 **Branch/worktree:** `codex/spx-2-cold-orientation` in the current canonical checkout
-**Integration destination:** `main`, only after P1 PR #1 merges
+**Integration destination:** `main` (merged as `f7dea24438d8bc534d4fb636fe957003d41be0b4`)
 **Depends on:** P1 commit `94898ce0c2d0042af837dca9a00d2ed34694023d` and https://github.com/SpaarxLab/destiny-ai/pull/1
 **Pull request:** https://github.com/SpaarxLab/destiny-ai/pull/2 (stacked review base:
 `codex/p1-command-spine`)
@@ -17,9 +17,9 @@ next action in one deterministic bounded read. The same projection is legible in
 
 - P0A is integrated and P0B admits product implementation;
 - P1 implementation, denial, replay, receipt, persistence, and browser proof passed;
-- P1 PR #1 is open against `main`, but is not yet integrated;
-- this branch contains the complete P1 head, so implementation is dependency-closed;
-- P2 integration remains blocked until P1 merges and Harsh reviews Lane C/runtime concerns.
+- P1 PR #1 merged to `main` before P2 was retargeted;
+- the P2 head contains the complete accepted P1 head and remained dependency-closed;
+- Harsh and independent correctness/test reviewers accepted the exact P2 candidate.
 
 ## Scope and owned paths
 
@@ -70,7 +70,7 @@ one unit. P2 is read-only and creates no state requiring compensation.
 ## Closeout receipt
 
 - branch/code-review SHA: `codex/spx-2-cold-orientation` /
-  `690c1642f9d0a6927e686750ac52f8d7a2f803f7`
+  `61e5bc686425c5334b36ec4e1819006eb8d516ad`
 - verified: Node 24 `npm run check`; focused P1/P2 tests; three golden orientation
   fixtures; strict input/output schemas; cursor isolation; public delta; malformed and invalid
   cursor denial; bounded working-set/entity reads; no ledger/request identity; no mutation or
@@ -78,10 +78,10 @@ one unit. P2 is read-only and creates no state requiring compensation.
 - browser proof: production journey rendered the P2 handoff, applied one participant
   reflection, and advanced both authoritative state and orientation cursor from `v1` to `v2`;
   proof remained `PARTICIPANT_CONFIRMED` and browser warning/error logs were empty
-- unverified: live WebMCP, deployed runtime, participants, `main` integration, release
+- unverified: live WebMCP, deployed runtime, participants, release
   candidate, and cold-agent model eval; Linear SPX-2 is `In Review` with PR #2 attached
 - review state: P1 `94898ce0c2d0042af837dca9a00d2ed34694023d` is preserved as an
   ancestor; correctness and test reviewers accepted the reconciled candidate after bounded,
   recoverable pagination fixes
-- disposition: `ACCEPTED` — land P1 with a merge commit, retarget PR #2 to `main`, verify the
-  exact P2 head, then land P2 with a merge commit
+- disposition: `INTEGRATED` — exact-head CI passed in run `33506297045`; P2 head is reachable
+  from `main`; P3 is admitted next
