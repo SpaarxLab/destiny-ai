@@ -1,7 +1,9 @@
 import type {
   AvailableAction,
+  Hypothesis,
   OperationReceipt,
   Reflection,
+  RouteProposalSet,
 } from "./workspace";
 
 export type RetryInstruction =
@@ -11,7 +13,12 @@ export type RetryInstruction =
 
 export type CommandErrorCode =
   | "MALFORMED_INPUT"
+  | "INSUFFICIENT_SIGNAL"
+  | "WRONG_ACTOR"
   | "WRONG_PHASE"
+  | "WRONG_LIFECYCLE"
+  | "UNKNOWN_REF"
+  | "POLICY_DENIED"
   | "STALE_STATE"
   | "OPERATION_CONFLICT"
   | "INVALID_CURSOR"
@@ -37,3 +44,26 @@ export interface ToolResult<T> {
 }
 
 export type SaveReflectionResult = ToolResult<{ reflection: Reflection }>;
+
+export type ProposeRouteSetResult = ToolResult<{
+  routeSet?: RouteProposalSet;
+  outcome: "routes" | "insufficient_signal";
+  followUpQuestion?: string;
+  reasonRefs?: string[];
+}>;
+
+export type ReviseRouteSetResult = ToolResult<{ routeSet: RouteProposalSet }>;
+
+export type ChooseRouteResult = ToolResult<{
+  routeSet: RouteProposalSet;
+  hypothesis: Hypothesis;
+}>;
+
+export type CompensateRouteSetResult = ToolResult<{ routeSet: RouteProposalSet }>;
+
+export type CommandResult =
+  | SaveReflectionResult
+  | ProposeRouteSetResult
+  | ReviseRouteSetResult
+  | ChooseRouteResult
+  | CompensateRouteSetResult;

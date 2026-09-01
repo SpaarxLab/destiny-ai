@@ -1,4 +1,14 @@
-import { workspaceSchema, type Workspace } from "../domain/workspace";
+import { z } from "zod";
+import {
+  CONTRACT_VERSION,
+  WORKSPACE_SCHEMA_VERSION,
+  actorSchema,
+  operationRecordSchema,
+  participantSchema,
+  phaseSchema,
+  workspaceSchema,
+  type Workspace,
+} from "../domain/workspace";
 import { WorkspaceStoreError, type WorkspaceStore } from "./workspace-store";
 
 export const LOCAL_WORKSPACE_KEY = "destiny-ai.workspace.v1";
@@ -23,7 +33,7 @@ export class LocalWorkspaceStore implements WorkspaceStore {
     }
 
     try {
-      return workspaceSchema.parse(JSON.parse(raw));
+      return migrateWorkspace(JSON.parse(raw));
     } catch {
       throw new WorkspaceStoreError(
         "CORRUPT_WORKSPACE",
@@ -58,4 +68,62 @@ export class LocalWorkspaceStore implements WorkspaceStore {
       );
     }
   }
+}
+
+const legacyAvailableActionSchema = z.strictObject({
+  tool: z.string().min(1).max(64),
+  targetRef: z.string().min(1).max(128),
+  effect: z.enum(["READ", "PREPARE_UI", "PROPOSE"]),
+  requiresHuman: z.boolean(),
+  reason: z.string().min(1).max(240).optional(),
+});
+
+const legacyReflectionSchema = z.strictObject({
+  id: z.string().uuid(),
+  ref: z.string().min(1).max(128),
+  availableActions: z.array(legacyAvailableActionSchema),
+  status: z.enum(["proposed", "confirmed"]),
+  text: z.string().min(1).max(2_000),
+  recordedBy: z.enum(["participant", "agent_transcribed"]),
+  createdAt: z.string().datetime({ offset: true }),
+});
+
+const emptyLegacyCollection = z.array(z.never()).length(0);
+const legacyWorkspaceSchema = z.strictObject({
+  id: z.string().uuid(),
+  schemaVersion: z.literal(1),
+  contractVersion: z.literal("1.0.0"),
+  stateVersion: z.number().int().nonnegative(),
+  phase: phaseSchema,
+  participant: participantSchema,
+  reflections: z.array(legacyReflectionSchema),
+  hypotheses: emptyLegacyCollection,
+  experiments: emptyLegacyCollection,
+  evidence: emptyLegacyCollection,
+  revisions: emptyLegacyCollection,
+  planItems: emptyLegacyCollection,
+  outbox: emptyLegacyCollection,
+  teachings: emptyLegacyCollection,
+  operations: z.array(operationRecordSchema),
+});
+
+export function migrateWorkspace(input: unknown): Workspace {
+  const current = workspaceSchema.safeParse(input);
+  if (current.success) return current.data;
+
+  const legacy = legacyWorkspaceSchema.parse(input);
+  return workspaceSchema.parse({
+    ...legacy,
+    schemaVersion: WORKSPACE_SCHEMA_VERSION,
+    contractVersion: CONTRACT_VERSION,
+    reflections: legacy.reflections.map((reflection) => ({
+      ...reflection,
+      availableActions: reflection.availableActions.map((action) => ({
+        ...action,
+        actor: actorSchema.parse("agent"),
+      })),
+    })),
+    routeProposalSets: [],
+    hypotheses: [],
+  });
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createParticipantCommandAdapter } from "../adapters/participant-command-adapter";
 import { CommandKernel } from "../commands/command-kernel";
-import { createEmptyWorkspace } from "../domain/workspace";
+import { p3Workspace, validRoutes } from "../commands/fixtures/p3-route-set";
+import { CONTRACT_VERSION, WORKSPACE_SCHEMA_VERSION, createEmptyWorkspace } from "../domain/workspace";
 import {
   LOCAL_WORKSPACE_KEY,
   LocalWorkspaceStore,
@@ -163,6 +164,54 @@ describe("LocalWorkspaceStore", () => {
       stateVersion: 0,
     });
     expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBeNull();
+  });
+
+  it("migrates a valid schema-v1 workspace in memory without overwriting its original bytes", () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      id: "00000000-0000-4000-8000-000000000001",
+      schemaVersion: 1,
+      contractVersion: "1.0.0",
+      stateVersion: 0,
+      phase: "EXPLORING",
+      participant: { displayName: "", focusQuestion: "", costCaps: { hoursPerWeek: 0, money: 0, currency: "XXX" } },
+      reflections: [], hypotheses: [], experiments: [], evidence: [], revisions: [],
+      planItems: [], outbox: [], teachings: [], operations: [],
+    };
+    const originalBytes = JSON.stringify(legacy);
+    storage.setItem(LOCAL_WORKSPACE_KEY, originalBytes);
+    const store = new LocalWorkspaceStore(storage, createEmptyWorkspace(), new SerialLockManager());
+
+    expect(store.load()).toMatchObject({
+      schemaVersion: WORKSPACE_SCHEMA_VERSION,
+      contractVersion: CONTRACT_VERSION,
+      routeProposalSets: [],
+      hypotheses: [],
+    });
+    expect(storage.getItem(LOCAL_WORKSPACE_KEY)).toBe(originalBytes);
+  });
+
+  it("reloads a persisted P3 route proposal with its receipt intact", async () => {
+    const storage = new MemoryStorage();
+    const locks = new SerialLockManager();
+    const firstStore = new LocalWorkspaceStore(storage, p3Workspace(), locks);
+    const first = await new CommandKernel(firstStore).execute({
+      name: "propose_route_set",
+      actor: "agent",
+      input: {
+        operationId: operationOne,
+        expectedVersion: 0,
+        outcome: "routes",
+        routes: validRoutes(),
+        createdBy: "chatgpt_webmcp",
+      },
+    });
+    const reloaded = new LocalWorkspaceStore(storage, p3Workspace(), locks).load();
+
+    expect(first.ok).toBe(true);
+    expect(reloaded.routeProposalSets).toHaveLength(1);
+    expect(reloaded.operations[0].operationId).toBe(operationOne);
+    expect(reloaded.stateVersion).toBe(1);
   });
 });
 
