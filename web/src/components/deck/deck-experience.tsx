@@ -146,7 +146,14 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
     const dwell = !workspace.deck.dwellTracking ? "off" : elapsed < 1_200 ? "fast" : elapsed <= 3_000 ? "medium" : "slow";
     const result = await participant.swipeCard({ operationId: crypto.randomUUID(), expectedVersion: workspace.stateVersion, cardRef: current.ref, gesture, dwell, flipped, ...(tappedReasonIndex !== undefined ? { tappedReasonIndex } : {}) });
     setBusy(false);
-    if (result.ok) { navigator.vibrate?.(8); onChanged(`${PILES.find((pile) => pile.gesture === gesture)?.label} · receipt saved.`); }
+    if (result.ok) {
+      onChanged(`${PILES.find((pile) => pile.gesture === gesture)?.label} · receipt saved.`);
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        // Haptics are optional; a device quirk must never hide a committed receipt.
+      }
+    }
     else setMessage(result.error?.what ?? "That swipe did not save.");
   }
 
@@ -194,7 +201,12 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
               className={`moment-card axis-${current.axis} ${flipped ? "is-flipped" : ""}`}
               style={{ transform: `translate3d(${currentDrag.x}px, ${currentDrag.y}px, 0) rotate(${currentDrag.x / 25}deg)` }}
               onClick={() => !currentDrag.active && setFlippedCardRef((value) => value === current.ref ? null : current.ref)}
-              onPointerDown={(event) => { pointerStart.current = { x: event.clientX, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); setDrag({ cardRef: current.ref, x: 0, y: 0, active: false }); }}
+              onPointerDown={(event) => {
+                if (event.target instanceof Element && event.target.closest(".moment-card__back button")) return;
+                pointerStart.current = { x: event.clientX, y: event.clientY };
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setDrag({ cardRef: current.ref, x: 0, y: 0, active: false });
+              }}
               onPointerMove={(event) => { if (!pointerStart.current) return; setDrag({ cardRef: current.ref, x: event.clientX - pointerStart.current.x, y: event.clientY - pointerStart.current.y, active: true }); }}
               onPointerUp={() => { const gesture = Math.abs(currentDrag.x) > Math.abs(currentDrag.y) ? (currentDrag.x > 80 ? "me" : currentDrag.x < -80 ? "not_me" : null) : (currentDrag.y < -80 ? "wish" : currentDrag.y > 80 ? "used_to" : null); pointerStart.current = null; if (gesture) void commitSwipe(gesture); else setDrag({ cardRef: current.ref, x: 0, y: 0, active: false }); }}
             >

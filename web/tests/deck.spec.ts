@@ -30,6 +30,29 @@ test("fresh workspace deals a tactile card and only the participant can swipe it
   expect(errors).toEqual([]);
 });
 
+test("choosing a reason refreshes the deck even when device haptics fail", async ({ page }) => {
+  const errors = captureConsoleErrors(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "vibrate", {
+      configurable: true,
+      value: () => { throw new Error("Haptics unavailable"); },
+    });
+  });
+
+  await page.locator(".moment-card").click();
+  await expect(page.locator(".moment-card")).toHaveClass(/is-flipped/);
+  await page.locator(".moment-card__back button").first().click();
+
+  await expect(page.getByText("Card 2 of 16")).toBeVisible();
+  await expect(page.locator(".tension-rail .pile strong")).toHaveText("1");
+  const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
+  expect(stored.swipes).toHaveLength(1);
+  expect(stored.swipes[0].tappedReasonIndex).toBe(0);
+  expect(stored.reflections).toHaveLength(1);
+  expect(stored.reflections[0].recordedBy).toBe("participant_tapped");
+  expect(errors).toEqual([]);
+});
+
 test("Deck remains usable at a 390px phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { level: 1, name: "The Deck" })).toBeVisible();
