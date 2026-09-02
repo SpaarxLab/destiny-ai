@@ -17,9 +17,11 @@ import {
   ORIENTATION_MAX_SERIALIZED_CHARS,
   type OrientationProjection,
 } from "../domain/reads";
-import { CONTRACT_VERSION, createEmptyWorkspace, workspaceSchema } from "../domain/workspace";
+import { CONTRACT_VERSION, createEmptyWorkspace, createFreshWorkspace, workspaceSchema } from "../domain/workspace";
 import { WorkspaceReader } from "../projections/workspace-reader";
 import { MemoryWorkspaceStore } from "../storage/memory-workspace-store";
+import { CommandKernel } from "../commands/command-kernel";
+import { createWebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 
 function setup(workspace = createEmptyWorkspace()) {
   const store = new MemoryWorkspaceStore(workspace);
@@ -313,6 +315,33 @@ describe("P8A native WebMCP foundation", () => {
       expect(event.id).toBeTruthy();
       expect(event.at).toBeTruthy();
     }
+  });
+
+  it("refreshes the visible workspace and activity rail after a Deck mutation", async () => {
+    const { store, reader } = setup(createFreshWorkspace());
+    const runtime = new FakeWebMcpRuntime();
+    const manager = new WebMcpRegistrationManager(() => runtime);
+    const events: AgentActivityEvent[] = [];
+    const refreshedVersions: number[] = [];
+    await manager.replace(reader, {
+      commandAdapter: createWebMcpCommandAdapter(new CommandKernel(store)),
+      onWorkspaceChanged: (stateVersion) => refreshedVersions.push(stateVersion),
+      onAgentActivity: (event) => events.push(event),
+    });
+
+    const result = await runtime.invoke("post_dealer_note", {
+      operationId: "8a0a0000-0000-4000-8000-000000000012",
+      expectedVersion: 0,
+      role: "dealer",
+      text: "The agent proposes this note; the participant decides whether it stays.",
+    });
+
+    expect(result).toMatchObject({ ok: true, stateVersion: 1, receipt: { command: "post_dealer_note", effect: "PROPOSED" } });
+    expect(refreshedVersions).toEqual([1]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ tool: "post_dealer_note", outcome: "ok", effect: "PROPOSED", stateVersion: 1 });
+    expect(events[0].summary).not.toContain("post_dealer_note");
+    expect(store.load().dealerNotes[0]).toMatchObject({ status: "visible", postedBy: { source: "other_webmcp" } });
   });
 
   it("describes capability from the same orientation the agent reads", () => {

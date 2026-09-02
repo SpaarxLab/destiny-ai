@@ -6,7 +6,7 @@
 export interface AgentActivityEvent {
   id: string;
   at: string;
-  tool: "read_workspace" | "get_method_guide" | "propose_route_set" | "draft_words";
+  tool: "read_workspace" | "get_method_guide" | "deal_cards" | "propose_tension" | "propose_portrait" | "post_dealer_note" | "propose_route_set" | "draft_words";
   outcome: "ok" | "denied" | "stale_registration";
   effect: "READ" | "PROPOSED" | "REPLAY" | "AWAITING_HUMAN" | "NONE";
   summary: string;

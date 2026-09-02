@@ -1,7 +1,8 @@
 import type { ReadWorkspaceInput } from "../domain/reads";
+import type { ToolResult } from "../domain/results";
 import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { WorkspaceReader } from "../projections/workspace-reader";
-import { emitActivity, STALE_REGISTRATION_SUMMARY, type AgentActivityListener } from "./activity";
+import { denialSummary, emitActivity, STALE_REGISTRATION_SUMMARY, type AgentActivityListener } from "./activity";
 import {
   getMethodGuide,
   staleRegistrationResult,
@@ -158,19 +159,24 @@ export function createWebMcpTools(
   ];
 
   const phase = currentPhase(reader);
+  const deckMutationOptions = {
+    onWorkspaceChanged: options.onWorkspaceChanged,
+    onWorkspaceSyncError: options.onWorkspaceSyncError,
+    onAgentActivity: activity,
+  };
   if (options.commandAdapter && phase === "DECK") {
     tools.push(
       createDeckMutationTool("deal_cards", DEAL_CARDS_DESCRIPTION, DEAL_CARDS_INPUT_SCHEMA, signal, async (input) =>
-        options.commandAdapter!.dealCards(input as Parameters<WebMcpCommandAdapter["dealCards"]>[0], detectAgentIdentity((input as { role?: string }).role))),
+        options.commandAdapter!.dealCards(input as Parameters<WebMcpCommandAdapter["dealCards"]>[0], detectAgentIdentity((input as { role?: string }).role)), deckMutationOptions),
       createDeckMutationTool("propose_tension", PROPOSE_TENSION_DESCRIPTION, PROPOSE_TENSION_INPUT_SCHEMA, signal, async (input) =>
-        options.commandAdapter!.proposeTension(input as Parameters<WebMcpCommandAdapter["proposeTension"]>[0], detectAgentIdentity((input as { role?: string }).role))),
+        options.commandAdapter!.proposeTension(input as Parameters<WebMcpCommandAdapter["proposeTension"]>[0], detectAgentIdentity((input as { role?: string }).role)), deckMutationOptions),
       createDeckMutationTool("propose_portrait", PROPOSE_PORTRAIT_DESCRIPTION, PROPOSE_PORTRAIT_INPUT_SCHEMA, signal, async (input) =>
-        options.commandAdapter!.proposePortrait(input as Parameters<WebMcpCommandAdapter["proposePortrait"]>[0], detectAgentIdentity((input as { role?: string }).role))),
+        options.commandAdapter!.proposePortrait(input as Parameters<WebMcpCommandAdapter["proposePortrait"]>[0], detectAgentIdentity((input as { role?: string }).role)), deckMutationOptions),
     );
   }
   if (options.commandAdapter && phase === "DECK") {
     tools.push(createDeckMutationTool("post_dealer_note", POST_DEALER_NOTE_DESCRIPTION, POST_DEALER_NOTE_INPUT_SCHEMA, signal, async (input) =>
-      options.commandAdapter!.postDealerNote(input as Parameters<WebMcpCommandAdapter["postDealerNote"]>[0], detectAgentIdentity((input as { role?: string }).role))));
+      options.commandAdapter!.postDealerNote(input as Parameters<WebMcpCommandAdapter["postDealerNote"]>[0], detectAgentIdentity((input as { role?: string }).role)), deckMutationOptions));
   }
 
   const proposalAvailable = canRegisterProposeRouteSet(reader);
@@ -211,8 +217,37 @@ export const PROPOSE_TENSION_DESCRIPTION = "Propose one plain-language pull and 
 export const PROPOSE_PORTRAIT_DESCRIPTION = "Propose a Portrait from two or three accepted, edited, or survived tension refs. The participant alone decides whether to keep it. Returns the visible proposed Portrait and receipt.";
 export const POST_DEALER_NOTE_DESCRIPTION = "Post one visible note of at most 240 characters at the Destiny table. The participant may dismiss it. Returns the note and receipt.";
 
-function createDeckMutationTool(name: string, description: string, inputSchema: WebMcpToolDefinition["inputSchema"], signal: AbortSignal, execute: (input: unknown) => Promise<unknown>): WebMcpToolDefinition {
-  return { name, description, inputSchema, annotations: { readOnlyHint: false, untrustedContentHint: true }, async execute(input) { if (signal.aborted) return staleRegistrationResult(); return execute(input); } };
+type DeckMutationToolName = "deal_cards" | "propose_tension" | "propose_portrait" | "post_dealer_note";
+
+function createDeckMutationTool(name: DeckMutationToolName, description: string, inputSchema: WebMcpToolDefinition["inputSchema"], signal: AbortSignal, execute: (input: unknown) => Promise<ToolResult<unknown>>, options: Readonly<{ onWorkspaceChanged?: (stateVersion: number) => void; onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void; onAgentActivity?: AgentActivityListener }>): WebMcpToolDefinition {
+  return { name, description, inputSchema, annotations: { readOnlyHint: false, untrustedContentHint: true }, async execute(input) {
+    if (signal.aborted) {
+      emitActivity(options.onAgentActivity, { tool: name, outcome: "stale_registration", effect: "NONE", summary: STALE_REGISTRATION_SUMMARY, code: "STALE_REGISTRATION", stateVersion: 0 });
+      return staleRegistrationResult();
+    }
+    const result = await execute(input);
+    const replayed = result.ok && result.guidance.startsWith("Replay detected");
+    if (result.ok) {
+      emitActivity(options.onAgentActivity, { tool: name, outcome: "ok", effect: replayed ? "REPLAY" : "PROPOSED", summary: replayed ? "The agent recovered its earlier receipt; nothing new was written." : deckMutationSummary(name), stateVersion: result.stateVersion, changedRefs: result.receipt?.changedRefs });
+      if (!replayed) notifyWorkspaceChanged(result.stateVersion, options.onWorkspaceChanged, options.onWorkspaceSyncError);
+    } else {
+      emitActivity(options.onAgentActivity, { tool: name, outcome: "denied", effect: "NONE", summary: result.error ? denialSummary(result.error) : "The agent's proposal was declined. Nothing changed.", code: result.error?.code, stateVersion: result.stateVersion, changedRefs: result.error?.changedRefs });
+    }
+    return result;
+  } };
+}
+
+function deckMutationSummary(name: DeckMutationToolName): string {
+  if (name === "deal_cards") return "An agent dealt new moments for you to review.";
+  if (name === "propose_tension") return "The Reader proposed a tension for you to review.";
+  if (name === "propose_portrait") return "The Reader proposed a Portrait for you to review.";
+  return "An agent left a visible note at the table.";
+}
+
+function notifyWorkspaceChanged(stateVersion: number, onWorkspaceChanged?: (stateVersion: number) => void, onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void): void {
+  try { onWorkspaceChanged?.(stateVersion); } catch (error) {
+    try { onWorkspaceSyncError?.(error, stateVersion); } catch { /* A projection notification must never hide an authoritative receipt. */ }
+  }
 }
 
 function currentPhase(reader: WorkspaceReader): string | null {
