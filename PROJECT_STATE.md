@@ -10,7 +10,7 @@ auditions and one reversible seven-day experiment recommendation, never a predic
 ## Current authority
 
 - **Contract:** `SPEC.md` (contract 2.0.0, schema 4, read contract 4.0.0, method 3.0.0)
-- **Accepted decisions:** `docs/DECISIONS.md`, through D-018
+- **Accepted decisions:** `docs/DECISIONS.md`, through D-019
 - **Delivery programme:** `docs/PLAN.md`
 - **Active packet:** `docs/packets/P13-chatgpt-ab-tests.md`
 - **Canonical repo:** `/Users/harsh/career-lab`; Next.js app in `web/`; integration branch `main`
@@ -54,6 +54,12 @@ status. A task is not complete because a ticket says so; its packet and PR must 
   reaction, and time/money appears only when a reversible experiment is actually being bounded.
 - `inspect_room` reports external ChatGPT authorship, zero application-side model calls and the
   explicit boundary that Destiny cannot observe ChatGPT provider token usage.
+- D-019 cuts the connected participant surface to the active decision: title, situation, reactions
+  and contextual next step. Evidence and WebMCP diagnostics are collapsed; legacy History,
+  ChatGPT-context chrome and the footer are absent from connected Deck mode.
+- A local OpenCode Go key is configured in ignored `web/.env.local`. Four models returned HTTP 200
+  and valid JSON; the full lab-assistant route proposal passed schema and grounding with three
+  distinct routes while respecting a synthetic 3-hour / zero-spend limit.
 - Connected Codex IAB registered exactly six tools and no participant action tools.
 - The fallback loop ran through state v15: staged probes, participant webpage responses, reload
   recovery, replay, stale denial, first hypothesis, participant-settled counterexample, visibly
@@ -136,3 +142,5 @@ ChatGPT-IAB and public deployment gates remain open.
 D-018 refines P13's presentation: one decision at a time, explicit reactions, plain-language
 participant feedback and protocol details on demand. It supersedes the protocol-first wallpaper and
 ambiguous drag/flip interaction, not D-017's six-tool or authority contracts.
+D-019 removes the remaining connected-mode explanation chrome and admits OpenCode Go only as an
+optional local proposal laboratory. It does not add a second intelligence to connected WebMCP mode.

@@ -5,7 +5,7 @@ import { z } from "zod";
 export type RoleName = "dealer" | "reader" | "skeptic" | "routemaker" | "judge";
 
 const DEFAULT_MODELS: Record<RoleName, string> = {
-  dealer: "glm-5.3-flash",
+  dealer: "qwen3.8-flash",
   reader: "qwen3.8-flash",
   skeptic: "deepseek-v4-flash",
   routemaker: "gpt-5.6-luna",

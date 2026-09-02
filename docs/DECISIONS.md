@@ -2,7 +2,7 @@
 
 **Authority:** decisions D-001 through D-014 were selected under Harsh's 2026-09-01
 instruction to apply the best defaults and complete foundation setup. Items marked
-`OWNER INPUT` remain deliberately unresolved. D-015 through D-018 were explicitly accepted by Harsh.
+`OWNER INPUT` remain deliberately unresolved. D-015 through D-019 were explicitly accepted by Harsh.
 
 ## Accepted decisions
 
@@ -309,6 +309,20 @@ invent provider-side token telemetry it cannot observe.
 **Supersedes:** P13's ambiguous drag/flip interaction, click-first default reaction and always-visible
 protocol/limits wallpaper. It does not supersede D-017's shared kernel, receipts, recovery,
 falsification, participant authority, route repair or real ChatGPT-IAB proof gate.
+
+### D-019 — Minimum connected surface; optional local model lab
+
+**Decision:** In connected Deck mode, render only the active human decision and its immediate
+context. Remove the History and ChatGPT-context buttons, explanatory chair strip, probe counters,
+always-visible evidence rail and footer. Collapse evidence to one disclosure and show limits only
+as the next required action. Preserve all underlying state, receipts, recovery and WebMCP tools.
+
+OpenCode Go may power optional local role and lab-assistant evaluation, but never runs hidden work
+when ChatGPT/WebMCP is connected. Live configuration stays in ignored `.env.local`. A model output
+must pass schema, exact-quote grounding and limits before it can become a proposal.
+
+**Supersedes:** D-018's remaining connected-mode explanatory chrome. It does not supersede the
+ChatGPT-only connected identity, shared-kernel authority or participant-only decisions.
 
 ## Owner input still required before participant testing
 

@@ -69,6 +69,21 @@ and in the WebMCP Kit Chrome driver:
 This rerun proves the repaired interaction and page-defined WebMCP boundary. It still does not turn
 Codex IAB or Chrome-driver evidence into real ChatGPT-IAB proof.
 
+## Optional OpenCode Go laboratory
+
+With a local ignored key configured, the live provider evaluation returned HTTP 200 and valid JSON
+from `glm-5.3-flash`, `qwen3.8-flash`, `deepseek-v4-flash` and `gpt-5.6-luna`. Observed latency varied
+substantially: Qwen, DeepSeek and Luna were roughly 1.6–3.6 seconds in the first run; GLM ranged from
+3.6 to 14.7 seconds, so Qwen replaced GLM as the local Dealer default.
+
+The first full lab-assistant run failed closed because OpenCode's chat endpoint did not apply the AI
+SDK response schema. After putting the exact JSON contract into the model prompt, a second live run
+returned exactly three distinct routes, exact source quotes and tests within a synthetic three-hour,
+zero-spend limit. Schema and grounding passed; the endpoint returned HTTP 200 in 8.9 seconds.
+
+This proves the optional local proposal provider. Connected WebMCP mode still suppresses it and uses
+ChatGPT as its only intelligence.
+
 ## Unverified
 
 The real ChatGPT in-app-browser prompt has not been run from this environment. Pending-tool

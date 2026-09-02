@@ -3,7 +3,7 @@ export {};
 const baseURL = process.env.OPENCODE_GO_BASE_URL?.replace(/\/$/, "") || "https://opencode.ai/zen/go/v1";
 const apiKey = process.env.OPENCODE_GO_API_KEY?.trim();
 const models = {
-  dealer: process.env.ROLE_MODEL_DEALER || "glm-5.3-flash",
+  dealer: process.env.ROLE_MODEL_DEALER || "qwen3.8-flash",
   reader: process.env.ROLE_MODEL_READER || "qwen3.8-flash",
   skeptic: process.env.ROLE_MODEL_SKEPTIC || "deepseek-v4-flash",
   routemaker: process.env.ROLE_MODEL_ROUTEMAKER || "gpt-5.6-luna",

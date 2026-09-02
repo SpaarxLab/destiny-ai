@@ -10,9 +10,8 @@ test.beforeEach(async ({ page }) => {
 
 test("fresh workspace shows four explicit participant reactions", async ({ page }) => {
   const errors = captureConsoleErrors(page);
-  await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "A/B test my future" })).toBeVisible();
   await expect(page.locator(".moment-card")).toBeVisible();
-  await expect(page.getByText("Your reactions stay yours")).toBeVisible();
 
   const tools = await page.evaluate(async () => {
     const context = (document as Document & { modelContext?: { getTools?(): Promise<{ name: string }[]> } }).modelContext;
@@ -47,7 +46,7 @@ test("skipping the suggested reasons preserves the explicitly chosen reaction", 
   await expect(page.getByText("Choosing a reason will keep your I wish reaction.")).toBeVisible();
   await page.getByRole("button", { name: "Skip the reason" }).click();
 
-  await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
+  await expect(page.locator(".evidence-rail > summary strong")).toHaveText("1");
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes).toHaveLength(1);
   expect(stored.swipes[0].gesture).toBe("wish");
@@ -81,7 +80,7 @@ test("reaction and reason selection work with the keyboard", async ({ page }) =>
   await expect(firstReason).toBeFocused();
   await page.keyboard.press("Enter");
 
-  await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
+  await expect(page.locator(".evidence-rail > summary strong")).toHaveText("1");
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes[0].gesture).toBe("not_me");
   expect(stored.swipes[0].tappedReasonIndex).toBe(0);
@@ -120,7 +119,7 @@ test("choosing a reason refreshes the deck even when device haptics fail", async
   await page.getByRole("button", { name: /^That's me/ }).click();
   await page.locator(".reason-choice").first().click();
 
-  await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
+  await expect(page.locator(".evidence-rail > summary strong")).toHaveText("1");
   await expect(page.locator(".reaction-totals .pile").filter({ hasText: "That's me" }).locator("strong")).toHaveText("1");
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes).toHaveLength(1);
@@ -132,7 +131,7 @@ test("choosing a reason refreshes the deck even when device haptics fail", async
 
 test("Deck remains usable at a 390px phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "A/B test my future" })).toBeVisible();
   await expect(page.locator(".moment-card")).toBeVisible();
   await expect(page.locator(".reaction-grid")).toBeVisible();
   const bodyWidth = await page.evaluate(() => document.body.scrollWidth);

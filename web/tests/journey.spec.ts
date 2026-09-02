@@ -138,7 +138,7 @@ test("start over clears the old journey and opens a fresh Deck", async ({ page }
   await page.getByRole("button", { name: "Start over" }).click();
   await expect(page.getByRole("dialog", { name: "Start over on this device?" })).toBeVisible();
   await page.getByRole("button", { name: "Clear and start over" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "A/B test my future" })).toBeVisible();
   const keys = await page.evaluate(() => [localStorage.getItem("destiny-ai.workspace.v1"), localStorage.getItem("destiny-ai.journey.v2")]);
   expect(JSON.parse(keys[0]!)).toMatchObject({ schemaVersion: 4, phase: "DECK", swipes: [] });
   expect(keys[1]).toBeNull();

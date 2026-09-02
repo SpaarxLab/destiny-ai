@@ -33,6 +33,10 @@ highlights one reversible experiment. The participant reacts and decides only on
   never manufacture or replace the chosen reaction.
 - Participant copy is plain language and one-decision-at-a-time. Tool names, versions, raw receipts,
   JSON and timing are available only in optional technical details.
+- Connected Deck mode contains no legacy history/context chrome, explainer strip, progress counter
+  or footer. Evidence is collapsed until requested; contextual limits become the whole next step.
+- Optional OpenCode Go roles and the lab assistant are local proposal sources only. Connected mode
+  suppresses them, and schema/grounding/limit failure changes no state.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 # Destiny.AI — Product and System Contract
 
-**Status:** Current product/technical authority, revised for ChatGPT A/B Tests Your Future (D-018).
+**Status:** Current product/technical authority, revised for ChatGPT A/B Tests Your Future (D-019).
 **Contract version:** `2.0.0` · **Workspace schema:** `4` · **Read contract:** `read-workspace/4.0.0` ·
 **Method guide:** `destiny-method/3.0.0`.
 **Build admission:** P1, P2, P3A, P3B, P3C, and P8A are integrated on `main`; P8B is committed on
@@ -103,6 +103,10 @@ The smallest complete learning loop is:
     language and one active decision. Tool names, versions, raw receipts, JSON and timings remain
     available under optional technical details. Limits appear only when the participant is bounding
     a proposed reversible experiment.
+22. **Connected mode earns every visible element.** History, agent projections, progress counters,
+    explainer strips and persistent footer copy do not render in the connected Deck. Evidence is one
+    collapsed disclosure until requested. Optional local model providers remain suppressed whenever
+    ChatGPT is attached through WebMCP.
 
 ## 3. Scope
 

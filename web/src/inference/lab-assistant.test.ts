@@ -251,6 +251,12 @@ describe("draftRouteProposal failure paths never fabricate a proposal", () => {
 });
 
 describe("structured output through the AI SDK model path", () => {
+  it("puts the complete JSON contract in the prompt for providers that ignore response schemas", () => {
+    for (const field of ["outcome", "routes", "title", "sourceQuotes", "constraint", "learningQuestion", "test", "strengthensWhen", "weakensWhen", "followUpQuestion", "reasonRefs"]) {
+      expect(LAB_ASSISTANT_SYSTEM_PROMPT).toContain(`"${field}"`);
+    }
+  });
+
   it("parses a valid structured draft from a mock language model and grounds it", async () => {
     const draft = buildFakeLabAssistantDraft(grounded);
     const model = new MockLanguageModelV3({

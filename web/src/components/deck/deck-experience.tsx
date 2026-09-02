@@ -61,6 +61,7 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
   const flipped = selectedGesture !== null;
   const openTension = workspace.tensions.find((tension) => tension.status === "proposed") ?? null;
   const resolvedTensions = workspace.tensions.filter((tension) => ["accepted", "edited", "survived"].includes(tension.status));
+  const latestTension = workspace.tensions.findLast((tension) => tension.status !== "rejected" && tension.status !== "superseded") ?? null;
   const portrait = workspace.portraits.find((candidate) => candidate.status === "proposed") ?? null;
   const latestRejectedPortrait = [...workspace.portraits].reverse().find((candidate) => candidate.status === "rejected") ?? null;
   const hasSwipeAfterPortraitDeferral = !latestRejectedPortrait || workspace.swipes.some((swipe) => swipe.at > latestRejectedPortrait.createdAt);
@@ -217,17 +218,12 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
 
   return (
     <section className="deck-shell" aria-label="ChatGPT A/B Tests Your Future">
-      <div className="deck-intro"><p>A live experiment with ChatGPT</p><h1 tabIndex={-1}>ChatGPT A/B Tests Your Future</h1></div>
-      <header className="chairs-strip">
-        <span><strong>{agentConnected ? "ChatGPT connected" : "Open from ChatGPT"}</strong></span>
-        <span>Your reactions stay yours</span>
-      </header>
+      <div className="deck-intro"><h1 tabIndex={-1}>A/B test my future</h1></div>
 
       {workspace.dealerNotes.some((note) => note.status === "visible") ? <section className="dealer-notes" aria-label="Dealer notes">{workspace.dealerNotes.filter((note) => note.status === "visible").map((note) => <article key={note.ref}><div><p>{note.postedBy.label}</p><blockquote>{note.text}</blockquote></div><button type="button" aria-label={`Dismiss note from ${note.postedBy.label}`} onClick={() => void dismissDealerNote(note.ref)}>Dismiss</button></article>)}</section> : null}
 
       <main className="table-grid">
         <div className="card-stage">
-          <p className="deck-kicker">{current ? `Probe ${Math.min(5, workspace.swipes.length + 1)} of 5 max · ${current.probe?.template.replaceAll("_", " ") ?? current.kind}` : agentConnected ? "Waiting for ChatGPT" : "Continue from ChatGPT"}</p>
           {current ? <>
             <article className={`moment-card axis-${current.axis}`} aria-labelledby={`card-${current.ref}`}>
               <span className="card-agent">{current.dealtBy.label}</span>
@@ -249,20 +245,22 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
               <button className="reason-none" type="button" disabled={busy} onClick={() => void commitSwipe(selectedGesture)}>Skip the reason</button>
               <p>Choosing a reason will keep your <strong>{REACTION_COPY[selectedGesture].label}</strong> reaction.</p>
             </section> : <p className="reaction-hint">Choose one reaction. Nothing is saved until you add or skip a reason.</p>}
-          </> : <div className="empty-table">{busy ? "ChatGPT is staging the next situation…" : agentConnected ? `Tell ChatGPT to ${workspace.swipes.length ? "continue" : "start the test"}.` : "Open this page from ChatGPT, then say “A/B test my future.”"}</div>}
+          </> : <div className="empty-table">{busy ? "Preparing the next situation…" : agentConnected ? "Say “continue” in ChatGPT." : "Open this page from ChatGPT and say “A/B test my future.”"}</div>}
         </div>
 
-        <aside className="evidence-rail" aria-label="Your recorded reactions">
-          <div className="evidence-rail__head"><h2>Your evidence</h2><span>{workspace.swipes.length} saved</span></div>
-          <div className="reaction-totals">{PILES.map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</div>
-          <label className="dwell-setting"><input type="checkbox" checked={workspace.deck.dwellTracking} onChange={(event) => void updateDeckSettings({ dwellTracking: event.target.checked })} /> Count response time as evidence</label>
-          {workspace.tensions.filter((tension) => tension.status !== "rejected" && tension.status !== "superseded").map((tension) => <article key={tension.ref} className={`tension-card tension-card--${tension.status}`}><span>Working idea</span><p>{tension.claim}</p><small>{tension.evidenceSwipeRefs.length} supporting reactions · {HYPOTHESIS_STATUS_COPY[tension.status] ?? "Updated"}</small></article>)}
-        </aside>
+        <details className="evidence-rail">
+          <summary><span>Your evidence</span><strong>{workspace.swipes.length}</strong></summary>
+          <div className="evidence-rail__content">
+            <div className="reaction-totals">{PILES.map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</div>
+            <label className="dwell-setting"><input type="checkbox" checked={workspace.deck.dwellTracking} onChange={(event) => void updateDeckSettings({ dwellTracking: event.target.checked })} /> Include response time</label>
+            {latestTension ? <article className={`tension-card tension-card--${latestTension.status}`}><span>Current idea</span><p>{latestTension.claim}</p><small>{HYPOTHESIS_STATUS_COPY[latestTension.status] ?? "Updated"}</small></article> : null}
+          </div>
+        </details>
       </main>
 
-      {!current && !openTension && resolvedTensions.length > 0 ? <section className="experiment-limits" aria-labelledby="limits-title"><div><p>Only needed for the final seven-day test</p><h2 id="limits-title">What is genuinely easy to try this week?</h2></div><div className="probe-limits" role="group" aria-label="Seven-day experiment limits"><label>Time <span><input type="number" min="0.5" max="168" step="0.5" value={limitHours} onChange={(event) => setLimitHours(Number(event.target.value))} /> hours</span></label><label>Spend <span>$ <input type="number" min="0" step="1" value={limitMoney} onChange={(event) => setLimitMoney(Number(event.target.value))} /></span></label><button type="button" onClick={() => void saveLimits()}>Save test limits</button></div></section> : null}
+      {!current && !openTension && resolvedTensions.length > 0 ? <section className="experiment-limits" aria-labelledby="limits-title"><div><h2 id="limits-title">What can you spare this week?</h2></div><div className="probe-limits" role="group" aria-label="Experiment limits"><label>Hours <input type="number" min="0.5" max="168" step="0.5" value={limitHours} onChange={(event) => setLimitHours(Number(event.target.value))} /></label><label>Budget $ <input type="number" min="0" step="1" value={limitMoney} onChange={(event) => setLimitMoney(Number(event.target.value))} /></label><button type="button" onClick={() => void saveLimits()}>Save</button></div></section> : null}
 
-      {openTension ? <DeckDialog className="decision-sheet" labelledBy="tension-dialog-title"><p id="tension-dialog-title" className="sheet-eyebrow">ChatGPT · {openTension.interpretation === "initial" ? "falsifiable hypothesis" : `${openTension.interpretation} its interpretation`}</p>{editing === openTension.ref ? <><label className="field-label" htmlFor="tension-edit">Rewrite this hypothesis in your words</label><textarea id="tension-edit" value={editText} onChange={(event) => setEditText(event.target.value)} /></> : <h2>{openTension.claim}</h2>}<p>{openTension.evidenceSwipeRefs.length} supporting swipe receipts · {openTension.contradictorySwipeRefs.length} contradictory receipts.</p>{openTension.supersedesTensionRef ? <p><strong>What changed:</strong> ChatGPT {openTension.interpretation} its earlier hypothesis after the counterexample.</p> : null}<div className="sheet-actions">{editing ? <button onClick={() => void resolveTension("edit")}>Save rewritten hypothesis</button> : <><button onClick={() => void resolveTension("accept")}>Keep as a working hypothesis</button><button onClick={() => { setEditing(openTension.ref); setEditText(openTension.claim); }}>Rewrite</button><button onClick={() => void resolveTension("reject")}>Reject hypothesis</button></>}</div></DeckDialog> : null}
+      {openTension ? <DeckDialog className="decision-sheet" labelledBy="tension-dialog-title"><p id="tension-dialog-title" className="sheet-eyebrow">ChatGPT&apos;s current idea</p>{editing === openTension.ref ? <><label className="field-label" htmlFor="tension-edit">Rewrite it in your words</label><textarea id="tension-edit" value={editText} onChange={(event) => setEditText(event.target.value)} /></> : <h2>{openTension.claim}</h2>}{openTension.supersedesTensionRef ? <p>This changed after the counterexample.</p> : null}<div className="sheet-actions">{editing ? <button onClick={() => void resolveTension("edit")}>Save rewrite</button> : <><button onClick={() => void resolveTension("accept")}>Use for now</button><button onClick={() => { setEditing(openTension.ref); setEditText(openTension.claim); }}>Rewrite</button><button onClick={() => void resolveTension("reject")}>Not right</button></>}</div></DeckDialog> : null}
       <p className="deck-status" role="status">{message}</p>
     </section>
   );

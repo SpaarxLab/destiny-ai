@@ -697,22 +697,24 @@ export function DestinyJourney() {
         <div className="site-header__actions">
           {hasRoomHeader ? (
             <>
-              <ActionButton
-                aria-expanded={drawer === "activity"}
-                aria-controls="activity-drawer"
-                onClick={() => setDrawer(drawer === "activity" ? "none" : "activity")}
-                tone="quiet"
-              >
-                History
-              </ActionButton>
-              <ActionButton
-                aria-expanded={drawer === "agent-view"}
-                aria-controls="agent-view-drawer"
-                onClick={() => setDrawer(drawer === "agent-view" ? "none" : "agent-view")}
-                tone="quiet"
-              >
-                ChatGPT context
-              </ActionButton>
+              {workspace?.phase !== "DECK" ? <>
+                <ActionButton
+                  aria-expanded={drawer === "activity"}
+                  aria-controls="activity-drawer"
+                  onClick={() => setDrawer(drawer === "activity" ? "none" : "activity")}
+                  tone="quiet"
+                >
+                  History
+                </ActionButton>
+                <ActionButton
+                  aria-expanded={drawer === "agent-view"}
+                  aria-controls="agent-view-drawer"
+                  onClick={() => setDrawer(drawer === "agent-view" ? "none" : "agent-view")}
+                  tone="quiet"
+                >
+                  ChatGPT context
+                </ActionButton>
+              </> : null}
               <ActionButton onClick={() => setStartOverOpen(true)} tone="quiet">
                 {COPY.startOver}
               </ActionButton>
@@ -926,10 +928,10 @@ export function DestinyJourney() {
         <p>This removes your words, limits, routes, receipts, and private notes from this browser. Nothing else is stored anywhere.</p>
       </ConfirmDialog>
 
-      <footer className="site-footer">
+      {workspace?.phase !== "DECK" ? <footer className="site-footer">
         <p>Direction through small tests, not prediction.</p>
         <p>ChatGPT can suggest. Only you can respond and choose. Your work stays in this browser.</p>
-      </footer>
+      </footer> : null}
     </main>
   );
 }
