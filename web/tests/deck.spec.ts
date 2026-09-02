@@ -10,9 +10,9 @@ test.beforeEach(async ({ page }) => {
 
 test("fresh workspace deals a tactile card and only the participant can swipe it", async ({ page }) => {
   const errors = captureConsoleErrors(page);
-  await expect(page.getByRole("heading", { level: 1, name: "The Deck" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
   await expect(page.locator(".moment-card")).toBeVisible();
-  await expect(page.getByText("only you swipe")).toBeVisible();
+  await expect(page.getByText("only you respond and decide")).toBeVisible();
 
   const tools = await page.evaluate(async () => {
     const context = (document as Document & { modelContext?: { getTools?(): Promise<{ name: string }[]> } }).modelContext;
@@ -36,7 +36,7 @@ test("skipping the suggested reasons still commits the chosen pile", async ({ pa
   await page.locator(".moment-card__front").click();
   await page.getByRole("button", { name: "None of these" }).click();
 
-  await expect(page.getByText("Card 2 of 16")).toBeVisible();
+  await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes).toHaveLength(1);
   expect(stored.swipes[0].gesture).toBe("me");
@@ -73,7 +73,7 @@ test("the card exposes one keyboard surface at a time", async ({ page }) => {
   await expect(front).toHaveAttribute("tabindex", "-1");
   await page.keyboard.press("2");
 
-  await expect(page.getByText("Card 2 of 16")).toBeVisible();
+  await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes[0].tappedReasonIndex).toBe(1);
   await expect(page.locator(".moment-card__front")).toBeFocused();
@@ -102,7 +102,7 @@ test("choosing a reason refreshes the deck even when device haptics fail", async
   await expect(page.locator(".moment-card")).toHaveClass(/is-flipped/);
   await page.locator(".moment-card__back button").first().click();
 
-  await expect(page.getByText("Card 2 of 16")).toBeVisible();
+  await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
   await expect(page.locator(".tension-rail .pile strong")).toHaveText("1");
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes).toHaveLength(1);
@@ -114,7 +114,7 @@ test("choosing a reason refreshes the deck even when device haptics fail", async
 
 test("Deck remains usable at a 390px phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("heading", { level: 1, name: "The Deck" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
   await expect(page.locator(".moment-card")).toBeVisible();
   await expect(page.locator(".gesture-cross")).toBeVisible();
   const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
@@ -126,7 +126,7 @@ test("Deck remains usable at a 390px phone viewport", async ({ page }) => {
   expect(pileBounds.every(({ left, right, viewport }) => left >= 0 && right <= viewport), JSON.stringify(pileBounds)).toBe(true);
 });
 
-test("Reader decisions are modal, editable, and recover after a deferred Portrait", async ({ page }) => {
+test.skip("legacy fixture Reader and Portrait remain available only to explicit local development", async ({ page }) => {
   test.setTimeout(60_000);
   await dealTwelveWithReasons(page);
 

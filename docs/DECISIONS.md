@@ -2,7 +2,7 @@
 
 **Authority:** decisions D-001 through D-014 were selected under Harsh's 2026-09-01
 instruction to apply the best defaults and complete foundation setup. Items marked
-`OWNER INPUT` remain deliberately unresolved. D-015 and D-016 were explicitly accepted by Harsh.
+`OWNER INPUT` remain deliberately unresolved. D-015 through D-017 were explicitly accepted by Harsh.
 
 ## Accepted decisions
 
@@ -267,6 +267,31 @@ Room. The fixture baseline preserves availability, privacy, and demo reliability
 **Supersedes:** D-015's onboarding as the first useful moment, contract `1.2.0`, schema `3`, and the
 deadline catalogue being limited to route proposals. D-015's shared-kernel, receipt, participant
 gate, replace-only-what-was-set-aside, no-prediction, and recovery boundaries remain current.
+
+### D-017 — ChatGPT A/B Tests Your Future
+
+**Decision:** Convert the connected candidate into a ChatGPT-only WebMCP experience. ChatGPT is the
+only intelligence; Destiny is the versioned instrument. Preserve the shared command kernel,
+workspace persistence, operation IDs, replay, receipts, participant authority, evidence refs,
+tension lifecycle and exactly-three-route selective repair. Reuse moment, duel, reversal and
+falsification cards as the three public probe templates: moment, forced tradeoff and variable
+isolation.
+
+The public catalogue is exactly six tools: `inspect_room`, `stage_probe`, `propose_hypothesis`,
+`present_evidence`, `stage_route_auditions`, and `propose_experiment`. Participant response,
+hypothesis resolution, limits, evidence confirmation, route choice and commitment remain webpage
+actions only. Connected mode runs no fixture or embedded inference and presents no second chatbot.
+
+The pending `run_probe` rendezvous remains a tested spike, but the admitted protocol is the
+recoverable `stage_probe -> participant webpage response -> inspect_room` fallback until a real
+ChatGPT in-app-browser run proves that the participant can interact while a tool call is pending.
+Route auditions are denied in the kernel until a participant-settled counterexample exists and
+ChatGPT has visibly strengthened, weakened or replaced the hypothesis. Evidence presentation is
+transient and non-mutating.
+
+**Supersedes:** D-016's multi-chair connected presentation, automatic fixture/embedded Reader flow,
+16-card target and Portrait gate. It does not supersede D-016's card and tension contracts or
+D-014/D-015's shared-kernel, route authority, receipts and selective-repair rules.
 
 ## Owner input still required before participant testing
 

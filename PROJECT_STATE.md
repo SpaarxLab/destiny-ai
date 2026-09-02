@@ -2,24 +2,24 @@
 
 ## Objective
 
-Submit a strong ChatGPT WebMCP Challenge candidate whose first useful minute is The Deck: a
-career-stuck adult sorts concrete moments, reviews evidence-backed tensions, accepts a Portrait, and
-then enters the shared Route Room. Agents may deal and propose through the same command kernel; only
-the person swipes, resolves, chooses, reopens, exports, or starts over. The product does not predict
-a career.
+Submit a strong ChatGPT WebMCP Challenge candidate called **ChatGPT A/B Tests Your Future**. ChatGPT
+is the only intelligence conducting the experience; Destiny is the stateful instrument it operates
+through six WebMCP tools. The participant reacts only on the webpage. The loop ends in three route
+auditions and one reversible seven-day experiment recommendation, never a prediction.
 
 ## Current authority
 
 - **Contract:** `SPEC.md` (contract 2.0.0, schema 4, read contract 4.0.0, method 3.0.0)
-- **Accepted decisions:** `docs/DECISIONS.md`, through D-016
+- **Accepted decisions:** `docs/DECISIONS.md`, through D-017
 - **Delivery programme:** `docs/PLAN.md`
-- **Active packet:** `docs/packets/P12-deck.md`
+- **Active packet:** `docs/packets/P13-chatgpt-ab-tests.md`
 - **Canonical repo:** `/Users/harsh/career-lab`; Next.js app in `web/`; integration branch `main`
 - **Integrated candidate:** `main` at merge commit `3d814a6` through PR
   [#10](https://github.com/SpaarxLab/destiny-ai/pull/10); application candidate `7909cc7`,
   evidence head `0134a6e`.
 - **Learning guide:** `docs/HOW_IT_WORKS.md`
 - **Active implementation:** `codex/spx-32-deck`, based on `origin/main` at `35a273d`.
+- **Runtime evidence:** `docs/evidence/2026-09-02-chatgpt-ab-tests-codex-iab.md`
 - **Execution tracker:** [Linear — Destiny.AI Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)
 
 Repository documents are product authority. Linear mirrors owners, dependencies, and delivery
@@ -46,6 +46,17 @@ status. A task is not complete because a ticket says so; its packet and PR must 
   default, and replaceable. EVE is deferred.
 
 ## Verified evidence for the integrated candidate
+
+### ChatGPT A/B Tests Your Future (`codex/spx-32-deck`, P13)
+
+- `npm run check`: 18 test files / 199 tests, lint, TypeScript and production build pass.
+- `npm run test:browser`: 18 passed; two superseded legacy-agent scenarios are explicitly skipped.
+- Connected Codex IAB registered exactly six tools and no participant action tools.
+- The fallback loop ran through state v15: staged probes, participant webpage responses, reload
+  recovery, replay, stale denial, first hypothesis, participant-settled counterexample, visibly
+  replaced hypothesis, non-mutating evidence presentation, three route auditions and a read-only
+  experiment recommendation. Console warning/error readback was empty.
+- This is Codex-IAB runtime proof, not the required real ChatGPT-IAB completion proof.
 
 ### The Deck branch (`codex/spx-32-deck`)
 
@@ -89,9 +100,10 @@ public-source, video, or submission proof.
 ## Remaining gates
 
 1. Mirror `docs/packets/P11-handoff-tickets.md` into Linear.
-2. Deploy the candidate SHA to a public URL and read back contract 1.2.0 / schema 3 through
-   `read_workspace`.
-3. Run the story in the ChatGPT in-app browser and record it with receipts visible on screen.
+2. Deploy the candidate SHA to a public URL and read back protocol `chatgpt-ab-tests/1.0.0` /
+   schema 4 through `inspect_room`.
+3. Run the exact six-tool story in the real ChatGPT in-app browser and record it with receipts visible
+   on screen. Codex-IAB proof exists through state v15, but is not this gate.
 4. Optionally configure the lab assistant (`LAB_ASSISTANT_PROVIDER=openai_compatible` plus base URL,
    key, model) and capture one live proposal, one `insufficient_signal`, and one provider-failure
    receipt showing the WebMCP path unaffected. Do not enable it publicly without authenticated,
@@ -115,3 +127,6 @@ was stale and is withdrawn. Pre-2026-09-01 whiteboards, the student seven-day-pl
 eight-internal-agent concept remain archived under `docs/archive/2026-09-01-foundation/`.
 P11 candidate implementation and review are current on `main`; `docs/packets/P11-candidate-v2.md`
 is its build receipt, while `docs/packets/P11-handoff-tickets.md` now governs the remaining gates.
+D-017 and P13 now supersede P12's connected multi-chair/Portrait experience while preserving its
+card, tension, receipt and shared-kernel contracts. P13 is current on `codex/spx-32-deck`; the real
+ChatGPT-IAB and public deployment gates remain open.

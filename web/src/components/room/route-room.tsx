@@ -57,9 +57,9 @@ export function RouteRoom({
     <section className="room" aria-labelledby="room-title">
       <header className="room__head">
         <div>
-          <p className="eyebrow">Your Route Room</p>
+          <p className="eyebrow">ChatGPT&apos;s route auditions · your decision</p>
           <h1 id="room-title" tabIndex={-1}>
-            {routeSet ? "Three directions. You pick the one to test." : "One question first"}
+            {routeSet ? "Three futures to audition for seven days." : "Waiting for the next experiment"}
           </h1>
           {stateLine ? <p className="room__state">{stateLine}</p> : null}
         </div>

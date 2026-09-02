@@ -2,6 +2,9 @@ import { defineTool, registerTools, type AnyWebMCPTool } from "@nekuda/webmcp-sd
 import type { WorkspaceReader } from "../projections/workspace-reader";
 import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { AgentActivityListener } from "./activity";
+import type { Workspace } from "../domain/workspace";
+import type { EvidencePresentation } from "./tools/chatgpt-experience";
+import { instrumentWebMcpTools, type WebMcpInvocationListener } from "./invocation-log";
 import { detectModelContext, type WebMcpDocument, type WebMcpModelContext } from "./runtime";
 import { createWebMcpTools } from "./tools";
 
@@ -18,6 +21,10 @@ export interface WebMcpRegistrationOptions {
   onWorkspaceChanged?: (stateVersion: number) => void;
   onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
   onAgentActivity?: AgentActivityListener;
+  loadWorkspace?: () => Workspace;
+  catalogueMode?: "legacy" | "chatgpt";
+  onEvidencePresented?: (presentation: EvidencePresentation | null) => void;
+  onInvocation?: WebMcpInvocationListener;
 }
 
 export class WebMcpRegistrationManager {
@@ -42,12 +49,12 @@ export class WebMcpRegistrationManager {
     this.abortActive();
     const controller = new AbortController();
     this.activeController = controller;
-    const tools = createWebMcpTools(reader, controller.signal, {
+    const tools = instrumentWebMcpTools(createWebMcpTools(reader, controller.signal, {
       ...options,
       onProposalCommitted: (operationId) => {
         this.lastCommittedProposalOperationId = operationId;
       },
-    });
+    }), options.onInvocation);
 
     try {
       if (this.resolveRuntime) {

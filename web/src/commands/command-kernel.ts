@@ -286,8 +286,18 @@ export class CommandKernel {
     command: Authorized<ProposeRouteSetCommand>,
   ): Promise<CommandResult> {
     const input = command.input;
+    const routeAuditions = input.outcome === "routes" && input.routes.some((slot) => "sampleWeek" in slot);
     const proposed = workspace.routeProposalSets.find((set) => set.status === "proposed");
     const open = openFollowUp(workspace);
+
+    if (routeAuditions && !hasCompletedFalsification(workspace)) {
+      return failure(workspace, {
+        code: "COUNTEREVIDENCE_REQUIRED",
+        what: "The current hypothesis has not been challenged.",
+        insteadDo: "Run a reversal or variable-isolation probe.",
+        retry: "AFTER_PARTICIPANT_RESPONSE",
+      }, "No state changed because route auditions require participant counterevidence first.", command.actor);
+    }
 
     if (input.outcome === "insufficient_signal") {
       if (command.actor !== "agent") {
@@ -465,6 +475,7 @@ export class CommandKernel {
     const next = workspaceSchema.parse({
       ...workspace,
       stateVersion: afterVersion,
+      phase: routeAuditions ? "EXPLORING" : workspace.phase,
       followUpQuestions: workspace.followUpQuestions.map((question) =>
         withdrawn && question.ref === withdrawn.ref ? withdrawn : question),
       routeProposalSets: sets,
@@ -734,9 +745,6 @@ export class CommandKernel {
     for (const input of command.input.cards.filter((card) => card.kind === "falsification")) {
       const tension = workspace.tensions.find((candidate) => candidate.ref === input.falsifiesTensionRef);
       if (!tension) return failure(workspace, unknownRef(input.falsifiesTensionRef!), "No state changed.", command.actor);
-      if (sameAgent(identity, tension.proposedBy)) {
-        return deckDenied(workspace, command, "SELF_FALSIFICATION", "The agent that proposed a tension cannot be its skeptic.", "Ask a different source or role to deal the falsification cards.", { role: "skeptic" });
-      }
     }
     const afterVersion = workspace.stateVersion + 1;
     const at = this.environment.now();
@@ -752,6 +760,7 @@ export class CommandKernel {
         ...(input.falsifiesTensionRef ? { falsifiesTensionRef: input.falsifiesTensionRef } : {}),
         ...(input.expectedGesture ? { expectedGesture: input.expectedGesture } : {}),
         ...(input.reasons ? { reasons: input.reasons } : {}),
+        ...(input.probe ? { probe: input.probe } : {}),
       };
     });
     for (const [pairIndex, inputs] of duelGroups.entries()) {
@@ -764,7 +773,11 @@ export class CommandKernel {
     }
     const changedRefs = cards.map((card) => card.ref);
     const operation = operationFor(workspace, command, afterVersion, at, changedRefs, "PROPOSED");
-    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, cards: [...workspace.cards, ...cards], deck: { ...workspace.deck, dealsUnresolved: workspace.deck.dealsUnresolved + cards.length }, operations: [...workspace.operations, operation] });
+    const tensions = workspace.tensions.map((tension) => {
+      const falsificationCardRefs = cards.filter((card) => card.falsifiesTensionRef === tension.ref).map((card) => card.ref);
+      return falsificationCardRefs.length ? { ...tension, falsificationCardRefs: [...tension.falsificationCardRefs, ...falsificationCardRefs].slice(-2) } : tension;
+    });
+    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, cards: [...workspace.cards, ...cards], tensions, deck: { ...workspace.deck, dealsUnresolved: workspace.deck.dealsUnresolved + cards.length }, operations: [...workspace.operations, operation] });
     return this.commit(workspace, command, next, operation, { cards, dealRef }, "The cards are visible proposals. Only the participant can swipe them.");
   }
 
@@ -827,10 +840,26 @@ export class CommandKernel {
     if (swipes.some((swipe) => !swipe)) return failure(workspace, unknownRef(command.input.evidenceSwipeRefs[swipes.findIndex((swipe) => !swipe)]!), "No state changed.", command.actor);
     const evidence = swipes as Swipe[];
     if (!hasEvidenceBar(workspace, evidence)) return deckDenied(workspace, command, "TENSION_UNDER_EVIDENCED", "A tension needs three swipes plus a slow swipe or contradiction pair.", "Read more swipes or deal cards on the unresolved axis.", { minimumSwipes: 3 });
+    const contradictorySwipeRefs = command.input.contradictorySwipeRefs ?? [];
+    const interpretation = command.input.interpretation ?? "initial";
+    const contradictory = contradictorySwipeRefs.map((ref) => workspace.swipes.find((swipe) => swipe.ref === ref));
+    if (contradictory.some((swipe) => !swipe)) return failure(workspace, unknownRef(contradictorySwipeRefs[contradictory.findIndex((swipe) => !swipe)]!), "No state changed.", command.actor);
+    if (command.input.supersedesTensionRef) {
+      const predecessor = workspace.tensions.find((candidate) => candidate.ref === command.input.supersedesTensionRef);
+      if (!predecessor) return failure(workspace, unknownRef(command.input.supersedesTensionRef), "No state changed.", command.actor);
+      if (!["survived", "falsified"].includes(predecessor.status)) {
+        return deckDenied(workspace, command, "COUNTEREVIDENCE_REQUIRED", "The hypothesis can only be revised after its counterexample receives a participant response.", "Wait for the participant to respond to the reversal or variable-isolation probe.", { tensionRef: predecessor.ref });
+      }
+      if (interpretation === "initial") {
+        return failure(workspace, policyDenied("A revised hypothesis must say whether ChatGPT strengthened, weakened, or replaced its interpretation."), "No state changed.", command.actor);
+      }
+    } else if (interpretation !== "initial") {
+      return failure(workspace, policyDenied("An interpretation change must cite supersedesTensionRef."), "No state changed.", command.actor);
+    }
     if (workspace.tensions.filter((tension) => tension.status === "proposed").length >= 3) return failure(workspace, policyDenied("Three tensions are already waiting for the participant."), "No state changed.", command.actor);
     const afterVersion = workspace.stateVersion + 1; const at = this.environment.now();
     const ref = nextAvailableRef(workspace, "tension", afterVersion);
-    const tension: Tension = { id: this.environment.createId(), ref, availableActions: [], status: "proposed", claim: command.input.claim, axis: command.input.axis, evidenceSwipeRefs: command.input.evidenceSwipeRefs, falsificationCardRefs: [], proposedBy: identityFor(command), createdAt: at };
+    const tension: Tension = { id: this.environment.createId(), ref, availableActions: [], status: "proposed", claim: command.input.claim, axis: command.input.axis, evidenceSwipeRefs: command.input.evidenceSwipeRefs, falsificationCardRefs: [], contradictorySwipeRefs, interpretation, ...(command.input.supersedesTensionRef ? { supersedesTensionRef: command.input.supersedesTensionRef } : {}), proposedBy: identityFor(command), createdAt: at };
     const operation = operationFor(workspace, command, afterVersion, at, [ref], "PROPOSED");
     const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, tensions: [...workspace.tensions, tension], operations: [...workspace.operations, operation] });
     return this.commit(workspace, command, next, operation, { tension }, "The tension is visible with its evidence. The participant must accept, edit, or reject it.");
@@ -1262,11 +1291,15 @@ function isExecutionContext(context: unknown): context is CommandExecutionContex
 }
 
 function phaseAllows(workspace: Workspace, command: AuthorizedCommand): boolean {
+  if (command.name === "set_limits") return workspace.phase === "DECK" || workspace.phase === "EXPLORING";
   if (command.name === "set_deck_settings" || command.name === "post_dealer_note" || command.name === "dismiss_note") return true;
   if (command.name === "reopen_exploring") return workspace.phase === "TESTING";
   if (command.name === "reopen_deck") return workspace.phase === "EXPLORING";
   if (["deal_cards", "dismiss_deal", "swipe_card", "propose_tension", "resolve_tension", "propose_portrait", "resolve_portrait"].includes(command.name)) {
     return workspace.phase === "DECK" || ((command.name === "deal_cards" || command.name === "swipe_card") && workspace.phase === "TESTING");
+  }
+  if (command.name === "propose_route_set" && workspace.phase === "DECK") {
+    return command.input.outcome === "routes" && command.input.routes.some((slot) => "sampleWeek" in slot);
   }
   return workspace.phase === "EXPLORING";
 }
@@ -1276,10 +1309,6 @@ function identityFor(command: AuthorizedCommand): AgentIdentity {
   const source = command.actor === "agent" ? command.proposalSource : "fixture";
   const role = "input" in command && "role" in command.input && command.input.role ? command.input.role : "unspecified";
   return { source, role, label: source === "embedded_inference" ? "Embedded role" : source === "fixture" ? "Fixture dealer" : "Visiting agent" };
-}
-
-function sameAgent(left: AgentIdentity, right: AgentIdentity): boolean {
-  return left.source === right.source && left.role === right.role;
 }
 
 const LABEL_PATTERNS = [
@@ -1308,6 +1337,11 @@ function hasEvidenceBar(workspace: Workspace, swipes: Swipe[]): boolean {
     }
   }
   return false;
+}
+
+function hasCompletedFalsification(workspace: Workspace): boolean {
+  return workspace.tensions.some((tension) => ["survived", "falsified"].includes(tension.status) &&
+    tension.falsificationCardRefs.some((cardRef) => workspace.swipes.some((swipe) => swipe.cardRef === cardRef)));
 }
 
 function deckDenied(

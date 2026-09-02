@@ -16,6 +16,8 @@ import {
   type AgentActivityEvent,
   type WebMcpRegistrationState,
 } from "../../webmcp/registrar";
+import type { EvidencePresentation } from "../../webmcp/tools/chatgpt-experience";
+import type { WebMcpInvocationEvent } from "../../webmcp/invocation-log";
 import { COPY, ROUTE_LABELS, questionsFor, type StuckShape } from "../../content/journey";
 import { ActionButton } from "../primitives/action-button";
 import { DeckExperience } from "../deck/deck-experience";
@@ -25,6 +27,7 @@ import { StepShell } from "../primitives/step-shell";
 import { ActivityDrawer } from "../room/activity-drawer";
 import { AgentViewPanel } from "../room/agent-view-panel";
 import { RouteRoom } from "../room/route-room";
+import { WebMcpControlRoom } from "../room/webmcp-control-room";
 import type { WordSlip } from "../room/words-panel";
 import { ChosenScreen } from "../screens/chosen-screen";
 import { ConfirmWordsScreen } from "../screens/confirm-words-screen";
@@ -77,6 +80,9 @@ export function DestinyJourney() {
   const [startOverOpen, setStartOverOpen] = useState(false);
   const [assistant, setAssistant] = useState<AssistantStatus | null>(null);
   const [registration, setRegistration] = useState<WebMcpRegistrationState>({ status: "unsupported" });
+  const [evidencePresentation, setEvidencePresentation] = useState<EvidencePresentation | null>(null);
+  const [invocations, setInvocations] = useState<WebMcpInvocationEvent[]>([]);
+  const [controlRoomOpen, setControlRoomOpen] = useState(false);
   const agentConnected = registration.status === "registered";
 
   const questions = useMemo(() => (draft.shape ? questionsFor(draft.shape) : []), [draft.shape]);
@@ -204,12 +210,27 @@ export function DestinyJourney() {
     syncFromWorkspace(message);
   }, [syncFromWorkspace]);
 
+  const loadWorkspaceForWebMcp = useCallback(() => {
+    if (!runtime.current) throw new Error("The workspace is not ready.");
+    return runtime.current.store.load();
+  }, []);
+
   const handleWebMcpWorkspaceSyncError = useCallback(() => {
     setStatusMessage("A change was saved, but this screen could not refresh. Reload to see it.");
   }, []);
 
   const handleAgentActivity = useCallback((event: AgentActivityEvent) => {
     setAgentEvents((events) => [event, ...events].slice(0, 60));
+  }, []);
+
+  const handleInvocation = useCallback((event: WebMcpInvocationEvent) => {
+    setInvocations((events) => {
+      const existing = events.findIndex((candidate) => candidate.id === event.id);
+      if (existing < 0) return [event, ...events].slice(0, 60);
+      const next = [...events];
+      next[existing] = event;
+      return next;
+    });
   }, []);
 
   const handleDeckChanged = useCallback((message?: string) => {
@@ -698,16 +719,21 @@ export function DestinyJourney() {
             </>
           ) : null}
           <WebMcpRegistrar
+            catalogueKey={workspace?.phase}
             commandAdapter={webMcpAdapter}
+            loadWorkspace={loadWorkspaceForWebMcp}
             onWorkspaceChanged={handleWebMcpWorkspaceChanged}
             onWorkspaceSyncError={handleWebMcpWorkspaceSyncError}
             onAgentActivity={handleAgentActivity}
             onRegistrationChanged={setRegistration}
+            onEvidencePresented={setEvidencePresentation}
+            onInvocation={handleInvocation}
             reader={reader}
-            stateVersion={workspace?.stateVersion}
           />
         </div>
       </header>
+
+      {agentConnected || invocations.length ? <WebMcpControlRoom events={invocations} open={controlRoomOpen} onOpenChange={setControlRoomOpen} /> : null}
 
       {latestDenial && dismissedDenial !== latestDenial.id ? (
         <div className="journey-notices">
@@ -717,7 +743,11 @@ export function DestinyJourney() {
         </div>
       ) : null}
 
-      <div id="journey-content" className="journey-content">
+      {agentEvents[0] ? <div className="operation-strip" role="status" aria-live="polite"><strong>ChatGPT · {agentEvents[0].tool}</strong><span>{agentEvents[0].summary}</span><code>v{agentEvents[0].stateVersion}</code></div> : null}
+
+      {evidencePresentation ? <aside className="evidence-presentation" aria-label="Evidence ChatGPT is presenting"><div><p>What changed ChatGPT&apos;s mind</p><h2>{evidencePresentation.whatChangedChatGPTsMind}</h2></div><section><strong>Supporting receipts</strong><p>{evidencePresentation.supportingReceiptRefs.join(" · ") || "None cited"}</p></section><section><strong>Contradictory receipts</strong><p>{evidencePresentation.contradictoryReceiptRefs.join(" · ") || "None cited"}</p></section>{evidencePresentation.missingEvidence.length ? <section><strong>Still missing</strong><p>{evidencePresentation.missingEvidence.join(" · ")}</p></section> : null}<button type="button" onClick={() => setEvidencePresentation(null)}>Return to the test</button></aside> : null}
+
+      <div id="journey-content" className="journey-content" onPointerDownCapture={() => evidencePresentation && setEvidencePresentation(null)}>
         {!ready ? (
           <StepShell title="Opening your room…"><div className="loading-block" aria-hidden="true" /></StepShell>
         ) : startupError ? (
@@ -875,7 +905,7 @@ export function DestinyJourney() {
 
       <footer className="site-footer">
         <p>Direction through small tests, not prediction.</p>
-        <p>{COPY.privacy}</p>
+        <p>Stored in this browser and exposed only through the six participant-safe WebMCP tools.</p>
       </footer>
     </main>
   );

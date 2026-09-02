@@ -1,5 +1,9 @@
 # Destiny.AI — Competition-First Build Plan
 
+> **Current execution note (D-017):** P13 converts the integrated P12/P11 product into the
+> ChatGPT-only six-tool experience without replacing the shared kernel. P13 is the active packet;
+> older packet sequencing remains historical dependency context where it conflicts.
+
 **Status:** APPROVED through D-014. P1/P2 are integrated. A0 authority is active.
 **Deadline:** 3 September 2026, 1:00 p.m. Pacific / 4 September, 1:30 a.m. IST.
 **Authority:** `PROJECT_STATE.md` · `SPEC.md` · `docs/DECISIONS.md`.

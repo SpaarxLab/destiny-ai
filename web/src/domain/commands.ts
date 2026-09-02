@@ -58,6 +58,19 @@ export const routeProposalInputSchema = z.strictObject({
   test: routeTestSchema,
   strengthensWhen: boundedText(300),
   weakensWhen: boundedText(300),
+  sampleWeek: z.array(boundedText(240)).min(3).max(7).optional(),
+  responsibilities: z.array(boundedText(160)).min(1).max(6).optional(),
+  decisions: z.array(boundedText(160)).min(1).max(6).optional(),
+  collaborationShape: boundedText(240).optional(),
+  deepWorkShape: boundedText(240).optional(),
+  majorTradeoff: boundedText(300).optional(),
+  participantLimits: boundedText(240).optional(),
+  uncertainty: boundedText(300).optional(),
+  learningSignals: z.strictObject({
+    success: boundedText(300),
+    failure: boundedText(300),
+    learning: boundedText(300),
+  }).optional(),
 }).superRefine((route, context) => {
   if (route.sourceQuotes.length === 0 && route.tensionRef === undefined) {
     context.addIssue({ code: "custom", path: ["sourceQuotes"], message: "A route requires a quote or tensionRef." });
@@ -198,6 +211,16 @@ const cardInputSchema = z.strictObject({
     z.string().trim().min(12).max(90),
     z.string().trim().min(12).max(90),
   ]).optional(),
+  probe: z.strictObject({
+    template: z.enum(["moment", "forced_tradeoff", "variable_isolation"]),
+    uncertainty: boundedText(300),
+    variables: z.array(boundedText(120)).min(1).max(6),
+    changedVariable: boundedText(120),
+    strengthensWhen: boundedText(300),
+    weakensWhen: boundedText(300),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+    recovery: boundedText(240),
+  }).optional(),
 });
 export type CardInput = z.infer<typeof cardInputSchema>;
 
@@ -242,6 +265,9 @@ export const proposeTensionInputSchema = writeControlSchema.extend({
   claim: z.string().trim().min(20).max(160),
   axis: axisSchema,
   evidenceSwipeRefs: z.array(refSchema).min(3).max(12),
+  contradictorySwipeRefs: z.array(refSchema).max(12).optional(),
+  supersedesTensionRef: refSchema.optional(),
+  interpretation: z.enum(["initial", "strengthened", "weakened", "replaced"]).optional(),
 });
 export type ProposeTensionInput = z.infer<typeof proposeTensionInputSchema>;
 export const proposeTensionCommandSchema = z.strictObject({ name: z.literal("propose_tension"), input: proposeTensionInputSchema });

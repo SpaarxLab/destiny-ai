@@ -16,7 +16,8 @@ import type {
 export type RetryInstruction =
   | "NEVER"
   | "SAME_OPERATION_ID"
-  | "REREAD_THEN_NEW_OPERATION";
+  | "REREAD_THEN_NEW_OPERATION"
+  | "AFTER_PARTICIPANT_RESPONSE";
 
 export type CommandErrorCode =
   | "MALFORMED_INPUT"
@@ -40,7 +41,8 @@ export type CommandErrorCode =
   | "NO_SWIPE_TOOL"
   | "FALSIFICATION_NEEDS_TARGET"
   | "DUEL_NEEDS_PAIR"
-  | "ROUTE_UNGROUNDED";
+  | "ROUTE_UNGROUNDED"
+  | "COUNTEREVIDENCE_REQUIRED";
 
 export interface CommandError {
   code: CommandErrorCode;

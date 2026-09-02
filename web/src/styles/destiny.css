@@ -1479,3 +1479,37 @@ mark {
   .reader-guide__meter i { transition: none; }
   .moment-card:not(.is-flipped) { transform: none !important; }
 }
+.operation-strip {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-accent, #6f5cff) 10%, white);
+  border-block: 1px solid color-mix(in srgb, var(--color-accent, #6f5cff) 25%, transparent);
+  display: flex;
+  gap: .75rem;
+  padding: .65rem clamp(1rem, 4vw, 3rem);
+}
+
+.probe-limits { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem; }
+.probe-limits label { align-items: center; display: flex; gap: .4rem; }
+.probe-limits input { max-width: 6rem; }
+
+.operation-strip span { flex: 1; }
+.operation-strip code { opacity: .65; }
+
+.evidence-presentation {
+  background: #121018;
+  color: #fff;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(16rem, 2fr) repeat(2, minmax(12rem, 1fr)) auto;
+  padding: 1.25rem clamp(1rem, 4vw, 3rem);
+}
+
+.evidence-presentation h2,
+.evidence-presentation p { margin: .25rem 0 0; }
+.evidence-presentation section p { color: #d8d3e2; font-family: ui-monospace, monospace; font-size: .78rem; overflow-wrap: anywhere; }
+.evidence-presentation button { align-self: center; }
+
+@media (max-width: 800px) {
+  .evidence-presentation { grid-template-columns: 1fr; }
+  .operation-strip { align-items: flex-start; flex-direction: column; }
+}

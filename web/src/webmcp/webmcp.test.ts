@@ -49,13 +49,13 @@ describe("P8A native WebMCP foundation", () => {
     const { reader } = setup();
     const manager = new WebMcpRegistrationManager(() => null);
     await expect(manager.replace(reader)).resolves.toEqual({ status: "unsupported" });
-    expect(agentStatusCopy({ status: "unsupported" })).toBe("Human mode");
+    expect(agentStatusCopy({ status: "unsupported" })).toBe("Open this from ChatGPT");
     expect(agentCapabilityCopy(null, { status: "unsupported" })).toBe("Human mode: no agent connected.");
   });
 
   it("describes browser capability without claiming that ChatGPT has connected", () => {
     expect(agentStatusCopy({ status: "registered", toolNames: ["read_workspace"] }))
-      .toBe("Agent tools ready");
+      .toBe("ChatGPT tools ready");
   });
 
   it("registers the exact read-only catalogue with strict input schemas", async () => {

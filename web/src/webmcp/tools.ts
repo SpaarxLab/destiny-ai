@@ -2,6 +2,7 @@ import type { ReadWorkspaceInput } from "../domain/reads";
 import type { ToolResult } from "../domain/results";
 import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { WorkspaceReader } from "../projections/workspace-reader";
+import type { Workspace } from "../domain/workspace";
 import { denialSummary, emitActivity, STALE_REGISTRATION_SUMMARY, type AgentActivityListener } from "./activity";
 import {
   getMethodGuide,
@@ -14,6 +15,8 @@ import {
   canRegisterProposeRouteSetReplay,
   createProposeRouteSetTool,
 } from "./tools/propose-route-set";
+import { createRunProbeTool } from "./tools/run-probe";
+import { createChatGptExperienceTools, type EvidencePresentation } from "./tools/chatgpt-experience";
 
 export const READ_WORKSPACE_INPUT_SCHEMA = {
   oneOf: [
@@ -73,8 +76,20 @@ export function createWebMcpTools(
     onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
     onProposalCommitted?: (operationId: string) => void;
     onAgentActivity?: AgentActivityListener;
+    loadWorkspace?: () => Workspace;
+    catalogueMode?: "legacy" | "chatgpt";
+    onEvidencePresented?: (presentation: EvidencePresentation | null) => void;
   }> = {},
 ): readonly WebMcpToolDefinition[] {
+  if (options.catalogueMode === "chatgpt" && options.commandAdapter && options.loadWorkspace) {
+    return createChatGptExperienceTools(options.commandAdapter, signal, {
+      loadWorkspace: options.loadWorkspace,
+      onWorkspaceChanged: options.onWorkspaceChanged,
+      onWorkspaceSyncError: options.onWorkspaceSyncError,
+      onAgentActivity: options.onAgentActivity,
+      onEvidencePresented: options.onEvidencePresented,
+    });
+  }
   const activity = options.onAgentActivity;
   const tools: WebMcpToolDefinition[] = [
     {
@@ -165,6 +180,14 @@ export function createWebMcpTools(
     onAgentActivity: activity,
   };
   if (options.commandAdapter && phase === "DECK") {
+    if (options.loadWorkspace) {
+      tools.push(createRunProbeTool(options.commandAdapter, signal, {
+        loadWorkspace: options.loadWorkspace,
+        onWorkspaceChanged: options.onWorkspaceChanged,
+        onWorkspaceSyncError: options.onWorkspaceSyncError,
+        onAgentActivity: activity,
+      }));
+    }
     tools.push(
       createDeckMutationTool("deal_cards", DEAL_CARDS_DESCRIPTION, DEAL_CARDS_INPUT_SCHEMA, signal, async (input) =>
         options.commandAdapter!.dealCards(input as Parameters<WebMcpCommandAdapter["dealCards"]>[0], detectAgentIdentity((input as { role?: string }).role)), deckMutationOptions),

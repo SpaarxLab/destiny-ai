@@ -79,15 +79,13 @@ describe("Deck command authority", () => {
     expect(good).toMatchObject({ ok: true, data: { tension: { evidenceSwipeRefs: refs } } });
   });
 
-  it("denies self-falsification and lets a different skeptic settle the tension", async () => {
+  it("lets ChatGPT challenge its own hypothesis while the participant settles it", async () => {
     const context = setup();
     const refs = await seedThreeSwipes(context);
     await context.agent.proposeTension({ operationId: op(), expectedVersion: 4, role: "reader", claim: "You want to make the thing but hesitate when everyone waits for a decision.", axis: "making_deciding", evidenceSwipeRefs: refs }, reader);
     const tensionRef = context.store.load().tensions[0].ref;
     const falsification = { ...moment("Everyone asks you to decide, and you feel lighter before you say a word.", "b"), kind: "falsification" as const, falsifiesTensionRef: tensionRef, expectedGesture: "me" as const };
-    const denied = await context.agent.dealCards({ operationId: op(), expectedVersion: 5, role: "reader", cards: [falsification] }, reader);
-    expect(denied).toMatchObject({ ok: false, error: { code: "SELF_FALSIFICATION" } });
-    const dealt = await context.agent.dealCards({ operationId: op(), expectedVersion: 5, role: "skeptic", cards: [falsification] }, skeptic);
+    const dealt = await context.agent.dealCards({ operationId: op(), expectedVersion: 5, role: "reader", cards: [falsification] }, reader);
     expect(dealt.ok).toBe(true);
     const cardRef = context.store.load().cards.at(-1)!.ref;
     const swiped = await context.participant.swipeCard({ operationId: op(), expectedVersion: 6, cardRef, gesture: "me", dwell: "fast", flipped: false });

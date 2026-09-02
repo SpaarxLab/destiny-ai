@@ -146,11 +146,15 @@ export function RouteCard({
           <div className="route-card__body">
             <h2 className="route-card__title">{route.title}</h2>
             <p className="route-card__premise">{route.premise}</p>
-            <blockquote className="route-card__quote">
+            {route.sourceQuotes[0] ? <blockquote className="route-card__quote">
               <span>Your words</span>
               “{route.sourceQuotes[0]?.quote}”
-            </blockquote>
+            </blockquote> : null}
             <dl className="route-facts">
+              {route.sampleWeek ? <div><dt>A realistic sample week</dt><dd><ul>{route.sampleWeek.map((item) => <li key={item}>{item}</li>)}</ul></dd></div> : null}
+              {route.responsibilities ? <div><dt>Responsibilities and decisions</dt><dd>{route.responsibilities.join(" · ")}{route.decisions ? ` Decisions: ${route.decisions.join(" · ")}` : ""}</dd></div> : null}
+              {route.collaborationShape || route.deepWorkShape ? <div><dt>Work shape</dt><dd>{route.collaborationShape}{route.collaborationShape && route.deepWorkShape ? " · " : ""}{route.deepWorkShape}</dd></div> : null}
+              {route.majorTradeoff ? <div><dt>Major tradeoff</dt><dd>{route.majorTradeoff}</dd></div> : null}
               <div>
                 <dt>It should teach you</dt>
                 <dd>{route.learningQuestion}</dd>
@@ -166,8 +170,9 @@ export function RouteCard({
               </div>
               <div>
                 <dt>Boundary</dt>
-                <dd>{route.constraint}</dd>
+                <dd>{route.constraint}{route.participantLimits ? ` · ${route.participantLimits}` : ""}</dd>
               </div>
+              {route.learningSignals ? <div><dt>Signals to watch</dt><dd>Success: {route.learningSignals.success}<br />Failure: {route.learningSignals.failure}<br />Either way, learn: {route.learningSignals.learning}</dd></div> : null}
             </dl>
             <details className="route-notes" open={showNotes} onToggle={(event) => setShowNotes(event.currentTarget.open)}>
               <summary>Add private notes</summary>

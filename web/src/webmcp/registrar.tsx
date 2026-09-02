@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { WorkspaceReader } from "../projections/workspace-reader";
 import type { AgentActivityEvent } from "./activity";
+import type { Workspace } from "../domain/workspace";
+import type { EvidencePresentation } from "./tools/chatgpt-experience";
+import type { WebMcpInvocationListener } from "./invocation-log";
 import {
   WebMcpRegistrationManager,
   type WebMcpRegistrationState,
@@ -16,26 +19,32 @@ export type { WebMcpRegistrationState } from "./lifecycle";
 export interface WebMcpRegistrarProps {
   reader: WorkspaceReader | null;
   commandAdapter?: WebMcpCommandAdapter | null;
-  stateVersion?: number | null;
+  catalogueKey?: string | null;
+  loadWorkspace?: () => Workspace;
   onWorkspaceChanged?: (stateVersion: number) => void;
   onWorkspaceSyncError?: (error: unknown, stateVersion: number) => void;
   onAgentActivity?: (event: AgentActivityEvent) => void;
   onRegistrationChanged?: (state: WebMcpRegistrationState) => void;
+  onEvidencePresented?: (presentation: EvidencePresentation | null) => void;
+  onInvocation?: WebMcpInvocationListener;
 }
 
 /**
  * Registers the phase-shaped WebMCP catalogue for the current page state and renders a small
- * honest connection badge. Re-registration happens whenever the authoritative state version
- * changes, so the catalogue always matches what the participant sees.
+ * honest connection badge. Re-registration follows phase-shaped catalogue changes; ordinary
+ * state writes leave the active invocation signal intact so staged work can recover cleanly.
  */
 export function WebMcpRegistrar({
   reader,
   commandAdapter,
-  stateVersion,
+  catalogueKey,
+  loadWorkspace,
   onWorkspaceChanged,
   onWorkspaceSyncError,
   onAgentActivity,
   onRegistrationChanged,
+  onEvidencePresented,
+  onInvocation,
 }: WebMcpRegistrarProps) {
   const manager = useRef<WebMcpRegistrationManager | null>(null);
   const [state, setState] = useState<WebMcpRegistrationState>({ status: "unsupported" });
@@ -68,6 +77,10 @@ export function WebMcpRegistrar({
       ...(onWorkspaceChanged ? { onWorkspaceChanged } : {}),
       ...(onWorkspaceSyncError ? { onWorkspaceSyncError } : {}),
       ...(onAgentActivity ? { onAgentActivity } : {}),
+      ...(loadWorkspace ? { loadWorkspace } : {}),
+      catalogueMode: "chatgpt",
+      ...(onEvidencePresented ? { onEvidencePresented } : {}),
+      ...(onInvocation ? { onInvocation } : {}),
     }).then((nextState) => {
       if (!cancelled && nextState) {
         setState(nextState);
@@ -79,7 +92,7 @@ export function WebMcpRegistrar({
       cancelled = true;
       registration.stop();
     };
-  }, [commandAdapter, onAgentActivity, onWorkspaceChanged, onWorkspaceSyncError, reader, stateVersion]);
+  }, [catalogueKey, commandAdapter, loadWorkspace, onAgentActivity, onEvidencePresented, onInvocation, onWorkspaceChanged, onWorkspaceSyncError, reader]);
 
   const copy = agentStatusCopy(state);
 
@@ -97,8 +110,8 @@ export function WebMcpRegistrar({
 
 export function agentStatusCopy(state: WebMcpRegistrationState): string {
   return state.status === "registered"
-    ? "Agent tools ready"
+    ? "ChatGPT tools ready"
     : state.status === "failed"
       ? "Agent tools unavailable"
-      : "Human mode";
+      : "Open this from ChatGPT";
 }

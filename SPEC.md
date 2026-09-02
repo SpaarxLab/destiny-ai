@@ -1,6 +1,6 @@
 # Destiny.AI — Product and System Contract
 
-**Status:** Current product/technical authority, revised for The Deck (D-016).
+**Status:** Current product/technical authority, revised for ChatGPT A/B Tests Your Future (D-017).
 **Contract version:** `2.0.0` · **Workspace schema:** `4` · **Read contract:** `read-workspace/4.0.0` ·
 **Method guide:** `destiny-method/3.0.0`.
 **Build admission:** P1, P2, P3A, P3B, P3C, and P8A are integrated on `main`; P8B is committed on
@@ -13,22 +13,38 @@ D-015 lists as superseded.
 
 ## 1. Product promise
 
-A guided Destiny Journey where a career-stuck adult and a visiting agent turn the person's own words
-into three grounded routes and leave with one participant-approved hypothesis plus a bounded
-seven-day test idea. After submission, the product can run that test and revise direction only from
-confirmed evidence. The website is their shared Route Room.
+**ChatGPT A/B Tests Your Future:** ChatGPT is the only intelligence conducting the connected
+experience. Destiny is the stateful, versioned interactive instrument ChatGPT operates through
+WebMCP. The participant responds exclusively on the webpage. They leave knowing what to test next
+and why, not with a career prediction.
+
+The connected loop is:
+
+`inspect evidence -> stage probe -> participant responds -> inspect receipt -> propose hypothesis -> challenge it -> visibly revise it -> present both sides -> stage three route auditions -> recommend one reversible experiment`
+
+The public catalogue is exactly `inspect_room`, `stage_probe`, `propose_hypothesis`,
+`present_evidence`, `stage_route_auditions`, and `propose_experiment`. The rendezvous spike remains
+test evidence; the admitted protocol is the recoverable two-call fallback because pending-tool
+interaction has not been proven in the real ChatGPT in-app browser.
+
+The earlier guided Destiny Journey remains an internal development path and fixture source. It is
+not the connected competition experience and must not appear as a competing autonomous mode.
 
 **Thesis:** direction is not predicted and is not found through endless introspection. It is
 reduced through small, reversible experiments against the real world. The agent is a lab
 assistant; the participant owns the question, approvals, evidence, and real-world action.
 
-**Two chairs, one table (D-015):** the person and the agent operate the same Route Room. Every agent
+**Two chairs, one table (D-015, narrowed by D-017):** the person and ChatGPT operate the same Route Room. Every agent
 move is a receipted proposal the person can see. The agent may ask one question before it guesses,
 and it may replace only what the person set aside.
 
-The first useful session is:
+The superseded P12 session was:
 
 `16 moment-card swipes -> evidence-backed tensions -> participant-approved Portrait -> limits -> three route previews -> choose one to test`
+
+The current session uses no more than five bounded probes and no Portrait gate. Existing moment,
+duel, reversal, falsification, tension, route-set, replay, receipt, and selective-repair contracts
+remain the internal implementation authority.
 
 The smallest complete learning loop is:
 
@@ -48,8 +64,10 @@ The smallest complete learning loop is:
    transcriptions, verdicts, and confidence revisions require human acceptance.
 5. **Schemas are one policy layer, not the whole policy.** Bounded schemas reject malformed
    inputs; the command kernel also enforces current phase, lifecycle, versions, and approval.
-6. **Phase controls discovery and execution.** WebMCP registers only phase-relevant tools;
-   every invocation is re-checked because agents can cache catalogues and pages can race.
+6. **The catalogue is stable; execution remains phase-governed.** The connected page registers the
+   six public tools throughout the session. `inspect_room.callableAgentActions` narrows the valid
+   next moves, and the kernel re-checks every invocation because agents can cache catalogues and
+   pages can race.
 7. **Every write is replay-safe.** It requires `operationId` and `expectedVersion`. Reusing
    the same operation id returns the original receipt; it never repeats the effect.
 8. **Success has a receipt.** A write reports the authoritative before/after version, changed
@@ -71,24 +89,29 @@ The smallest complete learning loop is:
 16. **Embedded roles are optional proposal sources.** The fixture Deck remains complete with no
     credentials. Consent defaults off; provider output is schema-checked, quality-checked, then
     submitted through the same kernel and participant gates.
+17. **Connected mode has one intelligence.** When WebMCP is attached, fixtures and embedded role
+    inference do not run, no hidden proposal is created, and every visible agent action is ChatGPT.
+18. **Falsification is mandatory.** Route auditions are kernel-denied with
+    `COUNTEREVIDENCE_REQUIRED` until a participant responds to a hypothesis-targeted reversal or
+    variable-isolation probe. ChatGPT must then visibly strengthen, weaken, or replace its claim.
+19. **Evidence presentation is transient.** `present_evidence` may focus cited receipts but cannot
+    mutate evidence, limits, hypotheses, routes, or participant decisions.
 
 ## 3. Scope
 
 ### MVP
 
 - one local participant workspace;
-- a responsive Deck/Table opening with 36 fixture moments, four-direction gestures, dwell buckets,
-  visible piles, evidence-backed tensions, and a participant-approved Portrait;
-- onboarding, shape-of-stuck branch, one-question steps, editable confirmed words, recorded limits,
-  privacy notice, start over, export;
+- a responsive ChatGPT-conducted probe table with moment, forced-tradeoff and variable-isolation
+  templates backed by existing moment, duel, reversal and falsification cards;
+- no conventional questionnaire, embedded chatbot, Portrait gate, or fake multi-agent theatre;
+- recorded participant limits, privacy notice, start over, receipts and recovery;
 - one bounded three-route proposal containing Closest, Bridge, and Probe previews, or one receipted
   follow-up question when the words are too thin;
 - replacement of set-aside routes with kept routes carried over;
 - reflections, follow-up questions, route sets, hypotheses, receipts, activity;
 - human-only phase gates, limits, choice, reopening, and real-world sends;
-- visiting-agent WebMCP tools (imperative and one declarative form), method guide, compact
-  orientation, typed errors, receipts;
-- an optional embedded lab assistant as a replaceable proposal source, disabled by default;
+- the six-tool ChatGPT WebMCP catalogue, typed outcomes, receipts and bounded `inspect_room`;
 - deterministic fixtures, command tests, browser journeys, real-Chrome runtime proof, provider-off
   inference and simulator evals;
 - a complete no-provider baseline: the human journey and visiting-agent WebMCP journey work

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Destiny Journey · Destiny.AI",
+  title: "ChatGPT A/B Tests Your Future · Destiny.AI",
   description:
     "Find one career direction worth testing next through a guided, human-owned journey.",
 };

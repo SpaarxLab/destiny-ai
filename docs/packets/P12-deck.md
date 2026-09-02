@@ -1,6 +1,6 @@
 # Packet P12 — The Deck
 
-**Status:** LOCALLY VERIFIED, INTEGRATION/RELEASE GATES OPEN · **Owner:** Harsh
+**Status:** SUPERSEDED AS CONNECTED EXPERIENCE BY P13/D-017; CARD/TENSION CONTRACTS RETAINED · **Owner:** Harsh
 **Integration destination:** `main` · **Branch:** `codex/spx-32-deck`
 **Depends on:** integrated candidate v2 at `35a273d` · **Authority:** D-016, `SPEC.md` 2.0.0
 

@@ -5,6 +5,7 @@ import type { ParticipantCommandAdapter } from "../../adapters/participant-comma
 import type { WebMcpCommandAdapter } from "../../adapters/webmcp-command-adapter";
 import { fixtureDeck } from "../../content/fixture-deck";
 import type { AgentIdentity, Gesture, Swipe, Workspace } from "../../domain/workspace";
+import { detectModelContext } from "../../webmcp/runtime";
 
 const FIXTURE_DEALER: AgentIdentity = { source: "fixture", role: "dealer", label: "Fixture dealer" };
 const FIXTURE_READER: AgentIdentity = { source: "fixture", role: "reader", label: "Fixture reader" };
@@ -35,6 +36,8 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
   const [drag, setDrag] = useState({ cardRef: "", x: 0, y: 0, active: false });
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [limitHours, setLimitHours] = useState(Math.max(1, workspace.participant.costCaps.hoursPerWeek || 3));
+  const [limitMoney, setLimitMoney] = useState(workspace.participant.costCaps.money);
   const cardRoot = useRef<HTMLElement>(null);
   const cardFront = useRef<HTMLDivElement>(null);
   const focusNextCard = useRef(false);
@@ -69,7 +72,7 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
   }, [flipped]);
 
   const dealFixtures = useCallback(async () => {
-    if (busy || workspace.deck.dealsUnresolved >= 3 || workspace.swipes.length >= 16) return;
+    if (process.env.NEXT_PUBLIC_DESTINY_FIXTURES !== "on" || detectModelContext() || busy || workspace.deck.dealsUnresolved >= 3 || workspace.swipes.length >= 5) return;
     const key = `deal-${workspace.cards.length}`;
     if (orchestration.current.has(key)) return;
     orchestration.current.add(key);
@@ -107,7 +110,7 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
   useEffect(() => { queueMicrotask(() => void dealFixtures()); }, [dealFixtures]);
 
   const maybeRead = useCallback(async () => {
-    if (workspace.swipes.length < 12 || openTension || resolvedTensions.length >= 2) return;
+    if (agentConnected || workspace.swipes.length < 12 || openTension || resolvedTensions.length >= 2) return;
     const key = `read-${workspace.swipes.length}-${workspace.tensions.length}`;
     if (orchestration.current.has(key)) return;
     const evidence = evidenceWindow(workspace, workspace.swipes, workspace.tensions.flatMap((tension) => tension.evidenceSwipeRefs));
@@ -143,19 +146,19 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
     }
     const result = await agent.proposeTension({ operationId: crypto.randomUUID(), expectedVersion: workspace.stateVersion, role: "reader", claim, axis, evidenceSwipeRefs }, reader);
     if (result.ok) onChanged("The Reader found a tension worth checking."); else setMessage(result.error?.what ?? "The Reader is waiting for clearer evidence.");
-  }, [agent, onChanged, openTension, resolvedTensions.length, workspace]);
+  }, [agent, agentConnected, onChanged, openTension, resolvedTensions.length, workspace]);
 
   useEffect(() => { queueMicrotask(() => void maybeRead()); }, [maybeRead]);
 
   useEffect(() => {
-    if (resolvedTensions.length < 2 || portrait || !hasSwipeAfterPortraitDeferral) return;
+    if (agentConnected || resolvedTensions.length < 2 || portrait || !hasSwipeAfterPortraitDeferral) return;
     const key = `portrait-${resolvedTensions.map((tension) => tension.ref).join("-")}-${workspace.portraits.length}-${workspace.swipes.length}`;
     if (orchestration.current.has(key)) return;
     orchestration.current.add(key);
     void agent.proposePortrait({ operationId: crypto.randomUUID(), expectedVersion: workspace.stateVersion, role: "reader", tensionRefs: resolvedTensions.slice(0, 3).map((tension) => tension.ref) }, FIXTURE_READER).then((result) => {
       if (result.ok) onChanged("Your Portrait is ready to review."); else setMessage(result.error?.what ?? "The Portrait could not be prepared.");
     });
-  }, [agent, hasSwipeAfterPortraitDeferral, onChanged, portrait, resolvedTensions, workspace.portraits.length, workspace.stateVersion, workspace.swipes.length]);
+  }, [agent, agentConnected, hasSwipeAfterPortraitDeferral, onChanged, portrait, resolvedTensions, workspace.portraits.length, workspace.stateVersion, workspace.swipes.length]);
 
   async function commitSwipe(gesture: Gesture, tappedReasonIndex?: 0 | 1 | 2, skipReasonPrompt = false) {
     if (!current || busy) return;
@@ -206,11 +209,11 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
     if (result.ok) onChanged(); else setMessage(result.error?.what ?? "That setting did not save.");
   }
 
-  async function resolvePortrait(resolution: "accept" | "reject") {
-    if (!portrait) return;
-    const result = await participant.resolvePortrait({ operationId: crypto.randomUUID(), expectedVersion: workspace.stateVersion, portraitRef: portrait.ref, resolution });
-    if (result.ok) onChanged(resolution === "accept" ? "Portrait kept. Now set the limits for your routes." : "Portrait set aside. One more honest card will invite a fresh review.");
-    else setMessage(result.error?.what ?? "That Portrait decision did not save.");
+  async function saveLimits() {
+    const currency = workspace.participant.costCaps.currency === "XXX" ? "USD" : workspace.participant.costCaps.currency;
+    const result = await participant.setLimits({ operationId: crypto.randomUUID(), expectedVersion: workspace.stateVersion, costCaps: { hoursPerWeek: limitHours, money: limitMoney, currency } });
+    if (result.ok) onChanged("Your experiment limits are confirmed. ChatGPT must stay inside them.");
+    else setMessage(result.error?.what ?? "Those limits could not be saved.");
   }
 
   async function dismissDealerNote(noteRef: string) {
@@ -219,24 +222,22 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
   }
 
   return (
-    <section className="deck-shell" aria-label="The Deck">
-      <div className="deck-intro"><p>One minute. No typing. No type assigned.</p><h1 tabIndex={-1}>The Deck</h1></div>
+    <section className="deck-shell" aria-label="ChatGPT A/B Tests Your Future">
+      <div className="deck-intro"><p>Interactive evidence, not a career prediction.</p><h1 tabIndex={-1}>ChatGPT A/B Tests Your Future</h1></div>
       <header className="chairs-strip">
-        <span><strong>You</strong> · only you swipe</span>
-        <span><strong>ChatGPT</strong> · {agentConnected ? "can deal" : "not here"}</span>
-        <span><strong>Dealer</strong> · {workspace.deck.consentEmbedded ? "embedded on" : "fixture"}</span>
-        <span><strong>Reader</strong> · watches receipts</span>
-        <span><strong>Skeptic</strong> · joins a later round</span>
+        <span><strong>You</strong> · only you respond and decide</span>
+        <span><strong>ChatGPT</strong> · {agentConnected ? "conducting this test through WebMCP" : "open this page from ChatGPT to begin"}</span>
       </header>
 
       <div className="deck-consent">
-        <label><input type="checkbox" checked={workspace.deck.consentEmbedded} onChange={(event) => void updateDeckSettings({ consentEmbedded: event.target.checked })} /> Let the table&apos;s own dealer see my swipes <small>(never my notes)</small></label>
-        <label><input type="checkbox" checked={workspace.deck.dwellTracking} onChange={(event) => void updateDeckSettings({ dwellTracking: event.target.checked })} /> Notice hesitation</label>
+        <p>{agentConnected ? "ChatGPT stages each situation. Your reaction is saved as a versioned receipt and returned only when ChatGPT inspects the room." : "There is no autonomous mode or chatbot on this page. In ChatGPT, ask it to open Destiny and test one direction worth exploring."}</p>
+        <label><input type="checkbox" checked={workspace.deck.dwellTracking} onChange={(event) => void updateDeckSettings({ dwellTracking: event.target.checked })} /> Include hesitation as evidence</label>
+        <div className="probe-limits" role="group" aria-label="Seven-day experiment limits"><strong>Your limits</strong><label>Hours this week <input type="number" min="0.5" max="168" step="0.5" value={limitHours} onChange={(event) => setLimitHours(Number(event.target.value))} /></label><label>Money ({workspace.participant.costCaps.currency === "XXX" ? "USD" : workspace.participant.costCaps.currency}) <input type="number" min="0" step="1" value={limitMoney} onChange={(event) => setLimitMoney(Number(event.target.value))} /></label><button type="button" onClick={() => void saveLimits()}>Confirm limits</button></div>
       </div>
 
       <section className="reader-guide" aria-labelledby="reader-guide-title">
-        <div className="reader-guide__copy"><p className="reader-guide__eyebrow">Reader recommendation <span>{workspace.deck.consentEmbedded ? "AI-assisted deck" : "Private local guide"}</span></p><h2 id="reader-guide-title">{recommendation.title}</h2><p>{recommendation.detail}</p><small>Guidance shapes the process, never your answer. Embedded AI sees swipe receipts only when you switch it on.</small></div>
-        <div className="reader-guide__signal"><div className="reader-guide__meter"><span>Reader signal</span><strong>{Math.min(workspace.swipes.length, 12)} / 12</strong><div role="progressbar" aria-label="Reader signal" aria-valuemin={0} aria-valuemax={12} aria-valuenow={Math.min(workspace.swipes.length, 12)}><i style={{ width: `${Math.min(100, workspace.swipes.length / 12 * 100)}%` }} /></div></div><p><span>{reasonCount} reasons</span><span>{slowCount} slow</span></p>{current ? <button type="button" onClick={() => setFlippedCardRef((value) => value === current.ref ? null : current.ref)}>{flipped ? "Return to the moment" : "Show the why choices"}</button> : null}</div>
+        <div className="reader-guide__copy"><p className="reader-guide__eyebrow">How the experiment works <span>ChatGPT + your receipts</span></p><h2 id="reader-guide-title">{current?.probe?.uncertainty ?? recommendation.title}</h2><p>{current?.probe ? `ChatGPT changed: ${current.probe.changedVariable}. This would strengthen the idea if ${current.probe.strengthensWhen}; weaken it if ${current.probe.weakensWhen}.` : recommendation.detail}</p><small>ChatGPT can stage and interpret. It cannot answer, confirm evidence, choose a route, or commit for you.</small></div>
+        <div className="reader-guide__signal"><div className="reader-guide__meter"><span>Probe evidence</span><strong>{Math.min(workspace.swipes.length, 5)} / 5 max</strong><div role="progressbar" aria-label="Probe evidence" aria-valuemin={0} aria-valuemax={5} aria-valuenow={Math.min(workspace.swipes.length, 5)}><i style={{ width: `${Math.min(100, workspace.swipes.length / 5 * 100)}%` }} /></div></div><p><span>{reasonCount} reasons</span><span>{slowCount} slow</span></p>{current ? <button type="button" onClick={() => setFlippedCardRef((value) => value === current.ref ? null : current.ref)}>{flipped ? "Return to the situation" : "See why this tests the idea"}</button> : null}</div>
       </section>
 
       {workspace.dealerNotes.some((note) => note.status === "visible") ? <section className="dealer-notes" aria-label="Dealer notes">{workspace.dealerNotes.filter((note) => note.status === "visible").map((note) => <article key={note.ref}><div><p>{note.postedBy.label}</p><blockquote>{note.text}</blockquote></div><button type="button" aria-label={`Dismiss note from ${note.postedBy.label}`} onClick={() => void dismissDealerNote(note.ref)}>Dismiss</button></article>)}</section> : null}
@@ -244,7 +245,7 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
       <div className="table-grid">
         <aside className="pile-bank pile-bank--left">{PILES.slice(0, 3).map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</aside>
         <div className="card-stage">
-          <p className="deck-kicker">{workspace.swipes.length < 12 ? `Card ${Math.min(16, workspace.swipes.length + 1)} of 16` : resolvedTensions.length < 2 ? "Reading the pattern" : latestRejectedPortrait && !hasSwipeAfterPortraitDeferral ? "Keep sorting · one more honest card" : portrait ? "Review your Portrait" : "Portrait forming"}</p>
+          <p className="deck-kicker">{current ? `Probe ${Math.min(5, workspace.swipes.length + 1)} of 5 max · ${current.probe?.template.replaceAll("_", " ") ?? current.kind}` : agentConnected ? "Ask ChatGPT to stage the next probe" : "Continue from ChatGPT"}</p>
           {current ? (
             <article
               ref={cardRoot}
@@ -267,20 +268,19 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
               <div ref={cardFront} className="moment-card__front" role="button" tabIndex={flipped ? -1 : 0} aria-hidden={flipped} aria-label={`Moment card: ${current.text}. Press Enter to show why choices, or use an arrow key to sort it.`}><span className="card-agent">{current.dealtBy.label}</span><p>{current.text}</p><span className="flip-cue">Tap to ask why</span></div>
               <div className="moment-card__back" aria-hidden={!flipped}><span className="card-agent">What caught you?</span>{current.reasons?.map((reason, index) => <button className="reason-choice" tabIndex={flipped ? 0 : -1} key={reason} onClick={(event) => { event.stopPropagation(); void commitSwipe(pendingGesture?.cardRef === current.ref ? pendingGesture.gesture : "me", index as 0 | 1 | 2); }}>{reason}</button>)}<button className="reason-none" tabIndex={flipped ? 0 : -1} onClick={(event) => { event.stopPropagation(); void commitSwipe(pendingGesture?.cardRef === current.ref ? pendingGesture.gesture : "me", undefined, true); }}>None of these</button></div>
             </article>
-          ) : <div className="empty-table">{busy ? "Dealing the next moments…" : workspace.swipes.length >= 16 ? "The Reader is looking across your piles." : "The tray is clear."}</div>}
+          ) : <div className="empty-table">{busy ? "Staging the next probe…" : agentConnected ? `ChatGPT is connected. Ask it to ${workspace.swipes.length ? "continue from your latest receipt" : "stage the first probe"}.` : "Open this page from ChatGPT to begin."}</div>}
           <div className="gesture-cross" aria-label="Swipe directions"><span>← not me</span><span>↑ I wish</span><span>↓ I used to</span><span>that&apos;s me →</span></div>
         </div>
         <aside className="pile-bank pile-bank--mobile" aria-label="Your four piles">{PILES.map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</aside>
         <aside className="tension-rail">
           <Pile {...PILES[3]} count={counts.me} />
-          <h2>Tensions</h2>
+          <h2>Hypotheses</h2>
           {workspace.tensions.filter((tension) => tension.status !== "rejected" && tension.status !== "superseded").map((tension) => <article key={tension.ref} className={`tension-card tension-card--${tension.status}`}><p>{tension.claim}</p><small>{tension.evidenceSwipeRefs.length} swipes · {tension.status}</small></article>)}
-          {!workspace.tensions.length ? <p className="rail-empty">After twelve honest swipes, the Reader names a pull—not a type.</p> : null}
+          {!workspace.tensions.length ? <p className="rail-empty">After enough contrasting receipts, ChatGPT proposes a falsifiable idea—not a type.</p> : null}
         </aside>
       </div>
 
-      {openTension ? <DeckDialog className="decision-sheet" labelledBy="tension-dialog-title"><p id="tension-dialog-title" className="sheet-eyebrow">Reader · a tension, not a label</p>{editing === openTension.ref ? <><label className="field-label" htmlFor="tension-edit">Rewrite this tension in your words</label><textarea id="tension-edit" value={editText} onChange={(event) => setEditText(event.target.value)} /></> : <h2>{openTension.claim}</h2>}<p>{openTension.evidenceSwipeRefs.length} swipe receipts behind this.</p><div className="sheet-actions">{editing ? <button onClick={() => void resolveTension("edit")}>Save rewritten tension</button> : <><button onClick={() => void resolveTension("accept")}>Keep this tension</button><button onClick={() => { setEditing(openTension.ref); setEditText(openTension.claim); }}>Rewrite</button><button onClick={() => void resolveTension("reject")}>Set tension aside</button></>}</div></DeckDialog> : null}
-      {portrait ? <DeckDialog className="portrait-screen" labelledBy="portrait-dialog-title"><p className="sheet-eyebrow">Your Portrait</p><h2 id="portrait-dialog-title">Not a type. The tensions you chose to keep.</h2>{portrait.tensionRefs.map((ref) => <blockquote key={ref}>{workspace.tensions.find((tension) => tension.ref === ref)?.claim}</blockquote>)}<button onClick={() => void resolvePortrait("accept")}>Keep this Portrait</button><button className="link-button" onClick={() => void resolvePortrait("reject")}>Keep sorting first</button></DeckDialog> : null}
+      {openTension ? <DeckDialog className="decision-sheet" labelledBy="tension-dialog-title"><p id="tension-dialog-title" className="sheet-eyebrow">ChatGPT · {openTension.interpretation === "initial" ? "falsifiable hypothesis" : `${openTension.interpretation} its interpretation`}</p>{editing === openTension.ref ? <><label className="field-label" htmlFor="tension-edit">Rewrite this hypothesis in your words</label><textarea id="tension-edit" value={editText} onChange={(event) => setEditText(event.target.value)} /></> : <h2>{openTension.claim}</h2>}<p>{openTension.evidenceSwipeRefs.length} supporting swipe receipts · {openTension.contradictorySwipeRefs.length} contradictory receipts.</p>{openTension.supersedesTensionRef ? <p><strong>What changed:</strong> ChatGPT {openTension.interpretation} its earlier hypothesis after the counterexample.</p> : null}<div className="sheet-actions">{editing ? <button onClick={() => void resolveTension("edit")}>Save rewritten hypothesis</button> : <><button onClick={() => void resolveTension("accept")}>Keep as a working hypothesis</button><button onClick={() => { setEditing(openTension.ref); setEditText(openTension.claim); }}>Rewrite</button><button onClick={() => void resolveTension("reject")}>Reject hypothesis</button></>}</div></DeckDialog> : null}
       <p className="deck-status" role="status">{message}</p>
       <p className="deck-shortcuts">← → ↑ ↓ swipe · space flip · 1 2 3 tap a reason</p>
     </section>
@@ -302,12 +302,12 @@ function DeckDialog({ className, labelledBy, children }: { className: string; la
 }
 
 function readerRecommendation(swipes: number, reasons: number, slow: number, hasOpenTension: boolean, hasPortrait: boolean, flipped: boolean) {
-  if (hasPortrait) return { title: "Keep only what helps you decide.", detail: "This Portrait is a working lens, not an identity. Keep it only if both tensions feel useful together." };
-  if (hasOpenTension) return { title: "Treat the Reader's tension as a draft.", detail: "Keep it, rewrite it in your language, or set it aside. The Reader never gets the final word." };
-  if (swipes >= 12) return { title: "You have enough signal for a Reader pass.", detail: "Keep sorting naturally while the Reader checks for a slow moment or a real contradiction." };
+  if (hasPortrait) return { title: "Keep only what helps you decide.", detail: "Treat every synthesis as a working lens, never an identity." };
+  if (hasOpenTension) return { title: "Treat ChatGPT's hypothesis as a draft.", detail: "Keep it, rewrite it in your language, or reject it. ChatGPT never gets the final word." };
+  if (swipes >= 5) return { title: "Enough evidence for the next decision.", detail: "Ask ChatGPT to inspect the receipts and move the experiment forward." };
   if (swipes >= 6) return { title: "Pressure-test your biggest pile.", detail: "Do not chase balance. Notice whether the next moment belongs there on instinct or needs a reason." };
-  if (swipes > 0) return { title: reasons === 0 ? "Add one piece of evidence." : "Mix instinct with evidence.", detail: flipped ? "Choose the reason that actually caught you, or skip all three without penalty." : "Turn over one card when you want the Reader to know what caught you. Fast swipes still count." };
-  return { title: "Trust the first reaction.", detail: slow > 0 ? "The Reader noticed a pause, but the pile is still yours to choose." : "Swipe on instinct. Turn a card over only when you want to name why it caught you." };
+  if (swipes > 0) return { title: reasons === 0 ? "Add one piece of evidence." : "Mix instinct with evidence.", detail: flipped ? "Choose the reason that actually caught you, or skip all three without penalty." : "Turn over one card when you want to name what caught you. Fast swipes still count." };
+  return { title: "Trust the first reaction.", detail: slow > 0 ? "The pause is evidence, but the response is still yours." : "Respond on instinct. Turn a card over only when you want to name why it caught you." };
 }
 
 function evidenceWindow(workspace: Workspace, swipes: Swipe[], excludedRefs: string[]): Swipe[] | null {

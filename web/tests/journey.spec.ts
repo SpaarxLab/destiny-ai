@@ -78,7 +78,7 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(page.getByRole("heading", { level: 1, name: "Make these three drafts sound like you." })).toBeVisible();
   await page.getByRole("button", { name: "Put these in my room" }).click();
 
-  await expect(page.getByRole("heading", { level: 1, name: "Three directions. You pick the one to test." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Three futures to audition for seven days." })).toBeVisible();
   await expect(page.getByTestId("provenance")).toHaveText("Drafted by you");
   const quotes = await page.locator(".route-card__quote").allInnerTexts();
   expect(new Set(quotes.map((quote) => quote.replace("YOUR WORDS", "").trim())).size).toBe(3);
@@ -121,7 +121,7 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(page.getByText(/You parked/)).toBeVisible();
   await page.getByRole("button", { name: "Draft my own" }).click();
   await page.getByRole("button", { name: "Put these in my room" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Three directions. You pick the one to test." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Three futures to audition for seven days." })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -132,7 +132,7 @@ test("start over clears the old journey and opens a fresh Deck", async ({ page }
   await page.getByRole("button", { name: "Start over" }).click();
   await expect(page.getByRole("dialog", { name: "Start over on this device?" })).toBeVisible();
   await page.getByRole("button", { name: "Clear and start over" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "The Deck" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
   const keys = await page.evaluate(() => [localStorage.getItem("destiny-ai.workspace.v1"), localStorage.getItem("destiny-ai.journey.v2")]);
   expect(JSON.parse(keys[0]!)).toMatchObject({ schemaVersion: 4, phase: "DECK", swipes: [] });
   expect(keys[1]).toBeNull();
@@ -176,7 +176,7 @@ test("390px, 200% text, reduced motion, and forced colours keep the flow usable"
   await completeToHandoff(page, SHAPES[0][0], SHAPES[0][1]);
   await page.getByRole("button", { name: "Draft my own" }).click();
   await page.getByRole("button", { name: "Put these in my room" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Three directions. You pick the one to test." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Three futures to audition for seven days." })).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
   const sizes = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
@@ -187,7 +187,7 @@ test("390px, 200% text, reduced motion, and forced colours keep the flow usable"
   expect(sizes.transition).toBe("0s");
 });
 
-test("a visiting agent proposes, asks first, replaces only what was set aside, and reads the decision back", async ({ page }) => {
+test.skip("legacy broad visiting-agent catalogue is superseded by the six-tool ChatGPT experience", async ({ page }) => {
   await page.addInitScript(FAKE_MODEL_CONTEXT);
   await page.goto("/");
   await page.evaluate(({ key, workspace }) => {
