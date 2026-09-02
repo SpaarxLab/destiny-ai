@@ -5,14 +5,25 @@ import {
   type ChooseRouteCommand,
   type Command,
   type CompensateRouteSetCommand,
+  type DealCardsCommand,
+  type DismissDealCommand,
+  type DismissNoteCommand,
+  type PostDealerNoteCommand,
+  type ProposePortraitCommand,
+  type ProposeTensionCommand,
   type ProposeRouteSetCommand,
   type ReopenExploringCommand,
+  type ReopenDeckCommand,
+  type ResolvePortraitCommand,
+  type ResolveTensionCommand,
   type ReviseRouteSetCommand,
   type RouteEdit,
   type RouteProposalInput,
   type SaveReflectionCommand,
   type SetLimitsCommand,
+  type SetDeckSettingsCommand,
   type SkipFollowUpCommand,
+  type SwipeCardCommand,
 } from "../domain/commands";
 import {
   availableActions,
@@ -37,11 +48,17 @@ import {
   routeContent,
   workspaceSchema,
   type Actor,
+  type AgentIdentity,
+  type Card,
+  type DealerNote,
   type FollowUpQuestion,
   type Hypothesis,
   type OperationRecord,
+  type Portrait,
   type RoutePreview,
   type RouteProposalSet,
+  type Swipe,
+  type Tension,
   type Workspace,
 } from "../domain/workspace";
 import { WorkspaceStoreError, type WorkspaceStore } from "../storage/workspace-store";
@@ -59,7 +76,11 @@ const defaultEnvironment: CommandEnvironment = {
 type MutationData = NonNullable<CommandResult["data"]>;
 export type CommandExecutionContext =
   | { actor: "participant"; proposalSource: "participant" }
-  | { actor: "agent"; proposalSource: "chatgpt_webmcp" | "embedded_inference" };
+  | {
+      actor: "agent";
+      proposalSource: "chatgpt_webmcp" | "gemini_webmcp" | "other_webmcp" | "embedded_inference" | "fixture";
+      agentIdentity?: AgentIdentity;
+    };
 
 type Authorized<T extends Command = Command> = T & CommandExecutionContext;
 type AuthorizedCommand = Authorized<Command>;
@@ -115,14 +136,16 @@ export class CommandKernel {
     if (command.input.expectedVersion !== workspace.stateVersion) {
       return staleResult(workspace, command.input.expectedVersion, command.actor);
     }
-    const requiredPhase = command.name === "reopen_exploring" ? "TESTING" : "EXPLORING";
-    if (workspace.phase !== requiredPhase) {
+    if (!phaseAllows(workspace, command)) {
       return failure(workspace, {
         code: "WRONG_PHASE",
         what: `${command.name} is unavailable in ${workspace.phase}.`,
         retry: "NEVER",
         insteadDo: "Do not repeat this request. Submit an action declared for the current phase as a new command with a new operationId.",
       }, "No state changed because the live phase denied this command.", command.actor);
+    }
+    if (command.actor !== "participant" && command.name === "swipe_card") {
+      return deckDenied(workspace, command, "NO_SWIPE_TOOL", "There is no agent swipe capability.", "Wait for the participant to swipe the visible card.", { actor: "participant" });
     }
     if (command.actor !== "participant" && PARTICIPANT_ONLY_COMMANDS.includes(command.name)) {
       return wrongActor(workspace, command);
@@ -145,6 +168,28 @@ export class CommandKernel {
         return this.skipFollowUp(workspace, command);
       case "reopen_exploring":
         return this.reopenExploring(workspace, command);
+      case "deal_cards":
+        return this.dealCards(workspace, command);
+      case "dismiss_deal":
+        return this.dismissDeal(workspace, command);
+      case "swipe_card":
+        return this.swipeCard(workspace, command);
+      case "set_deck_settings":
+        return this.setDeckSettings(workspace, command);
+      case "propose_tension":
+        return this.proposeTension(workspace, command);
+      case "resolve_tension":
+        return this.resolveTension(workspace, command);
+      case "propose_portrait":
+        return this.proposePortrait(workspace, command);
+      case "resolve_portrait":
+        return this.resolvePortrait(workspace, command);
+      case "post_dealer_note":
+        return this.postDealerNote(workspace, command);
+      case "dismiss_note":
+        return this.dismissNote(workspace, command);
+      case "reopen_deck":
+        return this.reopenDeck(workspace, command);
     }
   }
 
@@ -279,7 +324,7 @@ export class CommandKernel {
         status: "proposed",
         question: input.followUpQuestion,
         reasonRefs: input.reasonRefs,
-        askedBy: command.proposalSource,
+        askedBy: command.proposalSource === "embedded_inference" ? "embedded_inference" : "chatgpt_webmcp",
         createdAt: at,
       };
       const operation = operationFor(workspace, command, afterVersion, at, [followUp.ref], "PROPOSED");
@@ -391,7 +436,9 @@ export class CommandKernel {
       availableActions: routeSetActions(routeSetRef),
       status: "proposed",
       routes,
-      createdBy: command.proposalSource,
+        createdBy: command.proposalSource === "participant" || command.proposalSource === "embedded_inference"
+          ? command.proposalSource
+          : "chatgpt_webmcp",
       createdAt: at,
       ...(input.supersedesRouteSetRef
         ? { supersedesRouteSetRef: input.supersedesRouteSetRef }
@@ -659,6 +706,211 @@ export class CommandKernel {
       "The chosen direction is parked, not erased. The workspace is exploring again and a new proposal must cite the last route set.");
   }
 
+  private async dealCards(workspace: Workspace, command: Authorized<DealCardsCommand>): Promise<CommandResult> {
+    if (command.actor !== "agent") return wrongActor(workspace, command);
+    if (workspace.deck.dealsUnresolved + command.input.cards.length > 5) {
+      return deckDenied(workspace, command, "TRAY_FULL", "The deal tray can hold at most five unresolved cards.",
+        "Wait for the participant to swipe or dismiss cards, then reread dealAvailability.", { maximum: 5 });
+    }
+    const label = command.input.cards.find((card) => looksLikeLabel(card.text));
+    if (label) return deckDenied(workspace, command, "CARD_IS_A_LABEL", "A card describes or labels the person instead of showing one moment.",
+      "Write one second-person present-tense scene with a concrete detail.", { text: "The thing is broken and nobody knows why. They come and get you." });
+    const duelGroups = new Map<number, typeof command.input.cards>();
+    for (const card of command.input.cards) {
+      if (card.kind === "duel") {
+        if (card.pairIndex === undefined) return deckDenied(workspace, command, "DUEL_NEEDS_PAIR", "A duel card requires a paired opposite-pole card in the same deal.", "Send both duel cards with the same pairIndex.", { pairIndex: 0 });
+        duelGroups.set(card.pairIndex, [...(duelGroups.get(card.pairIndex) ?? []), card]);
+      }
+      if (card.kind === "falsification" && (!card.falsifiesTensionRef || !card.expectedGesture)) {
+        return deckDenied(workspace, command, "FALSIFICATION_NEEDS_TARGET", "A falsification card requires a tension target and expected gesture.", "Cite the tension and the gesture that would support it.", { expectedGesture: "not_me" });
+      }
+    }
+    for (const group of duelGroups.values()) {
+      if (group.length !== 2 || group[0]?.axis !== group[1]?.axis || group[0]?.pole === group[1]?.pole) {
+        return deckDenied(workspace, command, "DUEL_NEEDS_PAIR", "Duel cards must be one matched opposite-pole pair on the same axis.", "Send exactly two cards with the same pairIndex and opposite poles.", { pairIndex: 0 });
+      }
+    }
+    const identity = identityFor(command);
+    for (const input of command.input.cards.filter((card) => card.kind === "falsification")) {
+      const tension = workspace.tensions.find((candidate) => candidate.ref === input.falsifiesTensionRef);
+      if (!tension) return failure(workspace, unknownRef(input.falsifiesTensionRef!), "No state changed.", command.actor);
+      if (sameAgent(identity, tension.proposedBy)) {
+        return deckDenied(workspace, command, "SELF_FALSIFICATION", "The agent that proposed a tension cannot be its skeptic.", "Ask a different source or role to deal the falsification cards.", { role: "skeptic" });
+      }
+    }
+    const afterVersion = workspace.stateVersion + 1;
+    const at = this.environment.now();
+    const dealRef = nextAvailableRef(workspace, "deal", afterVersion);
+    const reserved: string[] = [];
+    const cards: Card[] = command.input.cards.map((input, index) => {
+      const ref = input.ref ?? nextAvailableRef(workspace, `card-${afterVersion}-${index + 1}`, undefined, reserved);
+      reserved.push(ref);
+      return {
+        id: this.environment.createId(), ref, dealRef, availableActions: [], text: input.text,
+        axis: input.axis, pole: input.pole, kind: input.kind, status: "dealt", dealtBy: identity, createdAt: at,
+        ...(input.reversalOfRef ? { reversalOfRef: input.reversalOfRef } : {}),
+        ...(input.falsifiesTensionRef ? { falsifiesTensionRef: input.falsifiesTensionRef } : {}),
+        ...(input.expectedGesture ? { expectedGesture: input.expectedGesture } : {}),
+        ...(input.reasons ? { reasons: input.reasons } : {}),
+      };
+    });
+    for (const [pairIndex, inputs] of duelGroups.entries()) {
+      const indexes = command.input.cards.map((card, index) => card.kind === "duel" && card.pairIndex === pairIndex ? index : -1).filter((index) => index >= 0);
+      if (indexes.length === 2) {
+        cards[indexes[0]] = { ...cards[indexes[0]], pairWithRef: cards[indexes[1]].ref };
+        cards[indexes[1]] = { ...cards[indexes[1]], pairWithRef: cards[indexes[0]].ref };
+      }
+      void inputs;
+    }
+    const changedRefs = cards.map((card) => card.ref);
+    const operation = operationFor(workspace, command, afterVersion, at, changedRefs, "PROPOSED");
+    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, cards: [...workspace.cards, ...cards], deck: { ...workspace.deck, dealsUnresolved: workspace.deck.dealsUnresolved + cards.length }, operations: [...workspace.operations, operation] });
+    return this.commit(workspace, command, next, operation, { cards, dealRef }, "The cards are visible proposals. Only the participant can swipe them.");
+  }
+
+  private async dismissDeal(workspace: Workspace, command: Authorized<DismissDealCommand>): Promise<CommandResult> {
+    const targets = workspace.cards.filter((card) => card.dealRef === command.input.dealRef && card.status === "dealt");
+    if (targets.length === 0) return failure(workspace, unknownRef(command.input.dealRef), "No unresolved cards were dismissed.", command.actor);
+    const refs = new Set(targets.map((card) => card.ref));
+    const cards = workspace.cards.map((card) => refs.has(card.ref) ? { ...card, status: "dismissed" as const } : card);
+    return this.commitDeckMutation(workspace, command, { cards, changedRefs: [...refs], data: { cards: cards.filter((card) => refs.has(card.ref)) }, guidance: "The participant dismissed this deal. The cards remain in history." });
+  }
+
+  private async swipeCard(workspace: Workspace, command: Authorized<SwipeCardCommand>): Promise<CommandResult> {
+    if (command.actor !== "participant") return deckDenied(workspace, command, "NO_SWIPE_TOOL", "There is no agent swipe capability.", "Wait for the participant to swipe the visible card.", { actor: "participant" });
+    const cardIndex = workspace.cards.findIndex((card) => card.ref === command.input.cardRef);
+    const current = workspace.cards[cardIndex];
+    if (!current) return failure(workspace, unknownRef(command.input.cardRef), "No state changed.", command.actor);
+    if (current.status !== "dealt") return failure(workspace, lifecycleError(current.ref, current.status), "A card can be swiped once.", command.actor);
+    if (command.input.tappedReasonIndex !== undefined && !current.reasons?.[command.input.tappedReasonIndex]) {
+      return failure(workspace, policyDenied("The selected reason does not exist on this card."), "No state changed.", command.actor);
+    }
+    const afterVersion = workspace.stateVersion + 1;
+    const at = this.environment.now();
+    const swipeRef = nextAvailableRef(workspace, "swipe", afterVersion);
+    let reflection: Workspace["reflections"][number] | undefined;
+    const reason = command.input.tappedReasonIndex === undefined ? undefined : current.reasons?.[command.input.tappedReasonIndex];
+    if (reason) {
+      reflection = { id: this.environment.createId(), ref: nextAvailableRef(workspace, "reflection", afterVersion), availableActions: [], status: "confirmed", text: reason, recordedBy: "participant_tapped", createdAt: at };
+    }
+    const swipe: Swipe = { id: this.environment.createId(), ref: swipeRef, availableActions: [], cardRef: current.ref, gesture: command.input.gesture, dwell: workspace.deck.dwellTracking ? command.input.dwell : "off", flipped: command.input.flipped, at,
+      ...(command.input.tappedReasonIndex !== undefined ? { tappedReasonIndex: command.input.tappedReasonIndex } : {}),
+      ...(reflection ? { tappedReasonReflectionRef: reflection.ref } : {}) };
+    const card: Card = { ...current, status: "swiped" };
+    const cards = [...workspace.cards]; cards[cardIndex] = card;
+    let tension: Tension | undefined;
+    let tensions = workspace.tensions;
+    if (current.kind === "falsification" && current.falsifiesTensionRef && current.expectedGesture) {
+      const index = workspace.tensions.findIndex((candidate) => candidate.ref === current.falsifiesTensionRef);
+      const existing = workspace.tensions[index];
+      if (existing) {
+        tension = { ...existing, status: command.input.gesture === current.expectedGesture ? "survived" : "falsified" };
+        tensions = [...workspace.tensions]; tensions[index] = tension;
+      }
+    }
+    const changedRefs = [card.ref, swipe.ref, ...(reflection ? [reflection.ref] : []), ...(tension ? [tension.ref] : [])];
+    const operation = operationFor(workspace, command, afterVersion, at, changedRefs, "APPLIED");
+    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, cards, swipes: [...workspace.swipes, swipe], tensions, reflections: reflection ? [...workspace.reflections, reflection] : workspace.reflections, deck: { ...workspace.deck, dealsUnresolved: workspace.deck.dealsUnresolved - 1 }, operations: [...workspace.operations, operation] });
+    return this.commit(workspace, command, next, operation, { swipe, card, ...(reflection ? { reflection } : {}), ...(tension ? { tension } : {}) }, tension ? `The participant swipe ${tension.status} the tension.` : "The participant swipe is recorded as the ground truth.");
+  }
+
+  private async setDeckSettings(workspace: Workspace, command: Authorized<SetDeckSettingsCommand>): Promise<CommandResult> {
+    const deck = { ...workspace.deck, ...(command.input.dwellTracking !== undefined ? { dwellTracking: command.input.dwellTracking } : {}), ...(command.input.consentEmbedded !== undefined ? { consentEmbedded: command.input.consentEmbedded } : {}) };
+    if (JSON.stringify(deck) === JSON.stringify(workspace.deck)) return failure(workspace, policyDenied("Those deck settings are already active."), "No state changed.", command.actor);
+    return this.commitDeckMutation(workspace, command, { deck, changedRefs: [workspace.id], data: { deck }, guidance: deck.consentEmbedded ? "Embedded roles may receive the bounded swipe projection." : "Embedded roles are off; the fixture deck and visiting agents still work." });
+  }
+
+  private async proposeTension(workspace: Workspace, command: Authorized<ProposeTensionCommand>): Promise<CommandResult> {
+    if (command.actor !== "agent") return wrongActor(workspace, command);
+    if (looksLikeLabel(command.input.claim)) return deckDenied(workspace, command, "CLAIM_IS_A_LABEL", "A tension claim labels the person.", "Name a pull and a counter-pull in plain words.", { claim: "You light up at fixing broken things and go cold at owning them afterwards." });
+    const swipes = command.input.evidenceSwipeRefs.map((ref) => workspace.swipes.find((swipe) => swipe.ref === ref));
+    if (swipes.some((swipe) => !swipe)) return failure(workspace, unknownRef(command.input.evidenceSwipeRefs[swipes.findIndex((swipe) => !swipe)]!), "No state changed.", command.actor);
+    const evidence = swipes as Swipe[];
+    if (!hasEvidenceBar(workspace, evidence)) return deckDenied(workspace, command, "TENSION_UNDER_EVIDENCED", "A tension needs three swipes plus a slow swipe or contradiction pair.", "Read more swipes or deal cards on the unresolved axis.", { minimumSwipes: 3 });
+    if (workspace.tensions.filter((tension) => tension.status === "proposed").length >= 3) return failure(workspace, policyDenied("Three tensions are already waiting for the participant."), "No state changed.", command.actor);
+    const afterVersion = workspace.stateVersion + 1; const at = this.environment.now();
+    const ref = nextAvailableRef(workspace, "tension", afterVersion);
+    const tension: Tension = { id: this.environment.createId(), ref, availableActions: [], status: "proposed", claim: command.input.claim, axis: command.input.axis, evidenceSwipeRefs: command.input.evidenceSwipeRefs, falsificationCardRefs: [], proposedBy: identityFor(command), createdAt: at };
+    const operation = operationFor(workspace, command, afterVersion, at, [ref], "PROPOSED");
+    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, tensions: [...workspace.tensions, tension], operations: [...workspace.operations, operation] });
+    return this.commit(workspace, command, next, operation, { tension }, "The tension is visible with its evidence. The participant must accept, edit, or reject it.");
+  }
+
+  private async resolveTension(workspace: Workspace, command: Authorized<ResolveTensionCommand>): Promise<CommandResult> {
+    const index = workspace.tensions.findIndex((tension) => tension.ref === command.input.tensionRef); const current = workspace.tensions[index];
+    if (!current) return failure(workspace, unknownRef(command.input.tensionRef), "No state changed.", command.actor);
+    if (current.status !== "proposed") return failure(workspace, lifecycleError(current.ref, current.status), "No state changed.", command.actor);
+    if (command.input.resolution === "edit" && (!command.input.claim || looksLikeLabel(command.input.claim))) return deckDenied(workspace, command, "CLAIM_IS_A_LABEL", "An edited tension must be a plain pull and counter-pull, not a label.", "Write both sides in one sentence.", { claim: current.claim });
+    const tension: Tension = { ...current, status: command.input.resolution === "accept" ? "accepted" : command.input.resolution === "edit" ? "edited" : "rejected", ...(command.input.resolution === "edit" ? { claim: command.input.claim! } : {}) };
+    const tensions = [...workspace.tensions]; tensions[index] = tension;
+    return this.commitDeckMutation(workspace, command, { tensions, changedRefs: [tension.ref], data: { tension }, guidance: `The participant ${tension.status} the tension.` });
+  }
+
+  private async proposePortrait(workspace: Workspace, command: Authorized<ProposePortraitCommand>): Promise<CommandResult> {
+    if (command.actor !== "agent") return wrongActor(workspace, command);
+    const unique = [...new Set(command.input.tensionRefs)];
+    if (unique.length < 2) return deckDenied(workspace, command, "PORTRAIT_NEEDS_TWO", "A Portrait needs two or three distinct resolved tensions.", "Resolve another grounded tension first.", { minimum: 2 });
+    for (const ref of unique) {
+      const tension = workspace.tensions.find((candidate) => candidate.ref === ref);
+      if (!tension) return failure(workspace, unknownRef(ref), "No state changed.", command.actor);
+      if (!["accepted", "edited", "survived"].includes(tension.status)) return deckDenied(workspace, command, "TENSION_NOT_RESOLVED", `Tension ${ref} is not accepted, edited, or survived.`, "Wait for the participant or the falsification result.", { tensionRef: ref });
+    }
+    const portraits = workspace.portraits.map((portrait) => portrait.status === "proposed" ? { ...portrait, status: "superseded" as const } : portrait);
+    const afterVersion = workspace.stateVersion + 1; const at = this.environment.now(); const ref = nextAvailableRef(workspace, "portrait", afterVersion);
+    const portrait: Portrait = { id: this.environment.createId(), ref, availableActions: [], status: "proposed", tensionRefs: unique, proposedBy: identityFor(command), createdAt: at };
+    const superseded = workspace.portraits.filter((candidate) => candidate.status === "proposed").map((candidate) => candidate.ref);
+    const operation = operationFor(workspace, command, afterVersion, at, [...superseded, ref], "PROPOSED");
+    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, portraits: [...portraits, portrait], operations: [...workspace.operations, operation] });
+    return this.commit(workspace, command, next, operation, { portrait }, "The Portrait is visible. Only the participant can keep it or ask for more cards.");
+  }
+
+  private async resolvePortrait(workspace: Workspace, command: Authorized<ResolvePortraitCommand>): Promise<CommandResult> {
+    const index = workspace.portraits.findIndex((portrait) => portrait.ref === command.input.portraitRef); const current = workspace.portraits[index];
+    if (!current) return failure(workspace, unknownRef(command.input.portraitRef), "No state changed.", command.actor);
+    if (current.status !== "proposed") return failure(workspace, lifecycleError(current.ref, current.status), "No state changed.", command.actor);
+    const portrait: Portrait = { ...current, status: command.input.resolution === "accept" ? "accepted" : "rejected" };
+    const portraits = [...workspace.portraits]; portraits[index] = portrait;
+    return this.commitDeckMutation(workspace, command, { portraits, phase: command.input.resolution === "accept" ? "EXPLORING" : "DECK", changedRefs: [portrait.ref], data: { portrait }, guidance: command.input.resolution === "accept" ? "The participant kept the Portrait. The room is ready for limits and tension-grounded routes." : "The Portrait was rejected; the table stays open for more cards." });
+  }
+
+  private async postDealerNote(workspace: Workspace, command: Authorized<PostDealerNoteCommand>): Promise<CommandResult> {
+    if (command.actor !== "agent") return wrongActor(workspace, command);
+    const afterVersion = workspace.stateVersion + 1; const at = this.environment.now(); const ref = nextAvailableRef(workspace, "note", afterVersion);
+    const note: DealerNote = { id: this.environment.createId(), ref, availableActions: [], text: command.input.text, status: "visible", postedBy: identityFor(command), createdAt: at };
+    const operation = operationFor(workspace, command, afterVersion, at, [ref], "PROPOSED");
+    const next = workspaceSchema.parse({ ...workspace, stateVersion: afterVersion, dealerNotes: [...workspace.dealerNotes, note], operations: [...workspace.operations, operation] });
+    return this.commit(workspace, command, next, operation, { note }, "The note is visible and the participant may dismiss it.");
+  }
+
+  private async dismissNote(workspace: Workspace, command: Authorized<DismissNoteCommand>): Promise<CommandResult> {
+    const index = workspace.dealerNotes.findIndex((note) => note.ref === command.input.noteRef); const current = workspace.dealerNotes[index];
+    if (!current) return failure(workspace, unknownRef(command.input.noteRef), "No state changed.", command.actor);
+    const note: DealerNote = { ...current, status: "dismissed" }; const dealerNotes = [...workspace.dealerNotes]; dealerNotes[index] = note;
+    return this.commitDeckMutation(workspace, command, { dealerNotes, changedRefs: [note.ref], data: { note }, guidance: "The note was dismissed and remains in the ledger." });
+  }
+
+  private async reopenDeck(workspace: Workspace, command: Authorized<ReopenDeckCommand>): Promise<CommandResult> {
+    const index = workspace.portraits.findIndex((portrait) => portrait.ref === command.input.portraitRef); const current = workspace.portraits[index];
+    if (!current) return failure(workspace, unknownRef(command.input.portraitRef), "No state changed.", command.actor);
+    if (current.status !== "accepted") return failure(workspace, lifecycleError(current.ref, current.status), "No state changed.", command.actor);
+    const portrait: Portrait = { ...current, status: "superseded" }; const portraits = [...workspace.portraits]; portraits[index] = portrait;
+    return this.commitDeckMutation(workspace, command, { portraits, phase: "DECK", changedRefs: [portrait.ref], data: { portrait }, guidance: "The Portrait is parked and the Deck is open again." });
+  }
+
+  private async commitDeckMutation(
+    workspace: Workspace,
+    command: AuthorizedCommand,
+    change: Partial<Workspace> & { changedRefs: string[]; data: MutationData; guidance: string },
+  ): Promise<CommandResult> {
+    const afterVersion = workspace.stateVersion + 1; const at = this.environment.now();
+    const operation = operationFor(workspace, command, afterVersion, at, change.changedRefs, command.actor === "agent" ? "PROPOSED" : "APPLIED");
+    const { data, guidance, ...fieldsWithRefs } = change;
+    const fields: Partial<Workspace> = { ...fieldsWithRefs };
+    delete (fields as Partial<Workspace> & { changedRefs?: string[] }).changedRefs;
+    const next = workspaceSchema.parse({ ...workspace, ...fields, stateVersion: afterVersion, operations: [...workspace.operations, operation] });
+    return this.commit(workspace, command, next, operation, data, guidance);
+  }
+
   private async commit(
     before: Workspace,
     command: AuthorizedCommand,
@@ -717,6 +969,16 @@ function validateRoutes(
   }
 
   for (const route of routes) {
+    if (route.sourceQuotes.length === 0 && route.tensionRef === undefined) {
+      return { code: "ROUTE_UNGROUNDED", what: `${route.ref} has neither an exact quote nor a tensionRef.`, retry: "NEVER", insteadDo: "Ground the route in a confirmed reflection quote or an accepted, edited, or survived tension.", example: { tensionRef: "tension-12" } };
+    }
+    if (route.tensionRef !== undefined) {
+      const tension = workspace.tensions.find((candidate) => candidate.ref === route.tensionRef);
+      if (!tension) return unknownRef(route.tensionRef);
+      if (!["accepted", "edited", "survived"].includes(tension.status)) {
+        return { code: "TENSION_NOT_RESOLVED", what: `Tension ${route.tensionRef} cannot ground a route while ${tension.status}.`, retry: "NEVER", insteadDo: "Use an accepted, edited, or survived tension.", example: { tensionRef: route.tensionRef } };
+      }
+    }
     const sourceIdentities = route.sourceQuotes.map((source) =>
       `${source.reflectionRef} ${source.quote}`);
     if (new Set(sourceIdentities).size !== sourceIdentities.length) {
@@ -839,6 +1101,44 @@ function replayResult(workspace: Workspace, command: AuthorizedCommand): Command
       if (hypothesis) data = { hypothesis };
       break;
     }
+    case "deal_cards": {
+      const cards = workspace.cards.filter((item) => existing.changedRefs.includes(item.ref));
+      if (cards.length) data = { cards, dealRef: cards[0].dealRef };
+      break;
+    }
+    case "dismiss_deal": {
+      const cards = workspace.cards.filter((item) => existing.changedRefs.includes(item.ref));
+      if (cards.length) data = { cards };
+      break;
+    }
+    case "swipe_card": {
+      const card = workspace.cards.find((item) => existing.changedRefs.includes(item.ref));
+      const swipe = workspace.swipes.find((item) => existing.changedRefs.includes(item.ref));
+      const reflection = workspace.reflections.find((item) => existing.changedRefs.includes(item.ref));
+      const tension = workspace.tensions.find((item) => existing.changedRefs.includes(item.ref));
+      if (card && swipe) data = { card, swipe, ...(reflection ? { reflection } : {}), ...(tension ? { tension } : {}) };
+      break;
+    }
+    case "set_deck_settings": data = { deck: workspace.deck }; break;
+    case "propose_tension":
+    case "resolve_tension": {
+      const tension = workspace.tensions.find((item) => existing.changedRefs.includes(item.ref));
+      if (tension) data = { tension };
+      break;
+    }
+    case "propose_portrait":
+    case "resolve_portrait":
+    case "reopen_deck": {
+      const portrait = workspace.portraits.find((item) => existing.changedRefs.includes(item.ref));
+      if (portrait) data = { portrait };
+      break;
+    }
+    case "post_dealer_note":
+    case "dismiss_note": {
+      const note = workspace.dealerNotes.find((item) => existing.changedRefs.includes(item.ref));
+      if (note) data = { note };
+      break;
+    }
   }
   if (!data) return storageFailure(new WorkspaceStoreError(
     "CORRUPT_WORKSPACE", "The replay receipt no longer points to its changed entities.", workspace.stateVersion,
@@ -939,18 +1239,84 @@ function workspaceRefs(workspace: Workspace): Set<string> {
     ...workspace.routeProposalSets.map((set) => set.ref),
     ...workspace.routeProposalSets.flatMap((set) => set.routes.map((route) => route.ref)),
     ...workspace.hypotheses.map((hypothesis) => hypothesis.ref),
+    ...workspace.cards.map((card) => card.ref),
+    ...workspace.swipes.map((swipe) => swipe.ref),
+    ...workspace.tensions.map((tension) => tension.ref),
+    ...workspace.portraits.map((portrait) => portrait.ref),
+    ...workspace.dealerNotes.map((note) => note.ref),
     ...workspace.operations.map((operation) => operation.operationRef),
   ]);
 }
 
 function isExecutionContext(context: unknown): context is CommandExecutionContext {
   if (typeof context !== "object" || context === null) return false;
-  const keys = Object.keys(context).sort().join(",");
-  if (keys !== "actor,proposalSource") return false;
   if (!("actor" in context) || !("proposalSource" in context)) return false;
   return context.actor === "participant"
     ? context.proposalSource === "participant"
     : context.actor === "agent" &&
         (context.proposalSource === "chatgpt_webmcp" ||
+          context.proposalSource === "gemini_webmcp" ||
+          context.proposalSource === "other_webmcp" ||
+          context.proposalSource === "fixture" ||
           context.proposalSource === "embedded_inference");
+}
+
+function phaseAllows(workspace: Workspace, command: AuthorizedCommand): boolean {
+  if (command.name === "set_deck_settings" || command.name === "post_dealer_note" || command.name === "dismiss_note") return true;
+  if (command.name === "reopen_exploring") return workspace.phase === "TESTING";
+  if (command.name === "reopen_deck") return workspace.phase === "EXPLORING";
+  if (["deal_cards", "dismiss_deal", "swipe_card", "propose_tension", "resolve_tension", "propose_portrait", "resolve_portrait"].includes(command.name)) {
+    return workspace.phase === "DECK" || ((command.name === "deal_cards" || command.name === "swipe_card") && workspace.phase === "TESTING");
+  }
+  return workspace.phase === "EXPLORING";
+}
+
+function identityFor(command: AuthorizedCommand): AgentIdentity {
+  if (command.actor === "agent" && command.agentIdentity) return command.agentIdentity;
+  const source = command.actor === "agent" ? command.proposalSource : "fixture";
+  const role = "input" in command && "role" in command.input && command.input.role ? command.input.role : "unspecified";
+  return { source, role, label: source === "embedded_inference" ? "Embedded role" : source === "fixture" ? "Fixture dealer" : "Visiting agent" };
+}
+
+function sameAgent(left: AgentIdentity, right: AgentIdentity): boolean {
+  return left.source === right.source && left.role === right.role;
+}
+
+const LABEL_PATTERNS = [
+  /\byou are\b/i, /\byou're a\b/i, /\b(intj|enfp|istp|infj|entp|esfj|isfp|estj)\b/i,
+  /\b(manager|engineer|designer|nurse|teacher|founder|analyst|consultant|developer|lawyer|doctor|marketer|accountant)\b/i,
+  /\b(introvert|extrovert|perfectionist|leader|creative|analytical|empath)\b/i,
+  /\bshould\b/i, /\bcareer\b/i,
+];
+
+function looksLikeLabel(text: string): boolean {
+  return LABEL_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function hasEvidenceBar(workspace: Workspace, swipes: Swipe[]): boolean {
+  if (swipes.length < 3) return false;
+  if (swipes.some((swipe) => swipe.dwell === "slow")) return true;
+  for (let leftIndex = 0; leftIndex < swipes.length; leftIndex += 1) {
+    const left = swipes[leftIndex]; const leftCard = workspace.cards.find((card) => card.ref === left.cardRef);
+    if (!leftCard) continue;
+    for (let rightIndex = leftIndex + 1; rightIndex < swipes.length; rightIndex += 1) {
+      const right = swipes[rightIndex]; const rightCard = workspace.cards.find((card) => card.ref === right.cardRef);
+      if (!rightCard || leftCard.axis !== rightCard.axis || leftCard.pole === rightCard.pole) continue;
+      if ((left.gesture === "me" && right.gesture === "me") ||
+          (left.gesture === "me" && right.gesture === "wish") ||
+          (left.gesture === "wish" && right.gesture === "me")) return true;
+    }
+  }
+  return false;
+}
+
+function deckDenied(
+  workspace: Workspace,
+  command: AuthorizedCommand,
+  code: CommandError["code"],
+  what: string,
+  insteadDo: string,
+  example: unknown,
+): CommandResult {
+  return failure(workspace, { code, what, retry: "NEVER", insteadDo, example }, "No state changed because the Deck contract denied the command.", command.actor);
 }

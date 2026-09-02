@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-export const WORKSPACE_SCHEMA_VERSION = 3;
-export const CONTRACT_VERSION = "1.2.0";
+export const WORKSPACE_SCHEMA_VERSION = 4;
+export const CONTRACT_VERSION = "2.0.0";
 
 const refSchema = z.string().trim().min(1).max(128);
 const boundedText = (maximum: number) => z.string().trim().min(1).max(maximum);
 
-export const phaseSchema = z.enum(["EXPLORING", "TESTING", "REVIEWING"]);
+export const phaseSchema = z.enum(["DECK", "EXPLORING", "TESTING", "REVIEWING"]);
 export type Phase = z.infer<typeof phaseSchema>;
 
 export const actorSchema = z.enum(["participant", "agent"]);
@@ -31,7 +31,7 @@ export const reflectionSchema = z.strictObject({
   availableActions: z.array(availableActionSchema),
   status: z.enum(["proposed", "confirmed"]),
   text: z.string().min(1).max(2_000),
-  recordedBy: z.enum(["participant", "agent_transcribed"]),
+  recordedBy: z.enum(["participant", "agent_transcribed", "participant_tapped"]),
   createdAt: z.string().datetime({ offset: true }),
   answersFollowUpRef: refSchema.optional(),
 });
@@ -73,7 +73,8 @@ export const routePreviewSchema = z.strictObject({
   kind: routeKindSchema,
   title: boundedText(120),
   premise: boundedText(600),
-  sourceQuotes: z.array(quoteSourceSchema).min(1).max(5),
+  sourceQuotes: z.array(quoteSourceSchema).max(5),
+  tensionRef: refSchema.optional(),
   constraint: boundedText(300),
   learningQuestion: boundedText(300),
   test: routeTestSchema,
@@ -81,6 +82,10 @@ export const routePreviewSchema = z.strictObject({
   weakensWhen: boundedText(300),
   status: z.enum(["proposed", "edited", "rejected", "selected"]),
   carriedFromRouteRef: refSchema.optional(),
+}).superRefine((route, context) => {
+  if (route.sourceQuotes.length === 0 && route.tensionRef === undefined) {
+    context.addIssue({ code: "custom", path: ["sourceQuotes"], message: "A route requires an exact quote or a resolved tension." });
+  }
 });
 export type RoutePreview = z.infer<typeof routePreviewSchema>;
 
@@ -113,6 +118,100 @@ export const hypothesisSchema = z.strictObject({
   confidence: z.number().min(0).max(1),
 });
 export type Hypothesis = z.infer<typeof hypothesisSchema>;
+
+export const gestureSchema = z.enum(["me", "not_me", "wish", "used_to"]);
+export type Gesture = z.infer<typeof gestureSchema>;
+export const dwellSchema = z.enum(["fast", "medium", "slow", "off"]);
+export type Dwell = z.infer<typeof dwellSchema>;
+export const axisSchema = z.enum([
+  "autonomy_belonging", "depth_breadth", "making_deciding",
+  "visible_hidden", "stability_risk", "people_things",
+]);
+export type Axis = z.infer<typeof axisSchema>;
+export const poleSchema = z.enum(["a", "b"]);
+export type Pole = z.infer<typeof poleSchema>;
+export const agentSourceSchema = z.enum([
+  "chatgpt_webmcp", "gemini_webmcp", "other_webmcp", "embedded_inference", "fixture",
+]);
+export const agentRoleSchema = z.enum(["dealer", "reader", "skeptic", "routemaker", "scout", "coach", "unspecified"]);
+export const agentIdentitySchema = z.strictObject({
+  source: agentSourceSchema,
+  role: agentRoleSchema,
+  label: boundedText(80),
+  model: boundedText(120).optional(),
+});
+export type AgentIdentity = z.infer<typeof agentIdentitySchema>;
+
+const addressableFields = {
+  id: z.string().uuid(),
+  ref: refSchema,
+  availableActions: z.array(availableActionSchema),
+};
+
+export const cardSchema = z.strictObject({
+  ...addressableFields,
+  dealRef: refSchema,
+  text: z.string().min(20).max(140),
+  axis: axisSchema,
+  pole: poleSchema,
+  kind: z.enum(["moment", "duel", "reversal", "falsification"]),
+  pairWithRef: refSchema.optional(),
+  reversalOfRef: refSchema.optional(),
+  falsifiesTensionRef: refSchema.optional(),
+  expectedGesture: gestureSchema.optional(),
+  reasons: z.tuple([boundedText(90), boundedText(90), boundedText(90)]).optional(),
+  status: z.enum(["dealt", "swiped", "dismissed"]),
+  dealtBy: agentIdentitySchema,
+  createdAt: z.string().datetime({ offset: true }),
+});
+export type Card = z.infer<typeof cardSchema>;
+
+export const swipeSchema = z.strictObject({
+  ...addressableFields,
+  cardRef: refSchema,
+  gesture: gestureSchema,
+  dwell: dwellSchema,
+  flipped: z.boolean(),
+  tappedReasonIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  tappedReasonReflectionRef: refSchema.optional(),
+  at: z.string().datetime({ offset: true }),
+});
+export type Swipe = z.infer<typeof swipeSchema>;
+
+export const tensionSchema = z.strictObject({
+  ...addressableFields,
+  status: z.enum(["proposed", "accepted", "edited", "rejected", "superseded", "falsified", "survived"]),
+  claim: z.string().min(20).max(160),
+  axis: axisSchema,
+  evidenceSwipeRefs: z.array(refSchema).min(3).max(12),
+  falsificationCardRefs: z.array(refSchema).max(2),
+  influence: z.strictObject({
+    flag: z.enum(["peer", "parent", "prestige", "fear"]),
+    reversalPairRefs: z.tuple([refSchema, refSchema]),
+    status: z.enum(["proposed", "accepted", "rejected"]),
+  }).optional(),
+  proposedBy: agentIdentitySchema,
+  createdAt: z.string().datetime({ offset: true }),
+});
+export type Tension = z.infer<typeof tensionSchema>;
+
+export const portraitSchema = z.strictObject({
+  ...addressableFields,
+  status: z.enum(["proposed", "accepted", "rejected", "superseded"]),
+  tensionRefs: z.array(refSchema).min(2).max(3),
+  proposedBy: agentIdentitySchema,
+  createdAt: z.string().datetime({ offset: true }),
+});
+export type Portrait = z.infer<typeof portraitSchema>;
+
+export const dealerNoteSchema = z.strictObject({
+  ...addressableFields,
+  text: boundedText(240),
+  status: z.enum(["visible", "dismissed"]),
+  postedBy: agentIdentitySchema,
+  createdAt: z.string().datetime({ offset: true }),
+});
+export type DealerNote = z.infer<typeof dealerNoteSchema>;
 
 export const operationReceiptSchema = z.strictObject({
   operationId: z.string().uuid(),
@@ -159,6 +258,16 @@ export const workspaceObjectSchema = z.strictObject({
   followUpQuestions: z.array(followUpQuestionSchema),
   routeProposalSets: z.array(routeProposalSetSchema),
   hypotheses: z.array(hypothesisSchema),
+  cards: z.array(cardSchema),
+  swipes: z.array(swipeSchema),
+  tensions: z.array(tensionSchema),
+  portraits: z.array(portraitSchema),
+  dealerNotes: z.array(dealerNoteSchema),
+  deck: z.strictObject({
+    dwellTracking: z.boolean(),
+    consentEmbedded: z.boolean(),
+    dealsUnresolved: z.number().int().nonnegative().max(5),
+  }),
   experiments: notImplementedCollectionSchema,
   evidence: notImplementedCollectionSchema,
   revisions: notImplementedCollectionSchema,
@@ -188,6 +297,11 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
         path: ["routeProposalSets", setIndex, "routes", routeIndex, "ref"],
       }))),
     ...workspace.hypotheses.map((entity, index) => ({ ref: entity.ref, path: ["hypotheses", index, "ref"] })),
+    ...workspace.cards.map((entity, index) => ({ ref: entity.ref, path: ["cards", index, "ref"] })),
+    ...workspace.swipes.map((entity, index) => ({ ref: entity.ref, path: ["swipes", index, "ref"] })),
+    ...workspace.tensions.map((entity, index) => ({ ref: entity.ref, path: ["tensions", index, "ref"] })),
+    ...workspace.portraits.map((entity, index) => ({ ref: entity.ref, path: ["portraits", index, "ref"] })),
+    ...workspace.dealerNotes.map((entity, index) => ({ ref: entity.ref, path: ["dealerNotes", index, "ref"] })),
     ...workspace.operations.map((entity, index) => ({ ref: entity.operationRef, path: ["operations", index, "operationRef"] })),
   ];
   const seen = new Set<string>();
@@ -454,6 +568,16 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
           });
         }
       }
+      if (route.tensionRef !== undefined) {
+        const tension = workspace.tensions.find((candidate) => candidate.ref === route.tensionRef);
+        if (!tension || !["accepted", "edited", "survived"].includes(tension.status)) {
+          context.addIssue({
+            code: "custom",
+            path: ["routeProposalSets", setIndex, "routes", routeIndex, "tensionRef"],
+            message: "A route tension must point to an accepted, edited, or survived tension.",
+          });
+        }
+      }
       if (route.carriedFromRouteRef !== undefined) {
         const origin = predecessor?.routes.find((candidate) => candidate.ref === route.carriedFromRouteRef);
         if (!origin || origin.kind !== route.kind || routeContent(origin) !== routeContent(route)) {
@@ -503,18 +627,25 @@ export const workspaceSchema = workspaceObjectSchema.superRefine((workspace, con
       message: "The EXPLORING phase cannot hold an accepted hypothesis.",
     });
   }
+  if (workspace.deck.dealsUnresolved !== workspace.cards.filter((card) => card.status === "dealt").length) {
+    context.addIssue({ code: "custom", path: ["deck", "dealsUnresolved"], message: "Unresolved deal count must match dealt cards." });
+  }
+  if (workspace.portraits.filter((portrait) => portrait.status === "proposed").length > 1) {
+    context.addIssue({ code: "custom", path: ["portraits"], message: "At most one Portrait may be open." });
+  }
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
 
 export function createEmptyWorkspace(
   id = "00000000-0000-4000-8000-000000000001",
+  phase: Phase = "EXPLORING",
 ): Workspace {
   return workspaceSchema.parse({
     id,
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     contractVersion: CONTRACT_VERSION,
     stateVersion: 0,
-    phase: "EXPLORING",
+    phase,
     participant: {
       displayName: "",
       focusQuestion: "",
@@ -524,6 +655,12 @@ export function createEmptyWorkspace(
     followUpQuestions: [],
     routeProposalSets: [],
     hypotheses: [],
+    cards: [],
+    swipes: [],
+    tensions: [],
+    portraits: [],
+    dealerNotes: [],
+    deck: { dwellTracking: true, consentEmbedded: false, dealsUnresolved: 0 },
     experiments: [],
     evidence: [],
     revisions: [],
@@ -532,6 +669,11 @@ export function createEmptyWorkspace(
     teachings: [],
     operations: [],
   });
+}
+
+/** New user workspaces enter the Deck; the phase parameter on createEmptyWorkspace is retained for deterministic legacy fixtures. */
+export function createFreshWorkspace(id = "00000000-0000-4000-8000-000000000001"): Workspace {
+  return createEmptyWorkspace(id, "DECK");
 }
 
 export function publicReceipt(record: OperationRecord): OperationReceipt {

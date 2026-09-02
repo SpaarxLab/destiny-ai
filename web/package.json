@@ -13,11 +13,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "check": "npm run test && npm run lint && npm run typecheck && npm run build",
     "test:live": "playwright test -c playwright.live.config.ts",
-    "test:journey": "playwright test tests/journey.spec.ts"
+    "test:journey": "playwright test tests/journey.spec.ts",
+    "eval:live": "tsx scripts/eval-live.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.74",
     "@ai-sdk/provider": "^3.0.15",
+    "@nekuda/webmcp-sdk": "^0.5.0",
     "ai": "^6.0.274",
     "next": "16.3.4",
     "react": "19.2.8",
@@ -35,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

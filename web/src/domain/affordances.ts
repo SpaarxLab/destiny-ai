@@ -68,6 +68,9 @@ export type ProposalAvailability =
   | { available: false; reason: string };
 
 export function proposalAvailability(workspace: Workspace): ProposalAvailability {
+  if (workspace.phase === "DECK") {
+    return { available: false, reason: "Route proposals open after the participant keeps a Portrait from at least two resolved tensions." };
+  }
   if (workspace.phase !== "EXPLORING") {
     return { available: false, reason: "The participant has chosen a direction. Proposals resume only if they reopen exploring." };
   }
@@ -105,6 +108,13 @@ export function availableActions(
 ): AvailableAction[] {
   const actions: AvailableAction[] = [];
   if (actor === "agent") {
+    if (workspace.phase === "DECK") {
+      if (workspace.deck.dealsUnresolved < 5) actions.push({ tool: "deal_cards", targetRef: workspace.id, actor: "agent", effect: "PROPOSE", requiresHuman: true, reason: "Deal moment cards into the participant's visible tray." });
+      if (workspace.swipes.length >= 3 && workspace.tensions.filter((tension) => tension.status === "proposed").length < 3) actions.push({ tool: "propose_tension", targetRef: workspace.id, actor: "agent", effect: "PROPOSE", requiresHuman: true, reason: "Propose one evidence-backed pull and counter-pull." });
+      if (workspace.tensions.filter((tension) => ["accepted", "edited", "survived"].includes(tension.status)).length >= 2) actions.push({ tool: "propose_portrait", targetRef: workspace.id, actor: "agent", effect: "PROPOSE", requiresHuman: true, reason: "Propose a Portrait from two or three resolved tensions." });
+      actions.push({ tool: "post_dealer_note", targetRef: workspace.id, actor: "agent", effect: "PROPOSE", requiresHuman: true, reason: "Leave one visible note of at most 240 characters." });
+      return actions;
+    }
     if (workspace.phase !== "EXPLORING") return actions;
     const availability = proposalAvailability(workspace);
     if (availability.available) {
@@ -120,6 +130,19 @@ export function availableActions(
     return actions;
   }
 
+  if (workspace.phase === "DECK") {
+    for (const card of workspace.cards.filter((candidate) => candidate.status === "dealt")) {
+      actions.push({ tool: "swipe_card", targetRef: card.ref, actor: "participant", effect: "PREPARE_UI", requiresHuman: true, reason: "Only the participant may place a card into a pile." });
+    }
+    for (const tension of workspace.tensions.filter((candidate) => candidate.status === "proposed")) {
+      actions.push({ tool: "resolve_tension", targetRef: tension.ref, actor: "participant", effect: "PREPARE_UI", requiresHuman: true });
+    }
+    for (const portrait of workspace.portraits.filter((candidate) => candidate.status === "proposed")) {
+      actions.push({ tool: "resolve_portrait", targetRef: portrait.ref, actor: "participant", effect: "PREPARE_UI", requiresHuman: true });
+    }
+    actions.push({ tool: "set_deck_settings", targetRef: workspace.id, actor: "participant", effect: "PREPARE_UI", requiresHuman: true });
+    return actions;
+  }
   if (workspace.phase === "TESTING") {
     const accepted = workspace.hypotheses.find((hypothesis) => hypothesis.status === "accepted");
     if (accepted) {

@@ -1,3 +1,4 @@
+import { defineTool, registerTools, type AnyWebMCPTool } from "@nekuda/webmcp-sdk";
 import type { WorkspaceReader } from "../projections/workspace-reader";
 import type { WebMcpCommandAdapter } from "../adapters/webmcp-command-adapter";
 import type { AgentActivityListener } from "./activity";
@@ -25,7 +26,7 @@ export class WebMcpRegistrationManager {
   private lastCommittedProposalOperationId: string | null = null;
 
   constructor(
-    private readonly resolveRuntime: RuntimeResolver = () => detectModelContext(),
+    private readonly resolveRuntime?: RuntimeResolver,
   ) {}
 
   /**
@@ -39,9 +40,6 @@ export class WebMcpRegistrationManager {
   ): Promise<WebMcpRegistrationOutcome> {
     const generation = ++this.generation;
     this.abortActive();
-    const runtime = this.resolveRuntime();
-    if (!runtime) return { status: "unsupported" };
-
     const controller = new AbortController();
     this.activeController = controller;
     const tools = createWebMcpTools(reader, controller.signal, {
@@ -52,9 +50,25 @@ export class WebMcpRegistrationManager {
     });
 
     try {
-      await Promise.all(
-        tools.map((tool) => runtime.registerTool(tool, { signal: controller.signal })),
-      );
+      if (this.resolveRuntime) {
+        const runtime = this.resolveRuntime();
+        if (!runtime) return { status: "unsupported" };
+        await Promise.all(tools.map((tool) => runtime.registerTool(tool, { signal: controller.signal })));
+      } else {
+        const definitions = tools.map((tool) => defineTool<Record<string, unknown>>({
+          stableKey: `destiny.${tool.name}`,
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+          execute: (input) => tool.execute(input),
+        }) as AnyWebMCPTool);
+        const registration = registerTools(definitions, { signal: controller.signal });
+        const outcomes = await registration.ready;
+        if (outcomes.every((outcome) => outcome.state === "unsupported")) return { status: "unsupported" };
+        const failed = outcomes.find((outcome) => outcome.state === "failed");
+        if (failed) throw new Error(`WebMCP registration failed for ${failed.name}.`);
+      }
       if (!this.isCurrent(generation, controller)) return null;
       return { status: "registered", toolNames: tools.map((tool) => tool.name) };
     } catch (error) {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createEmptyWorkspace } from "../src/domain/workspace";
 
 const WORKSPACE_KEY = "destiny-ai.workspace.v1";
 
@@ -48,7 +49,10 @@ const FAKE_MODEL_CONTEXT = `
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(({ key, workspace }) => {
+    localStorage.clear();
+    localStorage.setItem(key, JSON.stringify(workspace));
+  }, { key: WORKSPACE_KEY, workspace: createEmptyWorkspace("00000000-0000-4000-8000-000000000321") });
   await page.reload();
 });
 
@@ -121,16 +125,17 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   expect(errors).toEqual([]);
 });
 
-test("start over clears both keys after an explicit confirmation", async ({ page }) => {
+test("start over clears the old journey and opens a fresh Deck", async ({ page }) => {
   await completeToHandoff(page, SHAPES[1][0], SHAPES[1][1]);
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Now three routes can be proposed." })).toBeVisible();
   await page.getByRole("button", { name: "Start over" }).click();
   await expect(page.getByRole("dialog", { name: "Start over on this device?" })).toBeVisible();
   await page.getByRole("button", { name: "Clear and start over" }).click();
-  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "The Deck" })).toBeVisible();
   const keys = await page.evaluate(() => [localStorage.getItem("destiny-ai.workspace.v1"), localStorage.getItem("destiny-ai.journey.v2")]);
-  expect(keys).toEqual([null, null]);
+  expect(JSON.parse(keys[0]!)).toMatchObject({ schemaVersion: 4, phase: "DECK", swipes: [] });
+  expect(keys[1]).toBeNull();
 });
 
 test("see what ChatGPT sees shows the exact orientation with confirmed words", async ({ page }) => {
@@ -185,7 +190,10 @@ test("390px, 200% text, reduced motion, and forced colours keep the flow usable"
 test("a visiting agent proposes, asks first, replaces only what was set aside, and reads the decision back", async ({ page }) => {
   await page.addInitScript(FAKE_MODEL_CONTEXT);
   await page.goto("/");
-  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(({ key, workspace }) => {
+    localStorage.clear();
+    localStorage.setItem(key, JSON.stringify(workspace));
+  }, { key: WORKSPACE_KEY, workspace: createEmptyWorkspace("00000000-0000-4000-8000-000000000322") });
   await page.reload();
   const errors = captureConsoleErrors(page);
 
@@ -330,7 +338,9 @@ async function agentCall(page: Page, name: string, input: unknown): Promise<any>
     ([toolName, toolInput]) => (window as unknown as { __destinyAgent: { call(name: string, input: unknown): Promise<unknown> } }).__destinyAgent.call(toolName as string, toolInput),
     [name, input],
   );
-  return typeof result === "string" ? JSON.parse(result) : result;
+  if (typeof result === "string") return JSON.parse(result);
+  const text = (result as { content?: Array<{ type?: string; text?: string }> } | null)?.content?.find((item) => item.type === "text")?.text;
+  return text ? JSON.parse(text) : result;
 }
 
 function agentRoutes(

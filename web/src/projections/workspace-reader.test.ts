@@ -717,7 +717,7 @@ describe("P3C cold-agent route collaboration projections", () => {
 
     expect(result.data?.view).toBe("orientation");
     if (result.data?.view !== "orientation") return;
-    expect(result.data.identity).toMatchObject({ schemaVersion: 3, contractVersion: "1.2.0" });
+    expect(result.data.identity).toMatchObject({ schemaVersion: 4, contractVersion: "2.0.0" });
     expect(result.data.active.routeSet).toBeNull();
     expect(result.data.active.hypothesis).toBeNull();
     expect(result.data.proof.routeProposalSetStatus).toBeNull();

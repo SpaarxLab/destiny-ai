@@ -1,10 +1,15 @@
 import type {
   AvailableAction,
+  Card,
+  DealerNote,
   FollowUpQuestion,
   Hypothesis,
   OperationReceipt,
   Reflection,
+  Portrait,
   RouteProposalSet,
+  Swipe,
+  Tension,
   Workspace,
 } from "./workspace";
 
@@ -23,7 +28,19 @@ export type CommandErrorCode =
   | "STALE_STATE"
   | "OPERATION_CONFLICT"
   | "INVALID_CURSOR"
-  | "STORAGE_FAILURE";
+  | "STORAGE_FAILURE"
+  | "TRAY_FULL"
+  | "CARD_IS_A_LABEL"
+  | "CLAIM_IS_A_LABEL"
+  | "CARD_TOO_LONG"
+  | "SELF_FALSIFICATION"
+  | "TENSION_UNDER_EVIDENCED"
+  | "PORTRAIT_NEEDS_TWO"
+  | "TENSION_NOT_RESOLVED"
+  | "NO_SWIPE_TOOL"
+  | "FALSIFICATION_NEEDS_TARGET"
+  | "DUEL_NEEDS_PAIR"
+  | "ROUTE_UNGROUNDED";
 
 export interface CommandError {
   code: CommandErrorCode;
@@ -90,6 +107,18 @@ export type SkipFollowUpResult = ToolResult<{ followUp: FollowUpQuestion }>;
 
 export type ReopenExploringResult = ToolResult<{ hypothesis: Hypothesis }>;
 
+export type DealCardsResult = ToolResult<{ cards: Card[]; dealRef: string }>;
+export type DismissDealResult = ToolResult<{ cards: Card[] }>;
+export type SwipeCardResult = ToolResult<{ swipe: Swipe; card: Card; reflection?: Reflection; tension?: Tension }>;
+export type SetDeckSettingsResult = ToolResult<{ deck: Workspace["deck"] }>;
+export type ProposeTensionResult = ToolResult<{ tension: Tension }>;
+export type ResolveTensionResult = ToolResult<{ tension: Tension }>;
+export type ProposePortraitResult = ToolResult<{ portrait: Portrait }>;
+export type ResolvePortraitResult = ToolResult<{ portrait: Portrait }>;
+export type PostDealerNoteResult = ToolResult<{ note: DealerNote }>;
+export type DismissNoteResult = ToolResult<{ note: DealerNote }>;
+export type ReopenDeckResult = ToolResult<{ portrait: Portrait }>;
+
 export type CommandResult =
   | SaveReflectionResult
   | SetLimitsResult
@@ -98,4 +127,15 @@ export type CommandResult =
   | ChooseRouteResult
   | CompensateRouteSetResult
   | SkipFollowUpResult
-  | ReopenExploringResult;
+  | ReopenExploringResult
+  | DealCardsResult
+  | DismissDealResult
+  | SwipeCardResult
+  | SetDeckSettingsResult
+  | ProposeTensionResult
+  | ResolveTensionResult
+  | ProposePortraitResult
+  | ResolvePortraitResult
+  | PostDealerNoteResult
+  | DismissNoteResult
+  | ReopenDeckResult;

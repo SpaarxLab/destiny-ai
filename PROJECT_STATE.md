@@ -2,23 +2,24 @@
 
 ## Objective
 
-Submit a strong ChatGPT WebMCP Challenge candidate. A career-stuck adult confirms their words and
-limits, hands the shared Route Room to ChatGPT, and watches it read, ask one question if needed,
-propose three grounded routes, and replace only the route the person set aside. Every agent move is
-a receipted proposal the person can see; only the person chooses, reopens, exports, or starts over.
-The product does not predict a career.
+Submit a strong ChatGPT WebMCP Challenge candidate whose first useful minute is The Deck: a
+career-stuck adult sorts concrete moments, reviews evidence-backed tensions, accepts a Portrait, and
+then enters the shared Route Room. Agents may deal and propose through the same command kernel; only
+the person swipes, resolves, chooses, reopens, exports, or starts over. The product does not predict
+a career.
 
 ## Current authority
 
-- **Contract:** `SPEC.md` (contract 1.2.0, schema 3, read contract 3.0.0, method 2.0.0)
-- **Accepted decisions:** `docs/DECISIONS.md`, through D-015
+- **Contract:** `SPEC.md` (contract 2.0.0, schema 4, read contract 4.0.0, method 3.0.0)
+- **Accepted decisions:** `docs/DECISIONS.md`, through D-016
 - **Delivery programme:** `docs/PLAN.md`
-- **Active packet:** `docs/packets/P11-handoff-tickets.md` (release and team-review gates)
+- **Active packet:** `docs/packets/P12-deck.md`
 - **Canonical repo:** `/Users/harsh/career-lab`; Next.js app in `web/`; integration branch `main`
 - **Integrated candidate:** `main` at merge commit `3d814a6` through PR
   [#10](https://github.com/SpaarxLab/destiny-ai/pull/10); application candidate `7909cc7`,
   evidence head `0134a6e`.
 - **Learning guide:** `docs/HOW_IT_WORKS.md`
+- **Active implementation:** `codex/spx-32-deck`, based on `origin/main` at `35a273d`.
 - **Execution tracker:** [Linear — Destiny.AI Build & Proof](https://linear.app/harsh-shah/project/destinyai-build-and-proof-5987c83d1c4c/overview)
 
 Repository documents are product authority. Linear mirrors owners, dependencies, and delivery
@@ -45,6 +46,24 @@ status. A task is not complete because a ticket says so; its packet and PR must 
   default, and replaceable. EVE is deferred.
 
 ## Verified evidence for the integrated candidate
+
+### The Deck branch (`codex/spx-32-deck`)
+
+- Contract 2.0.0 / schema 4 / read 4.0.0 / method 3.0.0 implemented locally.
+- `npm run check`: 15 test files / 189 tests, lint, TypeScript, and production build pass.
+- `npm run test:browser`: 13/13 pass, including Deck desktop/390px, the preserved v2 journey, and
+  visiting-agent/context-isolation stories.
+- SDK-backed WebMCP browser runtime registered the phase catalogue, omitted participant-only
+  `swipe_card`, read schema 4, and returned a non-mutating `TRAY_FULL` denial.
+- All four configured OpenCode Go models returned HTTP 200 and valid JSON through their current API
+  protocols. Embedded role output still fails closed to the fixture tray on schema/quality failure.
+- Desktop and phone screenshots were visually inspected; a mobile fourth-pile overflow found in
+  that pass was fixed and the focused browser suite rerun.
+
+These are branch-local, synthetic, and runtime checks—not integration, deployment, ChatGPT in-app,
+Gemini, participant, video, public-source, or submission proof.
+
+### Integrated candidate v2 on `main`
 
 All local and exact-head CI, with no inference provider configured:
 

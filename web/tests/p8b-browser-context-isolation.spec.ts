@@ -82,6 +82,7 @@ async function seedContext(
   token?: string,
 ) {
   await page.goto(baseURL ?? "http://127.0.0.1:3100");
+  await expect(page.locator(".moment-card")).toBeVisible();
   await page.evaluate(({ workspaceKey, workspaceValue, draftKey, draftValue, tokenKey, tokenValue }) => {
     localStorage.clear();
     localStorage.setItem(workspaceKey, workspaceValue);

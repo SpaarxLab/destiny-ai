@@ -2,7 +2,7 @@
 
 **Authority:** decisions D-001 through D-014 were selected under Harsh's 2026-09-01
 instruction to apply the best defaults and complete foundation setup. Items marked
-`OWNER INPUT` remain deliberately unresolved.
+`OWNER INPUT` remain deliberately unresolved. D-015 and D-016 were explicitly accepted by Harsh.
 
 ## Accepted decisions
 
@@ -238,6 +238,35 @@ adding hidden memory, extra authorities, prediction, or outreach.
 **Supersedes:** the P3/P8B assumption that `insufficient_signal` is non-mutating; the P8B rule that
 denied every new proposal while an unresolved set remained (now: denied unless a route was set
 aside and kept routes are carried); the initial-snapshot cap seeding in P3B.
+
+### D-016 — The Deck becomes the opening experience
+
+**Decision:** contract `2.0.0` and workspace schema `4` add `DECK` before `EXPLORING`. A fresh
+participant receives concrete moment cards and sorts each with four gestures: `me`, `not_me`,
+`wish`, or `used_to`. Only the participant can swipe. Agents may deal bounded cards and propose
+evidence-backed tensions and a Portrait through the same command kernel used by the UI. Accepting a
+Portrait opens the existing limits and Route Room flow; a route may cite an accepted tension instead
+of an exact reflection quote.
+
+The provider-free 36-card fixture deck is the complete baseline. Embedded Dealer, Reader, Skeptic,
+and Route-maker roles are optional, disabled by default, consent-gated, server-only proposal
+sources. Current OpenCode Go API model IDs and protocol families are `glm-5.3-flash`
+(`/chat/completions`), `qwen3.8-flash` (`/messages`), `deepseek-v4-flash`
+(`/chat/completions`), and `gpt-5.6-luna` (`/responses`). Provider output never bypasses schema,
+quality checks, the command kernel, or participant gates.
+
+WebMCP production registration uses the SDK. In `DECK`, the admitted visiting-agent writes are
+`deal_cards`, `propose_tension`, `propose_portrait`, and `post_dealer_note`; swiping, settings, and
+all resolution commands remain participant-only and are never registered. The orientation read is
+`read-workspace/4.0.0` and the method guide is `destiny-method/3.0.0`.
+
+**Why:** the opening card interaction earns meaningful evidence quickly, makes agent contribution
+visible without surrendering authority, and creates a tactile bridge into the more deliberate Route
+Room. The fixture baseline preserves availability, privacy, and demo reliability.
+
+**Supersedes:** D-015's onboarding as the first useful moment, contract `1.2.0`, schema `3`, and the
+deadline catalogue being limited to route proposals. D-015's shared-kernel, receipt, participant
+gate, replace-only-what-was-set-aside, no-prediction, and recovery boundaries remain current.
 
 ## Owner input still required before participant testing
 

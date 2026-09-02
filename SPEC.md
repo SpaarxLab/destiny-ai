@@ -1,11 +1,11 @@
 # Destiny.AI — Product and System Contract
 
-**Status:** Current product/technical authority, revised for candidate v2 (D-015).
-**Contract version:** `1.2.0` · **Workspace schema:** `3` · **Read contract:** `read-workspace/3.0.0` ·
-**Method guide:** `destiny-method/2.0.0`.
+**Status:** Current product/technical authority, revised for The Deck (D-016).
+**Contract version:** `2.0.0` · **Workspace schema:** `4` · **Read contract:** `read-workspace/4.0.0` ·
+**Method guide:** `destiny-method/3.0.0`.
 **Build admission:** P1, P2, P3A, P3B, P3C, and P8A are integrated on `main`; P8B is committed on
-`codex/spx-10-p8b`; candidate v2 (P11) is built on `codex/spx-18-candidate-v2` and is the candidate
-this contract describes. Participant research remains reviewer- and recruitment-gated.
+`codex/spx-10-p8b`; candidate v2 (P11) is integrated on `main`; The Deck is built through P12 on
+`codex/spx-32-deck`. Participant research remains reviewer- and recruitment-gated.
 **Supersedes:** the original Destiny.AI brainstorm, the red/green whiteboards, the eight
 internal-agent concept, the pre-review architecture in this file, and the contract 1.1.0 rules that
 D-015 lists as superseded.
@@ -28,7 +28,7 @@ and it may replace only what the person set aside.
 
 The first useful session is:
 
-`shape of stuck -> focused prompts -> confirmed words -> limits -> three route previews -> choose one to test`
+`16 moment-card swipes -> evidence-backed tensions -> participant-approved Portrait -> limits -> three route previews -> choose one to test`
 
 The smallest complete learning loop is:
 
@@ -66,12 +66,19 @@ The smallest complete learning loop is:
     only when at least one route is set aside, and every kept route must be carried over unchanged.
 14. **Agent affordances never advertise an unregistered tool.** Every `availableActions` entry with
     `actor: 'agent'` names a tool the page registers in that state.
+15. **Only the participant swipes.** No imperative or declarative WebMCP tool may expose
+    `swipe_card`, and a cached agent invocation is denied by the kernel with `NO_SWIPE_TOOL`.
+16. **Embedded roles are optional proposal sources.** The fixture Deck remains complete with no
+    credentials. Consent defaults off; provider output is schema-checked, quality-checked, then
+    submitted through the same kernel and participant gates.
 
 ## 3. Scope
 
 ### MVP
 
 - one local participant workspace;
+- a responsive Deck/Table opening with 36 fixture moments, four-direction gestures, dwell buckets,
+  visible piles, evidence-backed tensions, and a participant-approved Portrait;
 - onboarding, shape-of-stuck branch, one-question steps, editable confirmed words, recorded limits,
   privacy notice, start over, export;
 - one bounded three-route proposal containing Closest, Bridge, and Probe previews, or one receipted
@@ -176,6 +183,7 @@ Two pieces sit outside the tower and can be removed without touching it:
 | Phase | Discoverable agent tools | Human-only gate |
 |---|---|---|
 | all phases | `read_workspace`, `get_method_guide` | — |
+| `DECK` | `deal_cards`, `propose_tension`, `propose_portrait`, `post_dealer_note` | `swipe_card`, settings, all tension/Portrait decisions |
 | `EXPLORING` before words are confirmed | `draft_words` (declarative form on answer screens) | Participant confirms words and `set_limits` |
 | `EXPLORING` with confirmed words | `propose_route_set` when `proposal.available` | Participant answers or skips a follow-up, then `revise_route_set` / `choose_route` |
 | `TESTING` | none | `reopen_exploring` parks the hypothesis and returns to `EXPLORING` |

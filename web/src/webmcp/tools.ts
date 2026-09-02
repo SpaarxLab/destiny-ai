@@ -157,6 +157,22 @@ export function createWebMcpTools(
     },
   ];
 
+  const phase = currentPhase(reader);
+  if (options.commandAdapter && phase === "DECK") {
+    tools.push(
+      createDeckMutationTool("deal_cards", DEAL_CARDS_DESCRIPTION, DEAL_CARDS_INPUT_SCHEMA, signal, async (input) =>
+        options.commandAdapter!.dealCards(input as Parameters<WebMcpCommandAdapter["dealCards"]>[0], detectAgentIdentity((input as { role?: string }).role))),
+      createDeckMutationTool("propose_tension", PROPOSE_TENSION_DESCRIPTION, PROPOSE_TENSION_INPUT_SCHEMA, signal, async (input) =>
+        options.commandAdapter!.proposeTension(input as Parameters<WebMcpCommandAdapter["proposeTension"]>[0], detectAgentIdentity((input as { role?: string }).role))),
+      createDeckMutationTool("propose_portrait", PROPOSE_PORTRAIT_DESCRIPTION, PROPOSE_PORTRAIT_INPUT_SCHEMA, signal, async (input) =>
+        options.commandAdapter!.proposePortrait(input as Parameters<WebMcpCommandAdapter["proposePortrait"]>[0], detectAgentIdentity((input as { role?: string }).role))),
+    );
+  }
+  if (options.commandAdapter && phase === "DECK") {
+    tools.push(createDeckMutationTool("post_dealer_note", POST_DEALER_NOTE_DESCRIPTION, POST_DEALER_NOTE_INPUT_SCHEMA, signal, async (input) =>
+      options.commandAdapter!.postDealerNote(input as Parameters<WebMcpCommandAdapter["postDealerNote"]>[0], detectAgentIdentity((input as { role?: string }).role))));
+  }
+
   const proposalAvailable = canRegisterProposeRouteSet(reader);
   const proposalReplayAvailable = canRegisterProposeRouteSetReplay(reader);
   if (options.commandAdapter && (proposalAvailable || proposalReplayAvailable)) {
@@ -175,6 +191,40 @@ export function createWebMcpTools(
   }
 
   return tools;
+}
+
+const CONTROL_PROPERTIES = {
+  operationId: { type: "string", format: "uuid" },
+  expectedVersion: { type: "integer", minimum: 0 },
+} as const;
+const ROLE = { type: "string", enum: ["dealer", "reader", "skeptic", "routemaker", "scout", "coach", "unspecified"] } as const;
+const AXIS = { type: "string", enum: ["autonomy_belonging", "depth_breadth", "making_deciding", "visible_hidden", "stability_risk", "people_things"] } as const;
+const GESTURE = { type: "string", enum: ["me", "not_me", "wish", "used_to"] } as const;
+
+export const DEAL_CARDS_INPUT_SCHEMA = { type: "object", properties: { ...CONTROL_PROPERTIES, role: ROLE, cards: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: { ref: { type: "string", minLength: 1, maxLength: 128 }, text: { type: "string", minLength: 20, maxLength: 140 }, axis: AXIS, pole: { type: "string", enum: ["a", "b"] }, kind: { type: "string", enum: ["moment", "duel", "reversal", "falsification"] }, pairIndex: { type: "integer", minimum: 0, maximum: 4 }, reversalOfRef: { type: "string" }, falsifiesTensionRef: { type: "string" }, expectedGesture: GESTURE, reasons: { type: "array", minItems: 3, maxItems: 3, items: { type: "string", minLength: 12, maxLength: 90 } } }, required: ["text", "axis", "pole", "kind"], additionalProperties: false } } }, required: ["operationId", "expectedVersion", "cards"], additionalProperties: false } as const;
+export const PROPOSE_TENSION_INPUT_SCHEMA = { type: "object", properties: { ...CONTROL_PROPERTIES, role: ROLE, claim: { type: "string", minLength: 20, maxLength: 160 }, axis: AXIS, evidenceSwipeRefs: { type: "array", minItems: 3, maxItems: 12, items: { type: "string" } } }, required: ["operationId", "expectedVersion", "claim", "axis", "evidenceSwipeRefs"], additionalProperties: false } as const;
+export const PROPOSE_PORTRAIT_INPUT_SCHEMA = { type: "object", properties: { ...CONTROL_PROPERTIES, role: ROLE, tensionRefs: { type: "array", minItems: 2, maxItems: 3, uniqueItems: true, items: { type: "string" } } }, required: ["operationId", "expectedVersion", "tensionRefs"], additionalProperties: false } as const;
+export const POST_DEALER_NOTE_INPUT_SCHEMA = { type: "object", properties: { ...CONTROL_PROPERTIES, role: ROLE, text: { type: "string", minLength: 1, maxLength: 240 } }, required: ["operationId", "expectedVersion", "text"], additionalProperties: false } as const;
+
+export const DEAL_CARDS_DESCRIPTION = "Deal one to five concrete moment cards into the visible Destiny table. Use in DECK after read_workspace confirms remaining slots. Cards are proposals; only the participant can swipe them. Returns receipted cards and the new state version.";
+export const PROPOSE_TENSION_DESCRIPTION = "Propose one plain-language pull and counter-pull grounded in at least three swipe refs, including a slow swipe or contradiction. The participant must accept, edit, or reject it. Returns the visible proposed tension and receipt.";
+export const PROPOSE_PORTRAIT_DESCRIPTION = "Propose a Portrait from two or three accepted, edited, or survived tension refs. The participant alone decides whether to keep it. Returns the visible proposed Portrait and receipt.";
+export const POST_DEALER_NOTE_DESCRIPTION = "Post one visible note of at most 240 characters at the Destiny table. The participant may dismiss it. Returns the note and receipt.";
+
+function createDeckMutationTool(name: string, description: string, inputSchema: WebMcpToolDefinition["inputSchema"], signal: AbortSignal, execute: (input: unknown) => Promise<unknown>): WebMcpToolDefinition {
+  return { name, description, inputSchema, annotations: { readOnlyHint: false, untrustedContentHint: true }, async execute(input) { if (signal.aborted) return staleRegistrationResult(); return execute(input); } };
+}
+
+function currentPhase(reader: WorkspaceReader): string | null {
+  const result = reader.read({ view: "orientation" });
+  return result.data?.view === "orientation" ? result.data.identity.phase : null;
+}
+
+function detectAgentIdentity(role: string | undefined) {
+  const navigatorText = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  const inspector = typeof window !== "undefined" && "__mctInspector" in window;
+  const source = /ChatGPT/i.test(navigatorText) ? "chatgpt_webmcp" as const : inspector ? "gemini_webmcp" as const : "other_webmcp" as const;
+  return { source, role: (role ?? "unspecified") as "dealer" | "reader" | "skeptic" | "routemaker" | "scout" | "coach" | "unspecified", label: source === "chatgpt_webmcp" ? "ChatGPT" : source === "gemini_webmcp" ? "Gemini" : "Visiting agent" };
 }
 
 function isEmptyRecord(value: unknown): value is Record<string, never> {

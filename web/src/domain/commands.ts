@@ -1,6 +1,10 @@
 import { z } from "zod";
 import {
+  agentRoleSchema,
+  axisSchema,
   costCapsSchema,
+  gestureSchema,
+  poleSchema,
   quoteSourceSchema,
   routeKindSchema,
   routeTestSchema,
@@ -47,12 +51,17 @@ export const routeProposalInputSchema = z.strictObject({
   kind: routeKindSchema,
   title: boundedText(120),
   premise: boundedText(600),
-  sourceQuotes: z.array(quoteSourceSchema).min(1).max(5),
+  sourceQuotes: z.array(quoteSourceSchema).max(5).default([]),
+  tensionRef: refSchema.optional(),
   constraint: boundedText(300),
   learningQuestion: boundedText(300),
   test: routeTestSchema,
   strengthensWhen: boundedText(300),
   weakensWhen: boundedText(300),
+}).superRefine((route, context) => {
+  if (route.sourceQuotes.length === 0 && route.tensionRef === undefined) {
+    context.addIssue({ code: "custom", path: ["sourceQuotes"], message: "A route requires a quote or tensionRef." });
+  }
 });
 export type RouteProposalInput = z.infer<typeof routeProposalInputSchema>;
 
@@ -174,6 +183,110 @@ export const reopenExploringCommandSchema = z.strictObject({
 });
 export type ReopenExploringCommand = z.infer<typeof reopenExploringCommandSchema>;
 
+const cardInputSchema = z.strictObject({
+  ref: refSchema.optional(),
+  text: z.string().trim().min(20).max(140),
+  axis: axisSchema,
+  pole: poleSchema,
+  kind: z.enum(["moment", "duel", "reversal", "falsification"]),
+  pairIndex: z.number().int().min(0).max(4).optional(),
+  reversalOfRef: refSchema.optional(),
+  falsifiesTensionRef: refSchema.optional(),
+  expectedGesture: gestureSchema.optional(),
+  reasons: z.tuple([
+    z.string().trim().min(12).max(90),
+    z.string().trim().min(12).max(90),
+    z.string().trim().min(12).max(90),
+  ]).optional(),
+});
+export type CardInput = z.infer<typeof cardInputSchema>;
+
+export const dealCardsInputSchema = writeControlSchema.extend({
+  role: agentRoleSchema.optional(),
+  cards: z.array(cardInputSchema).min(1).max(5),
+});
+export type DealCardsInput = z.infer<typeof dealCardsInputSchema>;
+export const dealCardsCommandSchema = z.strictObject({ name: z.literal("deal_cards"), input: dealCardsInputSchema });
+export type DealCardsCommand = z.infer<typeof dealCardsCommandSchema>;
+
+export const dismissDealInputSchema = writeControlSchema.extend({ dealRef: refSchema });
+export type DismissDealInput = z.infer<typeof dismissDealInputSchema>;
+export const dismissDealCommandSchema = z.strictObject({ name: z.literal("dismiss_deal"), input: dismissDealInputSchema });
+export type DismissDealCommand = z.infer<typeof dismissDealCommandSchema>;
+
+export const swipeCardInputSchema = writeControlSchema.extend({
+  cardRef: refSchema,
+  gesture: gestureSchema,
+  dwell: z.enum(["fast", "medium", "slow", "off"]),
+  flipped: z.boolean().default(false),
+  tappedReasonIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+});
+export type SwipeCardInput = z.infer<typeof swipeCardInputSchema>;
+export const swipeCardCommandSchema = z.strictObject({ name: z.literal("swipe_card"), input: swipeCardInputSchema });
+export type SwipeCardCommand = z.infer<typeof swipeCardCommandSchema>;
+
+export const setDeckSettingsInputSchema = writeControlSchema.extend({
+  dwellTracking: z.boolean().optional(),
+  consentEmbedded: z.boolean().optional(),
+}).superRefine((input, context) => {
+  if (input.dwellTracking === undefined && input.consentEmbedded === undefined) {
+    context.addIssue({ code: "custom", message: "Change at least one deck setting." });
+  }
+});
+export type SetDeckSettingsInput = z.infer<typeof setDeckSettingsInputSchema>;
+export const setDeckSettingsCommandSchema = z.strictObject({ name: z.literal("set_deck_settings"), input: setDeckSettingsInputSchema });
+export type SetDeckSettingsCommand = z.infer<typeof setDeckSettingsCommandSchema>;
+
+export const proposeTensionInputSchema = writeControlSchema.extend({
+  role: agentRoleSchema.optional(),
+  claim: z.string().trim().min(20).max(160),
+  axis: axisSchema,
+  evidenceSwipeRefs: z.array(refSchema).min(3).max(12),
+});
+export type ProposeTensionInput = z.infer<typeof proposeTensionInputSchema>;
+export const proposeTensionCommandSchema = z.strictObject({ name: z.literal("propose_tension"), input: proposeTensionInputSchema });
+export type ProposeTensionCommand = z.infer<typeof proposeTensionCommandSchema>;
+
+export const resolveTensionInputSchema = writeControlSchema.extend({
+  tensionRef: refSchema,
+  resolution: z.enum(["accept", "edit", "reject"]),
+  claim: z.string().trim().min(20).max(160).optional(),
+});
+export type ResolveTensionInput = z.infer<typeof resolveTensionInputSchema>;
+export const resolveTensionCommandSchema = z.strictObject({ name: z.literal("resolve_tension"), input: resolveTensionInputSchema });
+export type ResolveTensionCommand = z.infer<typeof resolveTensionCommandSchema>;
+
+export const proposePortraitInputSchema = writeControlSchema.extend({
+  role: agentRoleSchema.optional(),
+  tensionRefs: z.array(refSchema).min(2).max(3),
+});
+export type ProposePortraitInput = z.infer<typeof proposePortraitInputSchema>;
+export const proposePortraitCommandSchema = z.strictObject({ name: z.literal("propose_portrait"), input: proposePortraitInputSchema });
+export type ProposePortraitCommand = z.infer<typeof proposePortraitCommandSchema>;
+
+export const resolvePortraitInputSchema = writeControlSchema.extend({
+  portraitRef: refSchema,
+  resolution: z.enum(["accept", "reject"]),
+});
+export type ResolvePortraitInput = z.infer<typeof resolvePortraitInputSchema>;
+export const resolvePortraitCommandSchema = z.strictObject({ name: z.literal("resolve_portrait"), input: resolvePortraitInputSchema });
+export type ResolvePortraitCommand = z.infer<typeof resolvePortraitCommandSchema>;
+
+export const postDealerNoteInputSchema = writeControlSchema.extend({ role: agentRoleSchema.optional(), text: z.string().trim().min(1).max(240) });
+export type PostDealerNoteInput = z.infer<typeof postDealerNoteInputSchema>;
+export const postDealerNoteCommandSchema = z.strictObject({ name: z.literal("post_dealer_note"), input: postDealerNoteInputSchema });
+export type PostDealerNoteCommand = z.infer<typeof postDealerNoteCommandSchema>;
+
+export const dismissNoteInputSchema = writeControlSchema.extend({ noteRef: refSchema });
+export type DismissNoteInput = z.infer<typeof dismissNoteInputSchema>;
+export const dismissNoteCommandSchema = z.strictObject({ name: z.literal("dismiss_note"), input: dismissNoteInputSchema });
+export type DismissNoteCommand = z.infer<typeof dismissNoteCommandSchema>;
+
+export const reopenDeckInputSchema = writeControlSchema.extend({ portraitRef: refSchema });
+export type ReopenDeckInput = z.infer<typeof reopenDeckInputSchema>;
+export const reopenDeckCommandSchema = z.strictObject({ name: z.literal("reopen_deck"), input: reopenDeckInputSchema });
+export type ReopenDeckCommand = z.infer<typeof reopenDeckCommandSchema>;
+
 export const commandSchema = z.discriminatedUnion("name", [
   saveReflectionCommandSchema,
   setLimitsCommandSchema,
@@ -183,6 +296,17 @@ export const commandSchema = z.discriminatedUnion("name", [
   compensateRouteSetCommandSchema,
   skipFollowUpCommandSchema,
   reopenExploringCommandSchema,
+  dealCardsCommandSchema,
+  dismissDealCommandSchema,
+  swipeCardCommandSchema,
+  setDeckSettingsCommandSchema,
+  proposeTensionCommandSchema,
+  resolveTensionCommandSchema,
+  proposePortraitCommandSchema,
+  resolvePortraitCommandSchema,
+  postDealerNoteCommandSchema,
+  dismissNoteCommandSchema,
+  reopenDeckCommandSchema,
 ]);
 export type Command = z.infer<typeof commandSchema>;
 export type CommandName = Command["name"];
@@ -194,12 +318,19 @@ export const PARTICIPANT_ONLY_COMMANDS: readonly CommandName[] = [
   "compensate_route_set",
   "skip_follow_up",
   "reopen_exploring",
+  "dismiss_deal",
+  "swipe_card",
+  "set_deck_settings",
+  "resolve_tension",
+  "resolve_portrait",
+  "dismiss_note",
+  "reopen_deck",
 ];
 
 export function commandRequestIdentity(
   command: Command,
   actor: "participant" | "agent",
-  proposalSource?: "participant" | "chatgpt_webmcp" | "embedded_inference",
+  proposalSource?: "participant" | "chatgpt_webmcp" | "gemini_webmcp" | "other_webmcp" | "embedded_inference" | "fixture",
 ): string {
   const intent = Object.fromEntries(
     Object.entries(command.input).filter(([key]) => key !== "operationId" && key !== "expectedVersion"),
@@ -207,7 +338,9 @@ export function commandRequestIdentity(
   return JSON.stringify({
     name: command.name,
     actor,
-    ...(command.name === "propose_route_set" ? { proposalSource } : {}),
+    ...(["propose_route_set", "deal_cards", "propose_tension", "propose_portrait", "post_dealer_note"].includes(command.name)
+      ? { proposalSource }
+      : {}),
     input: intent,
   });
 }

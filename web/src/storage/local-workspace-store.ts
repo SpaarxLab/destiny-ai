@@ -134,8 +134,21 @@ const legacyV1WorkspaceSchema = z.strictObject({
 });
 
 // Schema v2 (P3A): route sets and hypotheses, no follow-up questions.
+const deckFields = {
+  cards: true,
+  swipes: true,
+  tensions: true,
+  portraits: true,
+  dealerNotes: true,
+  deck: true,
+} as const;
+
+const legacyV3WorkspaceSchema = workspaceObjectSchema
+  .omit(deckFields)
+  .extend({ schemaVersion: z.literal(3), contractVersion: z.literal("1.2.0") });
+
 const legacyV2WorkspaceSchema = workspaceObjectSchema
-  .omit({ followUpQuestions: true })
+  .omit({ ...deckFields, followUpQuestions: true })
   .extend({
     schemaVersion: z.literal(2),
     contractVersion: z.literal("1.1.0"),
@@ -145,10 +158,14 @@ export function migrateWorkspace(input: unknown): Workspace {
   const current = workspaceSchema.safeParse(input);
   if (current.success) return current.data;
 
-  const v2 = legacyV2WorkspaceSchema.safeParse(input);
+  const legacyInput = stripDeckFields(input);
+  const v3 = legacyV3WorkspaceSchema.safeParse(legacyInput);
+  if (v3.success) return migrateV3(v3.data);
+
+  const v2 = legacyV2WorkspaceSchema.safeParse(legacyInput);
   if (v2.success) return migrateV2(v2.data);
 
-  const v1 = legacyV1WorkspaceSchema.parse(input);
+  const v1 = legacyV1WorkspaceSchema.parse(legacyInput);
   return migrateV2(legacyV2WorkspaceSchema.parse({
     ...v1,
     schemaVersion: 2,
@@ -166,12 +183,33 @@ export function migrateWorkspace(input: unknown): Workspace {
   }));
 }
 
+function stripDeckFields(input: unknown): unknown {
+  if (typeof input !== "object" || input === null || !("schemaVersion" in input) || ![1, 2, 3].includes(Number(input.schemaVersion))) return input;
+  const { cards, swipes, tensions, portraits, dealerNotes, deck, ...legacy } = input as Record<string, unknown>;
+  void cards; void swipes; void tensions; void portraits; void dealerNotes; void deck;
+  return legacy;
+}
+
 function migrateV2(legacy: z.infer<typeof legacyV2WorkspaceSchema>): Workspace {
+  return migrateV3(legacyV3WorkspaceSchema.parse({
+    ...legacy,
+    schemaVersion: 3,
+    contractVersion: "1.2.0",
+    followUpQuestions: [],
+  }));
+}
+
+function migrateV3(legacy: z.infer<typeof legacyV3WorkspaceSchema>): Workspace {
   return workspaceSchema.parse({
     ...legacy,
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     contractVersion: CONTRACT_VERSION,
-    followUpQuestions: [],
+    cards: [],
+    swipes: [],
+    tensions: [],
+    portraits: [],
+    dealerNotes: [],
+    deck: { dwellTracking: true, consentEmbedded: false, dealsUnresolved: 0 },
   });
 }
 

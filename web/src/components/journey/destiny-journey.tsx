@@ -7,7 +7,7 @@ import { createEmbeddedCommandAdapter, type EmbeddedCommandAdapter } from "../..
 import { CommandKernel } from "../../commands/command-kernel";
 import type { RouteEdit, RouteProposalInput, RouteSlotInput } from "../../domain/commands";
 import type { OrientationProjection } from "../../domain/reads";
-import { createEmptyWorkspace, type Workspace } from "../../domain/workspace";
+import { createFreshWorkspace, type Workspace } from "../../domain/workspace";
 import { LOCAL_WORKSPACE_KEY, LocalWorkspaceStore } from "../../storage/local-workspace-store";
 import { WorkspaceReader } from "../../projections/workspace-reader";
 import {
@@ -18,6 +18,7 @@ import {
 } from "../../webmcp/registrar";
 import { COPY, ROUTE_LABELS, questionsFor, type StuckShape } from "../../content/journey";
 import { ActionButton } from "../primitives/action-button";
+import { DeckExperience } from "../deck/deck-experience";
 import { ConfirmDialog } from "../primitives/confirm-dialog";
 import { Notice } from "../primitives/notice";
 import { StepShell } from "../primitives/step-shell";
@@ -63,6 +64,7 @@ export function DestinyJourney() {
   const presented = useRef(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [reader, setReader] = useState<WorkspaceReader | null>(null);
+  const [participantAdapter, setParticipantAdapter] = useState<ParticipantCommandAdapter | null>(null);
   const [webMcpAdapter, setWebMcpAdapter] = useState<WebMcpCommandAdapter | null>(null);
   const [draft, setDraft] = useState<JourneyDraft>(emptyJourneyDraft);
   const [ready, setReady] = useState(false);
@@ -119,6 +121,7 @@ export function DestinyJourney() {
         setDraft(nextDraft);
         setWorkspace(current);
         setReader(created.reader);
+        setParticipantAdapter(created.adapter);
         setWebMcpAdapter(created.webMcpAdapter);
         setReady(true);
       } catch {
@@ -207,6 +210,19 @@ export function DestinyJourney() {
 
   const handleAgentActivity = useCallback((event: AgentActivityEvent) => {
     setAgentEvents((events) => [event, ...events].slice(0, 60));
+  }, []);
+
+  const handleDeckChanged = useCallback((message?: string) => {
+    if (!runtime.current) return;
+    const current = runtime.current.store.load();
+    setWorkspace(current);
+    if (current.phase === "EXPLORING" && current.portraits.some((portrait) => portrait.status === "accepted")) {
+      const nextDraft = { ...draftRef.current, screen: "limits" as const };
+      draftRef.current = nextDraft;
+      localStorage.setItem(JOURNEY_DRAFT_KEY, JSON.stringify(nextDraft));
+      setDraft(nextDraft);
+    }
+    if (message) setStatusMessage(message);
   }, []);
 
   // ---- journey steps ------------------------------------------------------------------------
@@ -608,6 +624,7 @@ export function DestinyJourney() {
       setDraft(fresh);
       setWorkspace(created.store.load());
       setReader(created.reader);
+      setParticipantAdapter(created.adapter);
       setWebMcpAdapter(created.webMcpAdapter);
       setAgentEvents([]);
       setStartOverOpen(false);
@@ -707,6 +724,14 @@ export function DestinyJourney() {
           <StepShell eyebrow="Your saved work is protected" title="This room needs a current browser" description={startupError}>
             <p className="recovery-note">Nothing was cleared or replaced.</p>
           </StepShell>
+        ) : workspace?.phase === "DECK" && participantAdapter && webMcpAdapter ? (
+          <DeckExperience
+            workspace={workspace}
+            participant={participantAdapter}
+            agent={webMcpAdapter}
+            agentConnected={agentConnected}
+            onChanged={handleDeckChanged}
+          />
         ) : draft.screen === "welcome" ? (
           <WelcomeScreen
             canResume={canResume}
@@ -859,7 +884,7 @@ export function DestinyJourney() {
 // ---- helpers -------------------------------------------------------------------------------
 
 function createRuntime(): JourneyRuntime {
-  const store = new LocalWorkspaceStore(localStorage, createEmptyWorkspace(), navigator.locks);
+  const store = new LocalWorkspaceStore(localStorage, createFreshWorkspace(), navigator.locks);
   const kernel = new CommandKernel(store);
   return {
     store,
