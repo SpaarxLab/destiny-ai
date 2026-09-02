@@ -45,21 +45,21 @@ export function RouteRoom({
   const aside = routeSet?.routes.filter((route) => route.status === "rejected") ?? [];
   const stateLine = routeSet
     ? aside.length === 0
-      ? "Three routes are waiting for you. Edit, set aside, or choose one."
+      ? "Compare what each week would teach you. Nothing is selected until you choose."
       : orientation?.proposal.available && orientation.proposal.mode === "replace_rejected"
         ? `You set ${listKinds(aside.map((route) => ROUTE_LABELS[route.kind].name))} aside. ${routeSet.createdBy === "participant" ? "You" : ACTOR_NAMES[routeSet.createdBy]} can replace ${aside.length === 1 ? "it" : "them"}; the rest stay as they are.`
         : `You set ${listKinds(aside.map((route) => ROUTE_LABELS[route.kind].name))} aside.`
     : followUp
-      ? "One question is waiting for you before routes can be proposed."
+      ? "ChatGPT needs one answer before it can suggest directions."
       : "";
 
   return (
     <section className="room" aria-labelledby="room-title">
       <header className="room__head">
         <div>
-          <p className="eyebrow">ChatGPT&apos;s route auditions · your decision</p>
+          <p className="eyebrow">Three directions · three different questions</p>
           <h1 id="room-title" tabIndex={-1}>
-            {routeSet ? "Three futures to audition for seven days." : "Waiting for the next experiment"}
+            {routeSet ? "Which direction is worth testing for a week?" : "One more answer, then directions"}
           </h1>
           {stateLine ? <p className="room__state">{stateLine}</p> : null}
         </div>
@@ -102,14 +102,14 @@ export function RouteRoom({
             </div>
           ) : null}
           {routeSet && live.length === 1 ? (
-            <p className="room__hint">One route is left in the running. You can still choose it, or ask for a replacement.</p>
+            <p className="room__hint">One direction remains. You can choose its test or ask ChatGPT for another option.</p>
           ) : null}
         </div>
 
         <WordsPanel
           words={words}
           activeQuotes={activeQuotes ?? []}
-          note="Point at a route to see the exact words it quotes."
+          note="Point at a direction to see which response it uses."
         />
       </div>
     </section>

@@ -50,6 +50,25 @@ three-minute demo and does not prove the target duration.
 - Screenshots of initial/reloaded probe, first hypothesis, counterexample, revised hypothesis,
   evidence comparison and route auditions were captured in the Codex IAB task evidence stream.
 
+## D-018 explicit-reaction rerun
+
+After replacing the ambiguous drag/flip flow, the updated page was opened again in the Codex IAB
+and in the WebMCP Kit Chrome driver:
+
+1. Both surfaces discovered the same six-tool catalogue and no participant action tools.
+2. `stage_probe` wrote operation-1, moved v0 to v1 and rendered four native controls: `Not me`,
+   `I wish`, `I used to`, and `That's me`.
+3. The participant selected `I wish`; the reason panel repeated `I wish` before any write.
+4. Selecting `I want to shape the answer myself.` wrote operation-2 and moved v1 to v2.
+5. `inspect_room` returned response code `wish`, its plain-language meaning, the exact selected
+   reason, probe uncertainty, changed variable and operation-2.
+6. `agentProvenance` reported external ChatGPT through WebMCP, no hidden/embedded/fixture inference,
+   zero application-side model calls, and provider token telemetry as unobservable.
+7. Chrome driver console readback contained no messages. The local page returned HTTP 200 in 19 ms.
+
+This rerun proves the repaired interaction and page-defined WebMCP boundary. It still does not turn
+Codex IAB or Chrome-driver evidence into real ChatGPT-IAB proof.
+
 ## Unverified
 
 The real ChatGPT in-app-browser prompt has not been run from this environment. Pending-tool

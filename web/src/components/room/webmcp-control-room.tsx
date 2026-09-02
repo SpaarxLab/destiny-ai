@@ -39,18 +39,18 @@ export function WebMcpControlRoom({ events, open, onOpenChange }: {
         aria-controls="webmcp-control-room"
         onClick={() => onOpenChange(!open)}
       >
-        WebMCP activity
+        Technical details
         {latest ? <span>{statusLabel(latest.status)}</span> : null}
       </button>
       {open ? (
         <aside id="webmcp-control-room" className={styles.panel} aria-labelledby="webmcp-control-room-title">
           <header className={styles.header}>
             <div>
-              <p>Observable protocol</p>
-              <h2 id="webmcp-control-room-title" ref={heading} tabIndex={-1}>WebMCP control room</h2>
-              <span>Requests and results from this page session. The workspace ledger remains authoritative.</span>
+              <p>Optional WebMCP details</p>
+              <h2 id="webmcp-control-room-title" ref={heading} tabIndex={-1}>How ChatGPT used this page</h2>
+              <span>Inspect the structured calls, results and timing behind the experience. You do not need this panel to use the app.</span>
             </div>
-            <button type="button" onClick={() => onOpenChange(false)}>Close activity</button>
+            <button type="button" onClick={() => onOpenChange(false)}>Close details</button>
           </header>
 
           {events.length ? (
@@ -60,7 +60,7 @@ export function WebMcpControlRoom({ events, open, onOpenChange }: {
                   <details className={styles.event} open={index === 0}>
                     <summary>
                       <span className={styles.sequence}>{String(events.length - index).padStart(2, "0")}</span>
-                      <span className={styles.identity}><strong>{event.tool}</strong><small>ChatGPT</small></span>
+                      <span className={styles.identity}><strong>{toolLabel(event.tool)}</strong><small>{event.tool}</small></span>
                       <span className={styles.status} data-status={event.status}>{statusLabel(event.status)}</span>
                       <span className={styles.metrics}>{versionLabel(event)}{event.durationMs !== undefined ? ` · ${event.durationMs} ms` : ""}</span>
                     </summary>
@@ -86,8 +86,8 @@ export function WebMcpControlRoom({ events, open, onOpenChange }: {
             </ol>
           ) : (
             <div className={styles.empty}>
-              <h3>No WebMCP calls yet</h3>
-              <p>Ask ChatGPT to inspect the room. Its validated request and structured response will appear here.</p>
+              <h3>No page calls yet</h3>
+              <p>Ask ChatGPT to begin. Its structured WebMCP requests and results will appear here.</p>
             </div>
           )}
         </aside>
@@ -97,7 +97,22 @@ export function WebMcpControlRoom({ events, open, onOpenChange }: {
 }
 
 function statusLabel(status: WebMcpInvocationEvent["status"]): string {
-  return status === "awaiting_participant" ? "Waiting for you" : status.charAt(0).toUpperCase() + status.slice(1);
+  if (status === "awaiting_participant") return "Waiting for you";
+  if (status === "denied") return "Not applied";
+  if (status === "completed") return "Done";
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function toolLabel(tool: string): string {
+  return ({
+    inspect_room: "Read the latest responses",
+    stage_probe: "Show a new situation",
+    run_probe: "Run an interactive situation",
+    propose_hypothesis: "Suggest a working idea",
+    present_evidence: "Compare the evidence",
+    stage_route_auditions: "Show three directions",
+    propose_experiment: "Highlight a seven-day test",
+  } as Record<string, string>)[tool] ?? "Use the page";
 }
 
 function versionLabel(event: WebMcpInvocationEvent): string {

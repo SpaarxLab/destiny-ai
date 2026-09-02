@@ -10,7 +10,7 @@ auditions and one reversible seven-day experiment recommendation, never a predic
 ## Current authority
 
 - **Contract:** `SPEC.md` (contract 2.0.0, schema 4, read contract 4.0.0, method 3.0.0)
-- **Accepted decisions:** `docs/DECISIONS.md`, through D-017
+- **Accepted decisions:** `docs/DECISIONS.md`, through D-018
 - **Delivery programme:** `docs/PLAN.md`
 - **Active packet:** `docs/packets/P13-chatgpt-ab-tests.md`
 - **Canonical repo:** `/Users/harsh/career-lab`; Next.js app in `web/`; integration branch `main`
@@ -49,8 +49,11 @@ status. A task is not complete because a ticket says so; its packet and PR must 
 
 ### ChatGPT A/B Tests Your Future (`codex/spx-32-deck`, P13)
 
-- `npm run check`: 18 test files / 199 tests, lint, TypeScript and production build pass.
-- `npm run test:browser`: 18 passed; two superseded legacy-agent scenarios are explicitly skipped.
+- `npm run check`: 18 test files / 201 tests, lint, TypeScript and production build pass.
+- The participant surface now uses four explicit reaction controls; reasons cannot silently default a
+  reaction, and time/money appears only when a reversible experiment is actually being bounded.
+- `inspect_room` reports external ChatGPT authorship, zero application-side model calls and the
+  explicit boundary that Destiny cannot observe ChatGPT provider token usage.
 - Connected Codex IAB registered exactly six tools and no participant action tools.
 - The fallback loop ran through state v15: staged probes, participant webpage responses, reload
   recovery, replay, stale denial, first hypothesis, participant-settled counterexample, visibly
@@ -130,3 +133,6 @@ is its build receipt, while `docs/packets/P11-handoff-tickets.md` now governs th
 D-017 and P13 now supersede P12's connected multi-chair/Portrait experience while preserving its
 card, tension, receipt and shared-kernel contracts. P13 is current on `codex/spx-32-deck`; the real
 ChatGPT-IAB and public deployment gates remain open.
+D-018 refines P13's presentation: one decision at a time, explicit reactions, plain-language
+participant feedback and protocol details on demand. It supersedes the protocol-first wallpaper and
+ambiguous drag/flip interaction, not D-017's six-tool or authority contracts.

@@ -1453,10 +1453,174 @@ mark {
 .deck-status { min-height: 1.4rem; margin: .8rem 0 0; text-align: center; color: #8d422a; }
 .deck-shortcuts { margin: .2rem 0; text-align: center; color: rgba(23,32,28,.5); font-size: .72rem; }
 
+/* One situation, one explicit reaction, one optional reason. */
+.deck-shell .table-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 21rem);
+  align-items: start;
+  width: min(100%, 70rem);
+  min-height: 0;
+  margin-inline: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.deck-shell .card-stage {
+  justify-items: stretch;
+  align-content: start;
+  gap: 1rem;
+}
+
+.deck-shell .moment-card {
+  position: relative;
+  display: grid;
+  gap: clamp(1.5rem, 6vw, 3.5rem);
+  width: 100%;
+  min-height: 20rem;
+  aspect-ratio: auto;
+  padding: clamp(1.4rem, 5vw, 2.4rem);
+  border: 1px solid rgba(54, 43, 31, .15);
+  border-radius: 1.55rem;
+  background: linear-gradient(145deg, #fffaf0, #e7dbc6);
+  box-shadow: 0 1.5rem 3rem rgba(64, 48, 31, .14);
+  cursor: default;
+  touch-action: auto;
+  transform: none;
+  user-select: text;
+}
+
+.deck-shell .axis-autonomy_belonging { background: linear-gradient(145deg, #fff7e7, #d9e5d4); }
+.deck-shell .axis-depth_breadth { background: linear-gradient(145deg, #f6f0ff, #d8e2f0); }
+.deck-shell .axis-making_deciding { background: linear-gradient(145deg, #fff1e8, #efd1bd); }
+.deck-shell .axis-visible_hidden { background: linear-gradient(145deg, #fff7d6, #ddd3ee); }
+.deck-shell .axis-stability_risk { background: linear-gradient(145deg, #e7f3ef, #e9d1ce); }
+.deck-shell .axis-people_things { background: linear-gradient(145deg, #f4eadf, #d7e5ec); }
+
+.deck-shell .moment-card h2 {
+  align-self: center;
+  margin: 0;
+  font-family: Iowan Old Style, Baskerville, Georgia, serif;
+  font-size: clamp(1.65rem, 4vw, 2.5rem);
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+
+.deck-shell .moment-card details { align-self: end; color: rgba(23, 32, 28, .72); font-size: .85rem; }
+.deck-shell .moment-card summary { min-height: 2.75rem; padding-block: .7rem; cursor: pointer; font-weight: 720; }
+.deck-shell .moment-card details p { margin: .35rem 0 0; line-height: 1.45; }
+
+.reaction-panel {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.reaction-panel legend {
+  width: 100%;
+  margin-bottom: .7rem;
+  font-family: Iowan Old Style, Baskerville, Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.reaction-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+}
+
+.reaction-choice {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .1rem .65rem;
+  min-height: 5rem;
+  padding: .8rem .9rem;
+  border: 1px solid rgba(23, 32, 28, .18);
+  border-radius: 1rem;
+  background: rgba(255, 253, 247, .88);
+  color: #17201c;
+  text-align: start;
+  transition: background-color 120ms ease, border-color 120ms ease, scale 120ms ease;
+}
+
+.reaction-choice > span { grid-row: 1 / 3; align-self: center; font-size: 1.25rem; }
+.reaction-choice strong { align-self: end; font-size: .95rem; }
+.reaction-choice small { align-self: start; color: rgba(23, 32, 28, .62); font-size: .75rem; line-height: 1.35; }
+.reaction-choice[aria-pressed="true"] { border-color: #315340; background: #e4eee5; box-shadow: inset 0 0 0 1px #315340; }
+.reaction-choice:active { scale: .96; }
+.reaction-choice:focus-visible,
+.reason-panel button:focus-visible,
+.experiment-limits button:focus-visible,
+.moment-card summary:focus-visible { outline: 3px solid #315340; outline-offset: 3px; }
+
+.reaction-hint { margin: -.2rem 0 0; color: rgba(23, 32, 28, .58); font-size: .8rem; }
+
+.reason-panel {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  border-radius: 1.2rem;
+  background: #1d2722;
+  color: #fbf7ed;
+}
+
+.reason-panel__selection { display: flex; align-items: center; gap: .5rem; }
+.reason-panel__selection span { color: rgba(251, 247, 237, .64); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+.reason-panel__selection strong { flex: 1; }
+.reason-panel__selection button,
+.reason-none { min-height: 2.75rem; padding: .6rem .8rem; border: 1px solid rgba(255, 255, 255, .2); border-radius: .75rem; background: transparent; color: inherit; }
+.reason-panel h3 { margin: .2rem 0 0; font-family: Iowan Old Style, Baskerville, Georgia, serif; font-size: 1.25rem; }
+.reason-grid { display: grid; gap: .55rem; }
+.reason-choice { min-height: 3.25rem; padding: .75rem .85rem; border: 1px solid rgba(255,255,255,.14); border-radius: .8rem; background: rgba(255,255,255,.07); color: inherit; text-align: start; }
+.reason-choice:hover, .reason-choice:focus-visible { background: rgba(255,255,255,.15); }
+.reason-none { justify-self: start; }
+.reason-panel > p { margin: 0; color: rgba(251, 247, 237, .64); font-size: .75rem; }
+
+.evidence-rail {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, .58);
+}
+
+.evidence-rail__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.evidence-rail__head h2 { margin: 0; font-family: Iowan Old Style, Baskerville, Georgia, serif; font-size: 1.25rem; }
+.evidence-rail__head span { color: rgba(23, 32, 28, .58); font-size: .75rem; }
+.reaction-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.reaction-totals .pile { min-width: 0; padding: .6rem; border-radius: .75rem; background: rgba(255, 255, 255, .68); }
+.reaction-totals .pile > div { display: none; }
+.dwell-setting { display: flex; align-items: center; gap: .55rem; min-height: 2.75rem; font-size: .8rem; }
+.dwell-setting input { width: 1.1rem; height: 1.1rem; accent-color: #315340; }
+.tension-card > span { color: rgba(23, 32, 28, .58); font-size: .68rem; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+
+.experiment-limits {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  width: min(calc(100% - 2rem), 70rem);
+  margin: 1rem auto 0;
+  padding: 1rem;
+  border: 1px solid rgba(23, 32, 28, .12);
+  border-radius: 1.25rem;
+  background: #fffdf7;
+}
+
+.experiment-limits p { margin: 0; color: rgba(23, 32, 28, .58); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+.experiment-limits h2 { margin: .2rem 0 0; font-family: Iowan Old Style, Baskerville, Georgia, serif; font-size: 1.2rem; }
+.experiment-limits .probe-limits label { display: grid; gap: .25rem; font-size: .75rem; }
+.experiment-limits .probe-limits label span { display: flex; align-items: center; gap: .25rem; }
+.experiment-limits input { min-height: 2.75rem; padding: .45rem; border: 1px solid rgba(23, 32, 28, .2); border-radius: .55rem; font-size: 1rem; }
+.experiment-limits button { min-height: 2.75rem; padding: .65rem .9rem; border: 0; border-radius: .75rem; background: #1d2722; color: white; font-weight: 720; }
+
 @media (max-width: 59.99rem) {
   .chairs-strip { margin-inline: .5rem; border-radius: 1rem; }
   .deck-consent { justify-content: flex-start; padding-inline: 1rem; }
-  .table-grid { grid-template-columns: 1fr; min-height: 0; padding: 1rem; border-radius: 1.3rem; background: transparent; box-shadow: none; }
+  .table-grid,
+  .deck-shell .table-grid { grid-template-columns: 1fr; min-height: 0; padding: 1rem; border-radius: 1.3rem; background: transparent; box-shadow: none; }
   .pile-bank--left { display: none; }
   .reader-guide { grid-template-columns: 1fr; margin-inline: .5rem; }
   .dealer-notes { margin-inline: .5rem; }
@@ -1465,13 +1629,24 @@ mark {
   .pile-bank--mobile .pile { padding: .55rem; border-radius: .75rem; background: rgba(255,255,255,.56); }
   .pile-bank--mobile .pile > span { font-size: .64rem; letter-spacing: .04em; white-space: nowrap; }
   .card-stage { order: 1; width: 100%; }
+  .evidence-rail { order: 2; width: 100%; }
   .tension-rail { order: 3; width: 100%; }
   .tension-rail > .pile { display: none; }
   .tension-rail h2, .rail-empty { display: none; }
   .pile > div { display: none; }
   .pile { text-align: center; }
-  .moment-card { width: min(calc(100vw - 2rem), 24rem); }
+  .moment-card,
+  .deck-shell .moment-card { width: 100%; }
   .deck-shortcuts { display: none; }
+  .experiment-limits { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 34rem) {
+  .reaction-grid { grid-template-columns: 1fr; }
+  .reaction-choice { min-height: 4.5rem; }
+  .experiment-limits .probe-limits { align-items: stretch; }
+  .experiment-limits .probe-limits label,
+  .experiment-limits .probe-limits button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

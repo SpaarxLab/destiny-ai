@@ -29,12 +29,16 @@ highlights one reversible experiment. The participant reacts and decides only on
 - `present_evidence` and `propose_experiment` are non-mutating focus/recommendation operations.
 - Route choice, hypothesis resolution, limits, evidence confirmation and commitment remain webpage
   actions using the participant adapter and the shared kernel.
+- Every probe presents four explicit participant reactions before optional reasons; a reason can
+  never manufacture or replace the chosen reaction.
+- Participant copy is plain language and one-decision-at-a-time. Tool names, versions, raw receipts,
+  JSON and timing are available only in optional technical details.
 
 ## Verification
 
-- `npm run check`: 18 files / 199 tests, lint, TypeScript and production build passed.
-- `npm run test:browser`: 18 passed; the two superseded legacy-agent journeys are explicitly
-  skipped rather than presented as current product behavior.
+- `npm run check`: 18 files / 201 tests, lint, TypeScript and production build passed.
+- Focused browser coverage verifies all four reaction receipts, reason and skip preservation,
+  keyboard use, mobile layout and graceful haptics failure.
 - Focused end-to-end contract test covers limits, three probe templates, participant receipts,
   premature route denial, counterexample, revised hypothesis, non-mutating evidence, three rich
   auditions and decision-ready experiment.

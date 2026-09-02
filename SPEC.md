@@ -1,6 +1,6 @@
 # Destiny.AI — Product and System Contract
 
-**Status:** Current product/technical authority, revised for ChatGPT A/B Tests Your Future (D-017).
+**Status:** Current product/technical authority, revised for ChatGPT A/B Tests Your Future (D-018).
 **Contract version:** `2.0.0` · **Workspace schema:** `4` · **Read contract:** `read-workspace/4.0.0` ·
 **Method guide:** `destiny-method/3.0.0`.
 **Build admission:** P1, P2, P3A, P3B, P3C, and P8A are integrated on `main`; P8B is committed on
@@ -96,6 +96,13 @@ The smallest complete learning loop is:
     variable-isolation probe. ChatGPT must then visibly strengthen, weaken, or replace its claim.
 19. **Evidence presentation is transient.** `present_evidence` may focus cited receipts but cannot
     mutate evidence, limits, hypotheses, routes, or participant decisions.
+20. **A reaction is explicit.** The participant chooses `That's me`, `Not me`, `I wish`, or `I used
+    to` before choosing or skipping a reason. No click, reason, drag, timeout or default may infer a
+    reaction. The selected reaction remains visible until its receipted write succeeds.
+21. **Protocol is inspectable, not the product voice.** The primary surface uses plain participant
+    language and one active decision. Tool names, versions, raw receipts, JSON and timings remain
+    available under optional technical details. Limits appear only when the participant is bounding
+    a proposed reversible experiment.
 
 ## 3. Scope
 
@@ -105,7 +112,7 @@ The smallest complete learning loop is:
 - a responsive ChatGPT-conducted probe table with moment, forced-tradeoff and variable-isolation
   templates backed by existing moment, duel, reversal and falsification cards;
 - no conventional questionnaire, embedded chatbot, Portrait gate, or fake multi-agent theatre;
-- recorded participant limits, privacy notice, start over, receipts and recovery;
+- contextual participant limits, privacy notice, start over, receipts and recovery;
 - one bounded three-route proposal containing Closest, Bridge, and Probe previews, or one receipted
   follow-up question when the words are too thin;
 - replacement of set-aside routes with kept routes carried over;

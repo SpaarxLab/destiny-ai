@@ -110,7 +110,7 @@ export function WebMcpRegistrar({
 
 export function agentStatusCopy(state: WebMcpRegistrationState): string {
   return state.status === "registered"
-    ? "ChatGPT tools ready"
+    ? "ChatGPT connected"
     : state.status === "failed"
       ? "Agent tools unavailable"
       : "Open this from ChatGPT";

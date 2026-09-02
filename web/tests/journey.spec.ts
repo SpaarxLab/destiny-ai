@@ -78,17 +78,23 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(page.getByRole("heading", { level: 1, name: "Make these three drafts sound like you." })).toBeVisible();
   await page.getByRole("button", { name: "Put these in my room" }).click();
 
-  await expect(page.getByRole("heading", { level: 1, name: "Three futures to audition for seven days." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Which direction is worth testing for a week?" })).toBeVisible();
   await expect(page.getByTestId("provenance")).toHaveText("Drafted by you");
-  const quotes = await page.locator(".route-card__quote").allInnerTexts();
-  expect(new Set(quotes.map((quote) => quote.replace("YOUR WORDS", "").trim())).size).toBe(3);
+  await page.getByText("See the week and signals").all().then((summaries) => Promise.all(summaries.map((summary) => summary.click())));
+  await expect(page.locator(".route-card__quote")).toHaveCount(3);
+  const draftedWorkspace = await readWorkspace(page);
+  const confirmedWords = new Set(draftedWorkspace.reflections.filter((reflection: { status: string }) => reflection.status === "confirmed").map((reflection: { text: string }) => reflection.text));
+  const routeQuotes = draftedWorkspace.routeProposalSets.at(-1)!.routes.map((route: { sourceQuotes: Array<{ quote: string }> }) => route.sourceQuotes[0].quote);
+  expect(routeQuotes).toHaveLength(3);
+  expect(routeQuotes.every((quote: string) => confirmedWords.has(quote))).toBe(true);
+  expect(new Set(routeQuotes).size).toBeGreaterThan(1);
   await expect(page.getByText(/best|recommended/i)).toHaveCount(0);
 
   const closest = routeCard(page, "closest");
   const bridge = routeCard(page, "bridge");
   const probe = routeCard(page, "probe");
 
-  await closest.getByRole("button", { name: "Edit" }).click();
+  await closest.getByRole("button", { name: "Change" }).click();
   await expect(closest.getByLabel("Title")).toBeFocused();
   await closest.getByLabel("Title").fill("Make complex work clear");
   await closest.getByRole("button", { name: "Save changes" }).click();
@@ -100,7 +106,7 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(bridge.getByText("Set aside", { exact: true })).toBeVisible();
   await expect(page.locator(".room__state")).toContainText("You set Bridge aside");
 
-  await page.getByRole("button", { name: "What happened" }).click();
+  await page.getByRole("button", { name: "History" }).click();
   await expect(page.getByRole("heading", { name: "Every change, in order" })).toBeFocused();
   const drawer = page.getByRole("dialog", { name: "Every change, in order" });
   await expect(drawer.getByText("You set aside Bridge")).toBeVisible();
@@ -108,9 +114,9 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(drawer.getByText("You drafted three routes")).toBeVisible();
   await expect(drawer.getByText(/receipt \d+ · version \d+ to \d+/).first()).toBeVisible();
   await drawer.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("button", { name: "What happened" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "History" })).toBeFocused();
 
-  await probe.getByRole("button", { name: "Choose this to test" }).click();
+  await probe.getByRole("button", { name: "Choose this test" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /You chose “/ })).toBeVisible();
   await expect(page.getByTestId("receipt-line")).toContainText("receipt");
   await page.reload();
@@ -121,7 +127,7 @@ test("manual drafts reach the Route Room quoting different answers, then edit, s
   await expect(page.getByText(/You parked/)).toBeVisible();
   await page.getByRole("button", { name: "Draft my own" }).click();
   await page.getByRole("button", { name: "Put these in my room" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Three futures to audition for seven days." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Which direction is worth testing for a week?" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -140,7 +146,7 @@ test("start over clears the old journey and opens a fresh Deck", async ({ page }
 
 test("see what ChatGPT sees shows the exact orientation with confirmed words", async ({ page }) => {
   await completeToHandoff(page, SHAPES[0][0], SHAPES[0][1]);
-  const trigger = page.getByRole("button", { name: "See what ChatGPT sees" });
+  const trigger = page.getByRole("button", { name: "ChatGPT context" });
   await trigger.click();
   await expect(page.getByRole("heading", { name: "Everything the agent can read" })).toBeFocused();
   const json = await page.getByTestId("agent-view-json").innerText();
@@ -176,7 +182,7 @@ test("390px, 200% text, reduced motion, and forced colours keep the flow usable"
   await completeToHandoff(page, SHAPES[0][0], SHAPES[0][1]);
   await page.getByRole("button", { name: "Draft my own" }).click();
   await page.getByRole("button", { name: "Put these in my room" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Three futures to audition for seven days." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Which direction is worth testing for a week?" })).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
   const sizes = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
@@ -240,7 +246,7 @@ test.skip("legacy broad visiting-agent catalogue is superseded by the six-tool C
   await expect(page.getByTestId("provenance")).toHaveText("Proposed by ChatGPT");
   await expect(page.locator(".status-region--room")).toContainText("ChatGPT proposed three routes");
 
-  await page.getByRole("button", { name: "What happened" }).click();
+  await page.getByRole("button", { name: "History" }).click();
   const drawer = page.getByRole("dialog", { name: "Every change, in order" });
   await expect(drawer.getByText("ChatGPT proposed three routes")).toBeVisible();
   await expect(drawer.getByText("ChatGPT asked one question before proposing")).toBeVisible();
@@ -284,7 +290,7 @@ test.skip("legacy broad visiting-agent catalogue is superseded by the six-tool C
   await expect(page.locator(".status-region--room")).toContainText("replaced the route you set aside");
 
   // 5. The participant chooses; the agent reads it back exactly.
-  await routeCard(page, "closest").getByRole("button", { name: "Choose this to test" }).click();
+  await routeCard(page, "closest").getByRole("button", { name: "Choose this test" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /You chose “/ })).toBeVisible();
   const reread = await agentCall(page, "read_workspace", { view: "orientation" });
   expect(reread.data.active.hypothesis.status).toBe("accepted");

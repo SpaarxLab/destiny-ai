@@ -146,36 +146,38 @@ export function RouteCard({
           <div className="route-card__body">
             <h2 className="route-card__title">{route.title}</h2>
             <p className="route-card__premise">{route.premise}</p>
-            {route.sourceQuotes[0] ? <blockquote className="route-card__quote">
-              <span>Your words</span>
-              “{route.sourceQuotes[0]?.quote}”
-            </blockquote> : null}
             <dl className="route-facts">
-              {route.sampleWeek ? <div><dt>A realistic sample week</dt><dd><ul>{route.sampleWeek.map((item) => <li key={item}>{item}</li>)}</ul></dd></div> : null}
-              {route.responsibilities ? <div><dt>Responsibilities and decisions</dt><dd>{route.responsibilities.join(" · ")}{route.decisions ? ` Decisions: ${route.decisions.join(" · ")}` : ""}</dd></div> : null}
-              {route.collaborationShape || route.deepWorkShape ? <div><dt>Work shape</dt><dd>{route.collaborationShape}{route.collaborationShape && route.deepWorkShape ? " · " : ""}{route.deepWorkShape}</dd></div> : null}
-              {route.majorTradeoff ? <div><dt>Major tradeoff</dt><dd>{route.majorTradeoff}</dd></div> : null}
               <div>
-                <dt>It should teach you</dt>
+                <dt>Question this tests</dt>
                 <dd>{route.learningQuestion}</dd>
               </div>
+              {route.majorTradeoff ? <div><dt>The tradeoff</dt><dd>{route.majorTradeoff}</dd></div> : null}
               <div>
-                <dt>Small test</dt>
+                <dt>Try this week</dt>
                 <dd>
                   {route.test.action}
                   <span className="route-facts__limits">
-                    Up to {route.test.maximumDays} {route.test.maximumDays === 1 ? "day" : "days"} · {route.test.maximumHours} h · {route.test.maximumMoney} {route.test.currency}
+                    Up to {route.test.maximumDays} {route.test.maximumDays === 1 ? "day" : "days"} · {route.test.maximumHours} hours · {route.test.maximumMoney === 0 ? "no spend" : `${route.test.maximumMoney} ${route.test.currency}`}
                   </span>
                 </dd>
               </div>
-              <div>
-                <dt>Boundary</dt>
-                <dd>{route.constraint}{route.participantLimits ? ` · ${route.participantLimits}` : ""}</dd>
-              </div>
-              {route.learningSignals ? <div><dt>Signals to watch</dt><dd>Success: {route.learningSignals.success}<br />Failure: {route.learningSignals.failure}<br />Either way, learn: {route.learningSignals.learning}</dd></div> : null}
             </dl>
+            <details className="route-notes">
+              <summary>See the week and signals</summary>
+              {route.sourceQuotes[0] ? <blockquote className="route-card__quote">
+                <span>Based on your response</span>
+                “{route.sourceQuotes[0]?.quote}”
+              </blockquote> : null}
+              <dl className="route-facts">
+                {route.sampleWeek ? <div><dt>What the week could look like</dt><dd><ul>{route.sampleWeek.map((item) => <li key={item}>{item}</li>)}</ul></dd></div> : null}
+                {route.responsibilities ? <div><dt>What you would own</dt><dd>{route.responsibilities.join(" · ")}{route.decisions ? ` Decisions: ${route.decisions.join(" · ")}` : ""}</dd></div> : null}
+                {route.collaborationShape || route.deepWorkShape ? <div><dt>How the work feels</dt><dd>{route.collaborationShape}{route.collaborationShape && route.deepWorkShape ? " · " : ""}{route.deepWorkShape}</dd></div> : null}
+                <div><dt>Safety boundary</dt><dd>{route.constraint}{route.participantLimits ? ` · ${route.participantLimits}` : ""}</dd></div>
+                {route.learningSignals ? <div><dt>What to notice</dt><dd>If it works: {route.learningSignals.success}<br />If it does not: {route.learningSignals.failure}<br />Either way: {route.learningSignals.learning}</dd></div> : null}
+              </dl>
+            </details>
             <details className="route-notes" open={showNotes} onToggle={(event) => setShowNotes(event.currentTarget.open)}>
-              <summary>Add private notes</summary>
+              <summary>Write a private note</summary>
               <p className="route-notes__hint">Kept on this device only. Agents cannot read these.</p>
               {(Object.keys(NOTE_PROMPTS) as Array<keyof RouteNotes>).map((key) => (
                 <label key={key} htmlFor={`${baseId}-${key}`}>
@@ -193,14 +195,14 @@ export function RouteCard({
           <footer className="route-card__actions">
             <div className="button-row button-row--split">
               <ActionButton disabled={busy} onClick={() => { setMode("edit"); requestAnimationFrame(() => firstEditField.current?.focus()); }} ref={editTrigger}>
-                Edit
+                Change
               </ActionButton>
               <ActionButton disabled={busy} onClick={() => { setMode("set-aside"); requestAnimationFrame(() => confirmSetAside.current?.focus()); }} ref={setAsideTrigger} tone="quiet">
                 Set aside
               </ActionButton>
             </div>
             <ActionButton disabled={busy} onClick={onChoose} tone="primary" fullWidth>
-              Choose this to test
+              Choose this test
             </ActionButton>
           </footer>
         </>

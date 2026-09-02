@@ -55,7 +55,7 @@ describe("P8A native WebMCP foundation", () => {
 
   it("describes browser capability without claiming that ChatGPT has connected", () => {
     expect(agentStatusCopy({ status: "registered", toolNames: ["read_workspace"] }))
-      .toBe("ChatGPT tools ready");
+      .toBe("ChatGPT connected");
   });
 
   it("registers the exact read-only catalogue with strict input schemas", async () => {

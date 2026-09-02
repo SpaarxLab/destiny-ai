@@ -703,7 +703,7 @@ export function DestinyJourney() {
                 onClick={() => setDrawer(drawer === "activity" ? "none" : "activity")}
                 tone="quiet"
               >
-                What happened
+                History
               </ActionButton>
               <ActionButton
                 aria-expanded={drawer === "agent-view"}
@@ -711,7 +711,7 @@ export function DestinyJourney() {
                 onClick={() => setDrawer(drawer === "agent-view" ? "none" : "agent-view")}
                 tone="quiet"
               >
-                See what ChatGPT sees
+                ChatGPT context
               </ActionButton>
               <ActionButton onClick={() => setStartOverOpen(true)} tone="quiet">
                 {COPY.startOver}
@@ -738,14 +738,37 @@ export function DestinyJourney() {
       {latestDenial && dismissedDenial !== latestDenial.id ? (
         <div className="journey-notices">
           <Notice tone="warning" onDismiss={() => setDismissedDenial(latestDenial.id)}>
-            {latestDenial.summary} Nothing changed.
+            {participantDenialMessage(latestDenial)}
           </Notice>
         </div>
       ) : null}
 
-      {agentEvents[0] ? <div className="operation-strip" role="status" aria-live="polite"><strong>ChatGPT · {agentEvents[0].tool}</strong><span>{agentEvents[0].summary}</span><code>v{agentEvents[0].stateVersion}</code></div> : null}
+      {agentEvents[0] ? <div className="operation-strip" role="status" aria-live="polite"><strong>ChatGPT</strong><span>{participantActivityMessage(agentEvents[0])}</span></div> : null}
 
-      {evidencePresentation ? <aside className="evidence-presentation" aria-label="Evidence ChatGPT is presenting"><div><p>What changed ChatGPT&apos;s mind</p><h2>{evidencePresentation.whatChangedChatGPTsMind}</h2></div><section><strong>Supporting receipts</strong><p>{evidencePresentation.supportingReceiptRefs.join(" · ") || "None cited"}</p></section><section><strong>Contradictory receipts</strong><p>{evidencePresentation.contradictoryReceiptRefs.join(" · ") || "None cited"}</p></section>{evidencePresentation.missingEvidence.length ? <section><strong>Still missing</strong><p>{evidencePresentation.missingEvidence.join(" · ")}</p></section> : null}<button type="button" onClick={() => setEvidencePresentation(null)}>Return to the test</button></aside> : null}
+      {evidencePresentation ? (
+        <aside className="evidence-presentation" aria-label="Evidence ChatGPT is presenting">
+          <div>
+            <p>ChatGPT&apos;s updated read</p>
+            <h2>{evidencePresentation.whatChangedChatGPTsMind}</h2>
+          </div>
+          <EvidenceList
+            label="What supports this"
+            empty="No supporting response was cited."
+            receiptRefs={evidencePresentation.supportingReceiptRefs}
+            workspace={workspace}
+          />
+          <EvidenceList
+            label="The counterexample"
+            empty="No counterexample was cited."
+            receiptRefs={evidencePresentation.contradictoryReceiptRefs}
+            workspace={workspace}
+          />
+          {evidencePresentation.missingEvidence.length ? (
+            <section><strong>What remains unclear</strong><ul>{evidencePresentation.missingEvidence.map((item) => <li key={item}>{item}</li>)}</ul></section>
+          ) : null}
+          <button type="button" onClick={() => setEvidencePresentation(null)}>Continue</button>
+        </aside>
+      ) : null}
 
       <div id="journey-content" className="journey-content" onPointerDownCapture={() => evidencePresentation && setEvidencePresentation(null)}>
         {!ready ? (
@@ -905,7 +928,7 @@ export function DestinyJourney() {
 
       <footer className="site-footer">
         <p>Direction through small tests, not prediction.</p>
-        <p>Stored in this browser and exposed only through the six participant-safe WebMCP tools.</p>
+        <p>ChatGPT can suggest. Only you can respond and choose. Your work stays in this browser.</p>
       </footer>
     </main>
   );
@@ -1001,4 +1024,58 @@ function latestReceiptLine(workspace: Workspace | null): string {
 function plainReason(what: string | undefined): string {
   if (!what) return "something did not line up. Try again.";
   return what.replace(/\b(route-set-\d+|reflection-\d+|question-\d+)\b/g, "that item");
+}
+
+function participantActivityMessage(event: AgentActivityEvent): string {
+  if (event.outcome !== "ok") return participantDenialMessage(event);
+  if (event.effect === "AWAITING_HUMAN") return "A new situation is ready for your response.";
+  if (event.effect === "REPLAY") return "Your earlier result was recovered without creating a duplicate.";
+  if (event.tool === "propose_hypothesis") return "A working idea is ready for you to review.";
+  if (event.tool === "present_evidence") return "The responses behind this working idea are in view.";
+  if (event.tool === "stage_route_auditions") return "Three directions are ready to compare.";
+  if (event.tool === "propose_experiment") return "One reversible test has been brought forward. The choice is still yours.";
+  if (event.tool === "inspect_room") return "Your latest response was read. Nothing was changed.";
+  return event.summary;
+}
+
+function participantDenialMessage(event: Pick<AgentActivityEvent, "code" | "summary">): string {
+  const text = event.summary.toLowerCase();
+  if (text.includes("limit") || text.includes("cap")) {
+    return "That test does not fit the time or money you confirmed. Nothing was added; ChatGPT can make it smaller.";
+  }
+  if (event.code === "COUNTEREVIDENCE_REQUIRED") {
+    return "Before comparing directions, ChatGPT needs to test an explanation that could prove its first idea wrong.";
+  }
+  if (event.code === "STALE_STATE") {
+    return "The page changed while ChatGPT was working. It can read your latest response and try again.";
+  }
+  return "ChatGPT could not add that yet. Your responses are unchanged, and it can inspect the page before trying again.";
+}
+
+function EvidenceList({ label, empty, receiptRefs, workspace }: {
+  label: string;
+  empty: string;
+  receiptRefs: readonly string[];
+  workspace: Workspace | null;
+}) {
+  const items = receiptRefs.map((ref) => evidenceSentence(workspace, ref));
+  return (
+    <section>
+      <strong>{label}</strong>
+      {items.length ? <ul>{items.map((item, index) => <li key={`${receiptRefs[index]}-${index}`}>{item}</li>)}</ul> : <p>{empty}</p>}
+    </section>
+  );
+}
+
+function evidenceSentence(workspace: Workspace | null, receiptRef: string): string {
+  if (!workspace) return "A response you recorded in this test.";
+  const operation = workspace.operations.find((candidate) => candidate.operationRef === receiptRef);
+  const swipe = operation
+    ? workspace.swipes.find((candidate) => operation.changedRefs.includes(candidate.ref))
+    : undefined;
+  const card = swipe ? workspace.cards.find((candidate) => candidate.ref === swipe.cardRef) : undefined;
+  if (!swipe || !card) return "A response you recorded in this test.";
+  const gesture = ({ me: "felt like me", not_me: "did not feel like me", wish: "felt like something I want", used_to: "felt like an older version of me" } as const)[swipe.gesture];
+  const reason = swipe.tappedReasonIndex === undefined ? null : card.reasons?.[swipe.tappedReasonIndex];
+  return `“${card.text}” — ${gesture}${reason ? `, because ${reason.toLowerCase()}` : ""}.`;
 }

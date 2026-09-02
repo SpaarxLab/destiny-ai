@@ -2,7 +2,7 @@
 
 **Authority:** decisions D-001 through D-014 were selected under Harsh's 2026-09-01
 instruction to apply the best defaults and complete foundation setup. Items marked
-`OWNER INPUT` remain deliberately unresolved. D-015 through D-017 were explicitly accepted by Harsh.
+`OWNER INPUT` remain deliberately unresolved. D-015 through D-018 were explicitly accepted by Harsh.
 
 ## Accepted decisions
 
@@ -292,6 +292,23 @@ transient and non-mutating.
 **Supersedes:** D-016's multi-chair connected presentation, automatic fixture/embedded Reader flow,
 16-card target and Portrait gate. It does not supersede D-016's card and tension contracts or
 D-014/D-015's shared-kernel, route authority, receipts and selective-repair rules.
+
+### D-018 — One decision at a time
+
+**Decision:** Keep D-017's ChatGPT-only orchestration and six-tool catalogue, but remove the
+protocol-first participant presentation. A visible probe has four explicit reaction buttons. A
+reason is optional and can only annotate the reaction the participant already chose; nothing may
+default to `me`. The primary surface shows the situation, the current human decision and readable
+evidence. Raw operation names, versions, receipts, JSON and timings live under optional technical
+details. Time and money limits appear only when ChatGPT is ready to propose a reversible experiment.
+
+Connected mode does not call OpenCode Go or any embedded model. ChatGPT is the external intelligence
+acting through WebMCP; Destiny therefore reports zero application-side model calls and does not
+invent provider-side token telemetry it cannot observe.
+
+**Supersedes:** P13's ambiguous drag/flip interaction, click-first default reaction and always-visible
+protocol/limits wallpaper. It does not supersede D-017's shared kernel, receipts, recovery,
+falsification, participant authority, route repair or real ChatGPT-IAB proof gate.
 
 ## Owner input still required before participant testing
 

@@ -8,11 +8,11 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
-test("fresh workspace deals a tactile card and only the participant can swipe it", async ({ page }) => {
+test("fresh workspace shows four explicit participant reactions", async ({ page }) => {
   const errors = captureConsoleErrors(page);
   await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
   await expect(page.locator(".moment-card")).toBeVisible();
-  await expect(page.getByText("only you respond and decide")).toBeVisible();
+  await expect(page.getByText("Your reactions stay yours")).toBeVisible();
 
   const tools = await page.evaluate(async () => {
     const context = (document as Document & { modelContext?: { getTools?(): Promise<{ name: string }[]> } }).modelContext;
@@ -20,9 +20,18 @@ test("fresh workspace deals a tactile card and only the participant can swipe it
   });
   expect(tools).not.toContain("swipe_card");
 
-  await page.locator(".moment-card__front").focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.locator(".tension-rail .pile strong")).toHaveText("1");
+  const cardText = await page.locator(".moment-card h2").textContent();
+  await page.locator(".moment-card").click();
+  expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null").swipes, WORKSPACE_KEY)).toHaveLength(0);
+
+  for (const name of ["Not me", "I wish", "I used to", "That's me"]) {
+    await expect(page.getByRole("button", { name: new RegExp(`^${name}`) })).toBeVisible();
+  }
+  expect(cardText).toBeTruthy();
+
+  await page.getByRole("button", { name: /^That's me/ }).click();
+  await page.getByRole("button", { name: "Skip the reason" }).click();
+  await expect(page.locator(".reaction-totals .pile").filter({ hasText: "That's me" }).locator("strong")).toHaveText("1");
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.phase).toBe("DECK");
   expect(stored.swipes).toHaveLength(1);
@@ -31,15 +40,17 @@ test("fresh workspace deals a tactile card and only the participant can swipe it
   expect(errors).toEqual([]);
 });
 
-test("skipping the suggested reasons still commits the chosen pile", async ({ page }) => {
+test("skipping the suggested reasons preserves the explicitly chosen reaction", async ({ page }) => {
   const errors = captureConsoleErrors(page);
-  await page.locator(".moment-card__front").click();
-  await page.getByRole("button", { name: "None of these" }).click();
+  await page.getByRole("button", { name: /^I wish/ }).click();
+  await expect(page.getByText("Your reaction", { exact: true })).toBeVisible();
+  await expect(page.getByText("Choosing a reason will keep your I wish reaction.")).toBeVisible();
+  await page.getByRole("button", { name: "Skip the reason" }).click();
 
   await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes).toHaveLength(1);
-  expect(stored.swipes[0].gesture).toBe("me");
+  expect(stored.swipes[0].gesture).toBe("wish");
   expect(stored.swipes[0].tappedReasonIndex).toBeUndefined();
   expect(stored.reflections).toHaveLength(0);
   expect(errors).toEqual([]);
@@ -61,32 +72,40 @@ test("a dealer note appears and remains a participant decision", async ({ page }
   expect(stored.dealerNotes[0].status).toBe("dismissed");
 });
 
-test("the card exposes one keyboard surface at a time", async ({ page }) => {
-  const front = page.locator(".moment-card__front");
-  const firstReason = page.locator(".reason-choice").first();
-  await expect(front).toHaveAttribute("tabindex", "0");
-  await expect(firstReason).toHaveAttribute("tabindex", "-1");
-
-  await front.focus();
+test("reaction and reason selection work with the keyboard", async ({ page }) => {
+  const reaction = page.getByRole("button", { name: /^Not me/ });
+  await reaction.focus();
   await page.keyboard.press("Enter");
+  await expect(reaction).toHaveAttribute("aria-pressed", "true");
+  const firstReason = page.locator(".reason-choice").first();
   await expect(firstReason).toBeFocused();
-  await expect(front).toHaveAttribute("tabindex", "-1");
-  await page.keyboard.press("2");
+  await page.keyboard.press("Enter");
 
   await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
-  expect(stored.swipes[0].tappedReasonIndex).toBe(1);
-  await expect(page.locator(".moment-card__front")).toBeFocused();
+  expect(stored.swipes[0].gesture).toBe("not_me");
+  expect(stored.swipes[0].tappedReasonIndex).toBe(0);
+  await expect(page.locator(".reaction-choice").first()).toBeFocused();
 });
 
-test("dragging the card reaches all four piles", async ({ page }) => {
-  await dragCurrentCard(page, 120, 0);
-  await dragCurrentCard(page, -120, 0);
-  await dragCurrentCard(page, 0, -120);
-  await dragCurrentCard(page, 0, 120);
+test("every visible reaction commits itself and its chosen reason", async ({ page }) => {
+  const reactions = [
+    { name: /^That's me/, gesture: "me" },
+    { name: /^Not me/, gesture: "not_me" },
+    { name: /^I wish/, gesture: "wish" },
+    { name: /^I used to/, gesture: "used_to" },
+  ];
+
+  for (const [index, reaction] of reactions.entries()) {
+    await page.getByRole("button", { name: reaction.name }).click();
+    await expect(page.getByRole("button", { name: reaction.name })).toHaveAttribute("aria-pressed", "true");
+    await page.locator(".reason-choice").nth(index % 3).click();
+    await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null")?.swipes?.length ?? 0, WORKSPACE_KEY)).toBe(index + 1);
+  }
 
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes.map((swipe: { gesture: string }) => swipe.gesture)).toEqual(["me", "not_me", "wish", "used_to"]);
+  expect(stored.swipes.map((swipe: { tappedReasonIndex: number }) => swipe.tappedReasonIndex)).toEqual([0, 1, 2, 0]);
 });
 
 test("choosing a reason refreshes the deck even when device haptics fail", async ({ page }) => {
@@ -98,12 +117,11 @@ test("choosing a reason refreshes the deck even when device haptics fail", async
     });
   });
 
-  await page.locator(".moment-card").click();
-  await expect(page.locator(".moment-card")).toHaveClass(/is-flipped/);
-  await page.locator(".moment-card__back button").first().click();
+  await page.getByRole("button", { name: /^That's me/ }).click();
+  await page.locator(".reason-choice").first().click();
 
   await expect(page.getByText(/Probe 2 of 5 max/)).toBeVisible();
-  await expect(page.locator(".tension-rail .pile strong")).toHaveText("1");
+  await expect(page.locator(".reaction-totals .pile").filter({ hasText: "That's me" }).locator("strong")).toHaveText("1");
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), WORKSPACE_KEY);
   expect(stored.swipes).toHaveLength(1);
   expect(stored.swipes[0].tappedReasonIndex).toBe(0);
@@ -116,10 +134,10 @@ test("Deck remains usable at a 390px phone viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("heading", { level: 1, name: "ChatGPT A/B Tests Your Future" })).toBeVisible();
   await expect(page.locator(".moment-card")).toBeVisible();
-  await expect(page.locator(".gesture-cross")).toBeVisible();
+  await expect(page.locator(".reaction-grid")).toBeVisible();
   const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
   expect(bodyWidth).toBeLessThanOrEqual(390);
-  const pileBounds = await page.locator(".pile-bank--mobile .pile").evaluateAll((piles) => piles.map((pile) => {
+  const pileBounds = await page.locator(".reaction-choice").evaluateAll((piles) => piles.map((pile) => {
     const bounds = pile.getBoundingClientRect();
     return { left: bounds.left, right: bounds.right, viewport: document.documentElement.clientWidth };
   }));
@@ -145,7 +163,7 @@ test.skip("legacy fixture Reader and Portrait remain available only to explicit 
   await portraitDialog.getByRole("button", { name: "Keep sorting first" }).click();
   await expect(page.getByText("Keep sorting · one more honest card")).toBeVisible();
 
-  await page.locator(".moment-card__front").click();
+  await page.getByRole("button", { name: /^That's me/ }).click();
   await page.locator(".reason-choice").first().click();
   await expect(portraitDialog).toBeVisible();
 });
@@ -157,24 +175,9 @@ function captureConsoleErrors(page: Page): string[] {
   return errors;
 }
 
-async function dragCurrentCard(page: Page, deltaX: number, deltaY: number) {
-  const initialSwipeCount = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null")?.swipes?.length ?? 0, WORKSPACE_KEY);
-  const front = page.locator(".moment-card__front");
-  await front.scrollIntoViewIfNeeded();
-  const bounds = await front.boundingBox();
-  if (!bounds) throw new Error("Deck card has no visible bounds");
-  const x = bounds.x + bounds.width / 2;
-  const y = bounds.y + bounds.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x + deltaX, y + deltaY, { steps: 5 });
-  await page.mouse.up();
-  await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null")?.swipes?.length ?? 0, WORKSPACE_KEY)).toBe(initialSwipeCount + 1);
-}
-
 async function dealTwelveWithReasons(page: Page) {
   for (let index = 0; index < 12; index += 1) {
-    await page.locator(".moment-card__front").click();
+    await page.getByRole("button", { name: /^That's me/ }).click();
     await page.locator(".reason-choice").first().click();
     await expect(page.getByText(index === 11 ? "Reading the pattern" : `Card ${index + 2} of 16`)).toBeVisible();
   }

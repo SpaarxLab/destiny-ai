@@ -18,6 +18,21 @@ const PILES: readonly { gesture: Gesture; label: string; hint: string }[] = [
   { gesture: "me", label: "That's me", hint: "→" },
 ];
 
+const REACTION_COPY: Record<Gesture, { label: string; detail: string }> = {
+  me: { label: "That's me", detail: "This already feels true of me." },
+  not_me: { label: "Not me", detail: "This does not feel like me." },
+  wish: { label: "I wish", detail: "I want more of this." },
+  used_to: { label: "I used to", detail: "This fit an earlier version of me." },
+};
+
+const HYPOTHESIS_STATUS_COPY: Record<string, string> = {
+  proposed: "Waiting for your review",
+  accepted: "Agreed by you",
+  edited: "Rewritten by you",
+  survived: "Held up after the counterexample",
+  falsified: "Weakened by the counterexample",
+};
+
 function monotonicNow() {
   return performance.now();
 }
@@ -31,45 +46,37 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [flippedCardRef, setFlippedCardRef] = useState<string | null>(null);
   const [pendingGesture, setPendingGesture] = useState<{ cardRef: string; gesture: Gesture } | null>(null);
-  const [drag, setDrag] = useState({ cardRef: "", x: 0, y: 0, active: false });
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [limitHours, setLimitHours] = useState(Math.max(1, workspace.participant.costCaps.hoursPerWeek || 3));
   const [limitMoney, setLimitMoney] = useState(workspace.participant.costCaps.money);
-  const cardRoot = useRef<HTMLElement>(null);
-  const cardFront = useRef<HTMLDivElement>(null);
+  const reactionGroup = useRef<HTMLDivElement>(null);
   const focusNextCard = useRef(false);
-  const pointerStart = useRef<{ x: number; y: number } | null>(null);
-  const dragOffset = useRef({ x: 0, y: 0 });
   const shownAt = useRef(0);
   const orchestration = useRef(new Set<string>());
   const unresolved = workspace.cards.filter((card) => card.status === "dealt");
   const current = unresolved[0] ?? null;
-  const flipped = current !== null && flippedCardRef === current.ref;
-  const currentDrag = current !== null && drag.cardRef === current.ref ? drag : { cardRef: "", x: 0, y: 0, active: false };
+  const selectedGesture = current !== null && pendingGesture?.cardRef === current.ref ? pendingGesture.gesture : null;
+  const flipped = selectedGesture !== null;
   const openTension = workspace.tensions.find((tension) => tension.status === "proposed") ?? null;
   const resolvedTensions = workspace.tensions.filter((tension) => ["accepted", "edited", "survived"].includes(tension.status));
   const portrait = workspace.portraits.find((candidate) => candidate.status === "proposed") ?? null;
   const latestRejectedPortrait = [...workspace.portraits].reverse().find((candidate) => candidate.status === "rejected") ?? null;
   const hasSwipeAfterPortraitDeferral = !latestRejectedPortrait || workspace.swipes.some((swipe) => swipe.at > latestRejectedPortrait.createdAt);
   const counts = useMemo(() => Object.fromEntries(PILES.map((pile) => [pile.gesture, workspace.swipes.filter((swipe) => swipe.gesture === pile.gesture).length])) as Record<Gesture, number>, [workspace.swipes]);
-  const reasonCount = workspace.swipes.filter((swipe) => swipe.tappedReasonIndex !== undefined).length;
-  const slowCount = workspace.swipes.filter((swipe) => swipe.dwell === "slow").length;
-  const recommendation = readerRecommendation(workspace.swipes.length, reasonCount, slowCount, Boolean(openTension), Boolean(portrait), flipped);
 
   useEffect(() => {
     shownAt.current = monotonicNow();
     if (focusNextCard.current) {
       focusNextCard.current = false;
-      queueMicrotask(() => cardFront.current?.focus({ preventScroll: true }));
+      queueMicrotask(() => reactionGroup.current?.querySelector<HTMLButtonElement>(".reaction-choice")?.focus({ preventScroll: true }));
     }
   }, [current?.ref]);
 
   useEffect(() => {
-    if (flipped) queueMicrotask(() => cardRoot.current?.querySelector<HTMLButtonElement>(".reason-choice")?.focus({ preventScroll: true }));
-  }, [flipped]);
+    if (selectedGesture) queueMicrotask(() => document.querySelector<HTMLButtonElement>(".reason-choice")?.focus({ preventScroll: true }));
+  }, [selectedGesture]);
 
   const dealFixtures = useCallback(async () => {
     if (process.env.NEXT_PUBLIC_DESTINY_FIXTURES !== "on" || detectModelContext() || busy || workspace.deck.dealsUnresolved >= 3 || workspace.swipes.length >= 5) return;
@@ -160,11 +167,8 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
     });
   }, [agent, agentConnected, hasSwipeAfterPortraitDeferral, onChanged, portrait, resolvedTensions, workspace.portraits.length, workspace.stateVersion, workspace.swipes.length]);
 
-  async function commitSwipe(gesture: Gesture, tappedReasonIndex?: 0 | 1 | 2, skipReasonPrompt = false) {
+  async function commitSwipe(gesture: Gesture, tappedReasonIndex?: 0 | 1 | 2) {
     if (!current || busy) return;
-    if (!skipReasonPrompt && current.reasons && tappedReasonIndex === undefined && (flipped || monotonicNow() - shownAt.current > 3_000)) {
-      setPendingGesture({ cardRef: current.ref, gesture }); setFlippedCardRef(current.ref); return;
-    }
     setBusy(true);
     const elapsed = monotonicNow() - shownAt.current;
     const dwell = !workspace.deck.dwellTracking ? "off" : elapsed < 1_200 ? "fast" : elapsed <= 3_000 ? "medium" : "slow";
@@ -182,19 +186,9 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
     else setMessage(result.error?.what ?? "That swipe did not save.");
   }
 
-  function handleCardKey(event: React.KeyboardEvent<HTMLElement>) {
-    if (!current || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-    const gesture = event.key === "ArrowRight" ? "me" : event.key === "ArrowLeft" ? "not_me" : event.key === "ArrowUp" ? "wish" : event.key === "ArrowDown" ? "used_to" : null;
-    if (gesture) { event.preventDefault(); void commitSwipe(gesture); return; }
-    if ((event.key === " " || event.key === "Enter") && event.target === cardFront.current) {
-      event.preventDefault();
-      setFlippedCardRef((value) => value === current.ref ? null : current.ref);
-      return;
-    }
-    if (flipped && ["1", "2", "3"].includes(event.key)) {
-      event.preventDefault();
-      void commitSwipe(pendingGesture?.cardRef === current.ref ? pendingGesture.gesture : "me", (Number(event.key) - 1) as 0 | 1 | 2);
-    }
+  function chooseReaction(gesture: Gesture) {
+    if (!current || busy) return;
+    setPendingGesture({ cardRef: current.ref, gesture });
   }
 
   async function resolveTension(resolution: "accept" | "edit" | "reject") {
@@ -223,66 +217,53 @@ export function DeckExperience({ workspace, participant, agent, onChanged, agent
 
   return (
     <section className="deck-shell" aria-label="ChatGPT A/B Tests Your Future">
-      <div className="deck-intro"><p>Interactive evidence, not a career prediction.</p><h1 tabIndex={-1}>ChatGPT A/B Tests Your Future</h1></div>
+      <div className="deck-intro"><p>A live experiment with ChatGPT</p><h1 tabIndex={-1}>ChatGPT A/B Tests Your Future</h1></div>
       <header className="chairs-strip">
-        <span><strong>You</strong> · only you respond and decide</span>
-        <span><strong>ChatGPT</strong> · {agentConnected ? "conducting this test through WebMCP" : "open this page from ChatGPT to begin"}</span>
+        <span><strong>{agentConnected ? "ChatGPT connected" : "Open from ChatGPT"}</strong></span>
+        <span>Your reactions stay yours</span>
       </header>
-
-      <div className="deck-consent">
-        <p>{agentConnected ? "ChatGPT stages each situation. Your reaction is saved as a versioned receipt and returned only when ChatGPT inspects the room." : "There is no autonomous mode or chatbot on this page. In ChatGPT, ask it to open Destiny and test one direction worth exploring."}</p>
-        <label><input type="checkbox" checked={workspace.deck.dwellTracking} onChange={(event) => void updateDeckSettings({ dwellTracking: event.target.checked })} /> Include hesitation as evidence</label>
-        <div className="probe-limits" role="group" aria-label="Seven-day experiment limits"><strong>Your limits</strong><label>Hours this week <input type="number" min="0.5" max="168" step="0.5" value={limitHours} onChange={(event) => setLimitHours(Number(event.target.value))} /></label><label>Money ({workspace.participant.costCaps.currency === "XXX" ? "USD" : workspace.participant.costCaps.currency}) <input type="number" min="0" step="1" value={limitMoney} onChange={(event) => setLimitMoney(Number(event.target.value))} /></label><button type="button" onClick={() => void saveLimits()}>Confirm limits</button></div>
-      </div>
-
-      <section className="reader-guide" aria-labelledby="reader-guide-title">
-        <div className="reader-guide__copy"><p className="reader-guide__eyebrow">How the experiment works <span>ChatGPT + your receipts</span></p><h2 id="reader-guide-title">{current?.probe?.uncertainty ?? recommendation.title}</h2><p>{current?.probe ? `ChatGPT changed: ${current.probe.changedVariable}. This would strengthen the idea if ${current.probe.strengthensWhen}; weaken it if ${current.probe.weakensWhen}.` : recommendation.detail}</p><small>ChatGPT can stage and interpret. It cannot answer, confirm evidence, choose a route, or commit for you.</small></div>
-        <div className="reader-guide__signal"><div className="reader-guide__meter"><span>Probe evidence</span><strong>{Math.min(workspace.swipes.length, 5)} / 5 max</strong><div role="progressbar" aria-label="Probe evidence" aria-valuemin={0} aria-valuemax={5} aria-valuenow={Math.min(workspace.swipes.length, 5)}><i style={{ width: `${Math.min(100, workspace.swipes.length / 5 * 100)}%` }} /></div></div><p><span>{reasonCount} reasons</span><span>{slowCount} slow</span></p>{current ? <button type="button" onClick={() => setFlippedCardRef((value) => value === current.ref ? null : current.ref)}>{flipped ? "Return to the situation" : "See why this tests the idea"}</button> : null}</div>
-      </section>
 
       {workspace.dealerNotes.some((note) => note.status === "visible") ? <section className="dealer-notes" aria-label="Dealer notes">{workspace.dealerNotes.filter((note) => note.status === "visible").map((note) => <article key={note.ref}><div><p>{note.postedBy.label}</p><blockquote>{note.text}</blockquote></div><button type="button" aria-label={`Dismiss note from ${note.postedBy.label}`} onClick={() => void dismissDealerNote(note.ref)}>Dismiss</button></article>)}</section> : null}
 
-      <div className="table-grid">
-        <aside className="pile-bank pile-bank--left">{PILES.slice(0, 3).map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</aside>
+      <main className="table-grid">
         <div className="card-stage">
-          <p className="deck-kicker">{current ? `Probe ${Math.min(5, workspace.swipes.length + 1)} of 5 max · ${current.probe?.template.replaceAll("_", " ") ?? current.kind}` : agentConnected ? "Ask ChatGPT to stage the next probe" : "Continue from ChatGPT"}</p>
-          {current ? (
-            <article
-              ref={cardRoot}
-              className={`moment-card axis-${current.axis} ${flipped ? "is-flipped" : ""}`}
-              style={{ transform: `translate3d(${currentDrag.x}px, ${currentDrag.y}px, 0) rotate(${currentDrag.x / 25}deg)` }}
-              onClick={() => !currentDrag.active && setFlippedCardRef((value) => value === current.ref ? null : current.ref)}
-              onKeyDown={handleCardKey}
-              onPointerDown={(event) => {
-                if (event.target instanceof Element && event.target.closest(".moment-card__back button")) return;
-                cardFront.current?.focus({ preventScroll: true });
-                pointerStart.current = { x: event.clientX, y: event.clientY };
-                dragOffset.current = { x: 0, y: 0 };
-                event.currentTarget.setPointerCapture(event.pointerId);
-                setDrag({ cardRef: current.ref, x: 0, y: 0, active: false });
-              }}
-              onPointerMove={(event) => { if (!pointerStart.current) return; const offset = { x: event.clientX - pointerStart.current.x, y: event.clientY - pointerStart.current.y }; dragOffset.current = offset; setDrag({ cardRef: current.ref, ...offset, active: true }); }}
-              onPointerUp={() => { const { x, y } = dragOffset.current; const gesture = Math.abs(x) > Math.abs(y) ? (x > 80 ? "me" : x < -80 ? "not_me" : null) : (y < -80 ? "wish" : y > 80 ? "used_to" : null); pointerStart.current = null; dragOffset.current = { x: 0, y: 0 }; if (gesture) void commitSwipe(gesture); else setDrag({ cardRef: current.ref, x: 0, y: 0, active: false }); }}
-              onPointerCancel={() => { pointerStart.current = null; dragOffset.current = { x: 0, y: 0 }; setDrag({ cardRef: current.ref, x: 0, y: 0, active: false }); }}
-            >
-              <div ref={cardFront} className="moment-card__front" role="button" tabIndex={flipped ? -1 : 0} aria-hidden={flipped} aria-label={`Moment card: ${current.text}. Press Enter to show why choices, or use an arrow key to sort it.`}><span className="card-agent">{current.dealtBy.label}</span><p>{current.text}</p><span className="flip-cue">Tap to ask why</span></div>
-              <div className="moment-card__back" aria-hidden={!flipped}><span className="card-agent">What caught you?</span>{current.reasons?.map((reason, index) => <button className="reason-choice" tabIndex={flipped ? 0 : -1} key={reason} onClick={(event) => { event.stopPropagation(); void commitSwipe(pendingGesture?.cardRef === current.ref ? pendingGesture.gesture : "me", index as 0 | 1 | 2); }}>{reason}</button>)}<button className="reason-none" tabIndex={flipped ? 0 : -1} onClick={(event) => { event.stopPropagation(); void commitSwipe(pendingGesture?.cardRef === current.ref ? pendingGesture.gesture : "me", undefined, true); }}>None of these</button></div>
+          <p className="deck-kicker">{current ? `Probe ${Math.min(5, workspace.swipes.length + 1)} of 5 max · ${current.probe?.template.replaceAll("_", " ") ?? current.kind}` : agentConnected ? "Waiting for ChatGPT" : "Continue from ChatGPT"}</p>
+          {current ? <>
+            <article className={`moment-card axis-${current.axis}`} aria-labelledby={`card-${current.ref}`}>
+              <span className="card-agent">{current.dealtBy.label}</span>
+              <h2 id={`card-${current.ref}`}>{current.text}</h2>
+              {current.probe ? <details><summary>What is ChatGPT testing?</summary><p>{current.probe.uncertainty}</p><p><strong>One change:</strong> {current.probe.changedVariable}</p></details> : null}
             </article>
-          ) : <div className="empty-table">{busy ? "Staging the next probe…" : agentConnected ? `ChatGPT is connected. Ask it to ${workspace.swipes.length ? "continue from your latest receipt" : "stage the first probe"}.` : "Open this page from ChatGPT to begin."}</div>}
-          <div className="gesture-cross" aria-label="Swipe directions"><span>← not me</span><span>↑ I wish</span><span>↓ I used to</span><span>that&apos;s me →</span></div>
+
+            <fieldset className="reaction-panel" disabled={busy}>
+              <legend>How does this feel?</legend>
+              <div ref={reactionGroup} className="reaction-grid">
+                {PILES.map(({ gesture, hint }) => <button key={gesture} type="button" className={`reaction-choice reaction-choice--${gesture}`} aria-pressed={selectedGesture === gesture} onClick={() => chooseReaction(gesture)}><span aria-hidden="true">{hint}</span><strong>{REACTION_COPY[gesture].label}</strong><small>{REACTION_COPY[gesture].detail}</small></button>)}
+              </div>
+            </fieldset>
+
+            {selectedGesture ? <section className="reason-panel" aria-labelledby="reason-title">
+              <div className="reason-panel__selection"><span>Your reaction</span><strong>{REACTION_COPY[selectedGesture].label}</strong><button type="button" onClick={() => setPendingGesture(null)}>Change</button></div>
+              <h3 id="reason-title">What made you choose that?</h3>
+              <div className="reason-grid">{current.reasons?.map((reason, index) => <button className="reason-choice" type="button" key={reason} disabled={busy} onClick={() => void commitSwipe(selectedGesture, index as 0 | 1 | 2)}>{reason}</button>)}</div>
+              <button className="reason-none" type="button" disabled={busy} onClick={() => void commitSwipe(selectedGesture)}>Skip the reason</button>
+              <p>Choosing a reason will keep your <strong>{REACTION_COPY[selectedGesture].label}</strong> reaction.</p>
+            </section> : <p className="reaction-hint">Choose one reaction. Nothing is saved until you add or skip a reason.</p>}
+          </> : <div className="empty-table">{busy ? "ChatGPT is staging the next situation…" : agentConnected ? `Tell ChatGPT to ${workspace.swipes.length ? "continue" : "start the test"}.` : "Open this page from ChatGPT, then say “A/B test my future.”"}</div>}
         </div>
-        <aside className="pile-bank pile-bank--mobile" aria-label="Your four piles">{PILES.map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</aside>
-        <aside className="tension-rail">
-          <Pile {...PILES[3]} count={counts.me} />
-          <h2>Hypotheses</h2>
-          {workspace.tensions.filter((tension) => tension.status !== "rejected" && tension.status !== "superseded").map((tension) => <article key={tension.ref} className={`tension-card tension-card--${tension.status}`}><p>{tension.claim}</p><small>{tension.evidenceSwipeRefs.length} swipes · {tension.status}</small></article>)}
-          {!workspace.tensions.length ? <p className="rail-empty">After enough contrasting receipts, ChatGPT proposes a falsifiable idea—not a type.</p> : null}
+
+        <aside className="evidence-rail" aria-label="Your recorded reactions">
+          <div className="evidence-rail__head"><h2>Your evidence</h2><span>{workspace.swipes.length} saved</span></div>
+          <div className="reaction-totals">{PILES.map((pile) => <Pile key={pile.gesture} {...pile} count={counts[pile.gesture]} />)}</div>
+          <label className="dwell-setting"><input type="checkbox" checked={workspace.deck.dwellTracking} onChange={(event) => void updateDeckSettings({ dwellTracking: event.target.checked })} /> Count response time as evidence</label>
+          {workspace.tensions.filter((tension) => tension.status !== "rejected" && tension.status !== "superseded").map((tension) => <article key={tension.ref} className={`tension-card tension-card--${tension.status}`}><span>Working idea</span><p>{tension.claim}</p><small>{tension.evidenceSwipeRefs.length} supporting reactions · {HYPOTHESIS_STATUS_COPY[tension.status] ?? "Updated"}</small></article>)}
         </aside>
-      </div>
+      </main>
+
+      {!current && !openTension && resolvedTensions.length > 0 ? <section className="experiment-limits" aria-labelledby="limits-title"><div><p>Only needed for the final seven-day test</p><h2 id="limits-title">What is genuinely easy to try this week?</h2></div><div className="probe-limits" role="group" aria-label="Seven-day experiment limits"><label>Time <span><input type="number" min="0.5" max="168" step="0.5" value={limitHours} onChange={(event) => setLimitHours(Number(event.target.value))} /> hours</span></label><label>Spend <span>$ <input type="number" min="0" step="1" value={limitMoney} onChange={(event) => setLimitMoney(Number(event.target.value))} /></span></label><button type="button" onClick={() => void saveLimits()}>Save test limits</button></div></section> : null}
 
       {openTension ? <DeckDialog className="decision-sheet" labelledBy="tension-dialog-title"><p id="tension-dialog-title" className="sheet-eyebrow">ChatGPT · {openTension.interpretation === "initial" ? "falsifiable hypothesis" : `${openTension.interpretation} its interpretation`}</p>{editing === openTension.ref ? <><label className="field-label" htmlFor="tension-edit">Rewrite this hypothesis in your words</label><textarea id="tension-edit" value={editText} onChange={(event) => setEditText(event.target.value)} /></> : <h2>{openTension.claim}</h2>}<p>{openTension.evidenceSwipeRefs.length} supporting swipe receipts · {openTension.contradictorySwipeRefs.length} contradictory receipts.</p>{openTension.supersedesTensionRef ? <p><strong>What changed:</strong> ChatGPT {openTension.interpretation} its earlier hypothesis after the counterexample.</p> : null}<div className="sheet-actions">{editing ? <button onClick={() => void resolveTension("edit")}>Save rewritten hypothesis</button> : <><button onClick={() => void resolveTension("accept")}>Keep as a working hypothesis</button><button onClick={() => { setEditing(openTension.ref); setEditText(openTension.claim); }}>Rewrite</button><button onClick={() => void resolveTension("reject")}>Reject hypothesis</button></>}</div></DeckDialog> : null}
       <p className="deck-status" role="status">{message}</p>
-      <p className="deck-shortcuts">← → ↑ ↓ swipe · space flip · 1 2 3 tap a reason</p>
     </section>
   );
 }
@@ -299,15 +280,6 @@ function DeckDialog({ className, labelledBy, children }: { className: string; la
     return () => { if (node?.open) node.close(); };
   }, []);
   return <dialog ref={dialog} className={className} aria-labelledby={labelledBy} onCancel={(event) => event.preventDefault()}>{children}</dialog>;
-}
-
-function readerRecommendation(swipes: number, reasons: number, slow: number, hasOpenTension: boolean, hasPortrait: boolean, flipped: boolean) {
-  if (hasPortrait) return { title: "Keep only what helps you decide.", detail: "Treat every synthesis as a working lens, never an identity." };
-  if (hasOpenTension) return { title: "Treat ChatGPT's hypothesis as a draft.", detail: "Keep it, rewrite it in your language, or reject it. ChatGPT never gets the final word." };
-  if (swipes >= 5) return { title: "Enough evidence for the next decision.", detail: "Ask ChatGPT to inspect the receipts and move the experiment forward." };
-  if (swipes >= 6) return { title: "Pressure-test your biggest pile.", detail: "Do not chase balance. Notice whether the next moment belongs there on instinct or needs a reason." };
-  if (swipes > 0) return { title: reasons === 0 ? "Add one piece of evidence." : "Mix instinct with evidence.", detail: flipped ? "Choose the reason that actually caught you, or skip all three without penalty." : "Turn over one card when you want to name what caught you. Fast swipes still count." };
-  return { title: "Trust the first reaction.", detail: slow > 0 ? "The pause is evidence, but the response is still yours." : "Respond on instinct. Turn a card over only when you want to name why it caught you." };
 }
 
 function evidenceWindow(workspace: Workspace, swipes: Swipe[], excludedRefs: string[]): Swipe[] | null {

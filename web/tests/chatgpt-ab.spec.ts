@@ -43,14 +43,14 @@ test("ChatGPT stages a recoverable probe and receives only the participant's web
   });
   expect(staged).toMatchObject({ ok: true, outcome: "awaiting_participant", stateVersion: 1, recovery: { stagedProbePreserved: true } });
   await expect(page.locator(".moment-card")).toBeVisible();
-  await expect(page.getByText("ChatGPT staged a probe for your response on the page.")).toBeVisible();
+  await expect(page.getByText("A new situation is ready for your response.")).toBeVisible();
 
-  await page.locator(".moment-card").click();
+  await page.getByRole("button", { name: /That's me/ }).click();
   await page.getByRole("button", { name: "I want to shape the answer myself." }).click();
   await expect(page.locator(".moment-card")).toHaveCount(0);
 
   const inspected = await call(page, "inspect_room", {});
-  expect(inspected).toMatchObject({ ok: true, stateVersion: 2, data: { confirmedEvidence: [{ gesture: "me", receiptRef: "operation-2" }], latestAuthoritativeReceipt: { command: "swipe_card", actor: "participant" } } });
+  expect(inspected).toMatchObject({ ok: true, stateVersion: 2, data: { confirmedEvidence: [{ response: { code: "me", selectedReason: "I want to shape the answer myself." }, receiptRef: "operation-2" }], latestAuthoritativeReceipt: { command: "swipe_card", actor: "participant" } } });
 
   const second = await call(page, "stage_probe", {
     operationId: "0a510000-0000-4000-8000-000000000002", expectedVersion: 2,
