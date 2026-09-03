@@ -3,12 +3,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Real Chrome (149+) with chrome://flags/#enable-webmcp-testing on, driving the production server on 3111 through
- * document.modelContext itself: getTools, executeTool, toolchange. Start the server first: `npm run build && npx next start -p 3111`.
- * Run: `npm run test:chrome`. Needs Google Chrome installed; the flag is set through the profile's Local State file.
+ * Real Chrome (149+) with chrome://flags/#enable-webmcp-testing on, driving a production server through
+ * document.modelContext itself: getTools, executeTool, toolchange. Start the server first: `npm run build -- --webpack && npx next start -p 3111`.
+ * Run: `npm run test:chrome`. Override the target with STING_BASE_URL. Needs Google Chrome installed;
+ * the flag is set through the profile's Local State file.
  */
 test("real Chrome: the catalogue rotates, a tool call stamps a passport, a miss shrinks the catalogue", async () => {
   test.setTimeout(180_000);
+  const baseUrl = process.env.STING_BASE_URL ?? "http://127.0.0.1:3111";
   const profile = join(process.cwd(), ".chrome-profile");
   mkdirSync(profile, { recursive: true });
   writeFileSync(join(profile, "Local State"), JSON.stringify({ browser: { enabled_labs_experiments: ["enable-webmcp-testing@1"] } }));
@@ -16,7 +18,7 @@ test("real Chrome: the catalogue rotates, a tool call stamps a passport, a miss 
   const page = await context.newPage();
   const log: string[] = [];
   page.on("console", (message) => { if (message.type() === "error" || message.type() === "warning") log.push(message.text()); });
-  await page.goto("http://127.0.0.1:3111/");
+  await page.goto(baseUrl);
   // The persistent profile keeps the last room; start clean.
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -38,6 +40,7 @@ test("real Chrome: the catalogue rotates, a tool call stamps a passport, a miss 
   // A read at the door marks the page as agent-driven, so Spark stands down and the catalogue waits for us.
   const door = await call("inspect_room", { view: "trust" });
   console.log("door trust:", door.summary, "| tiers:", door.tiers?.length);
+  await page.screenshot({ path: "test-results/chrome-door.png", animations: "disabled" });
   await page.evaluate(() => { (window as unknown as { __changes: number }).__changes = 0; (document as unknown as { modelContext: EventTarget }).modelContext.addEventListener("toolchange", () => { (window as unknown as { __changes: number }).__changes += 1; }); });
   await page.getByRole("button", { name: "Play" }).click();
   await page.waitForTimeout(1200);
@@ -49,8 +52,16 @@ test("real Chrome: the catalogue rotates, a tool call stamps a passport, a miss 
 
   const room = await call("inspect_room", {});
   console.log("inspect_room summary:", room.summary, "| tier:", room.standing?.tier, "| next:", room.validNextAgentMove);
-  const axes = ["autonomy_belonging", "depth_breadth", "making_deciding", "visible_hidden", "stability_risk", "people_things", "visible_hidden", "people_things"];
-  const lives = Array.from({ length: 8 }, (_, index) => ({ line: `Scene ${index + 1}, a Tuesday, quietly.`, scene: "desk", axis: axes[index], pole: index % 2 ? "b" : "a" }));
+  const lives = [
+    { line: "A product users beg you to keep building.", scene: "desk", axis: "autonomy_belonging", pole: "b" },
+    { line: "One instrument, ten years, finally effortless.", scene: "stage", axis: "depth_breadth", pole: "a" },
+    { line: "Sunday lunch, three people need you there.", scene: "kitchen", axis: "people_things", pole: "a" },
+    { line: "A silent walk, phone left on the desk.", scene: "road", axis: "autonomy_belonging", pole: "a" },
+    { line: "Five small projects, each opening another door.", scene: "workshop", axis: "depth_breadth", pole: "b" },
+    { line: "Ship the strange product before anyone agrees.", scene: "office", axis: "stability_risk", pole: "b" },
+    { line: "Hands dusty, the chair finally holds.", scene: "workshop", axis: "making_deciding", pole: "a" },
+    { line: "At midnight, you fix what nobody saw.", scene: "server", axis: "visible_hidden", pole: "b" },
+  ];
   const cast = await call("stage_cast", { operationId: `chrome-cast-${Date.now()}`, expectedVersion: room.stateVersion, lives });
   console.log("stage_cast:", cast.summary, "| via:", cast.room?.player?.via);
   expect(cast.ok).toBe(true);
@@ -59,10 +70,21 @@ test("real Chrome: the catalogue rotates, a tool call stamps a passport, a miss 
   console.log("after cast:", await names());
   const posters = page.locator(".sting-grid .poster");
   await expect(posters).toHaveCount(8);
+  await page.screenshot({ path: "test-results/chrome-after-cast.png", animations: "disabled" });
   await posters.nth(0).click(); await posters.nth(3).click(); await posters.nth(5).click();
   await page.waitForTimeout(1200);
+  const beforeCold = await names();
+  console.log("before cold read:", beforeCold);
+  expect(beforeCold).not.toContain("stage_duel");
+  expect(beforeCold).not.toContain("ask_once");
+  expect(beforeCold).toContain("propose_hypothesis");
+  const roomBeforeCold = await call("inspect_room", {});
+  expect(roomBeforeCold.validNextAgentMove).toBe("propose_hypothesis kind cold_read");
+  const cold = await call("propose_hypothesis", { operationId: `chrome-cold-${Date.now()}`, expectedVersion: roomBeforeCold.stateVersion, kind: "cold_read", text: "You want a room that still needs you." });
+  expect(cold.ok).toBe(true);
+  await page.waitForTimeout(800);
   const atDuel = await names();
-  console.log("duel:", atDuel);
+  console.log("after cold read:", atDuel);
   expect(atDuel).toContain("stage_duel");
   expect(atDuel).toContain("ask_once");
   const room2 = await call("inspect_room", {});

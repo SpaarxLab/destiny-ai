@@ -1,4 +1,5 @@
-import { QUESTION_COST, answeredDuels, openProbe, openQuestion, type Workspace } from "./domain";
+import { LETTER_STAKE, QUESTION_COST, answeredDuels, openProbe, openQuestion, type Workspace } from "./domain";
+import { nearDuplicate } from "./content";
 import { houseBrief, houseCast, houseColdRead, houseCorrection, houseDare, houseLetter, houseNextDuel, housePosters, houseQuestion, houseShouldClose, houseVerdict } from "./house";
 import type { PendingMove } from "./kernel";
 
@@ -6,7 +7,7 @@ import type { PendingMove } from "./kernel";
  * The house's next move for the current room, or null when it is the person's turn.
  * Pure: the caller assigns the operationId and executes.
  */
-export function houseMove(ws: Workspace): PendingMove | null {
+export function houseMove(ws: Workspace, at: Date = new Date()): PendingMove | null {
   const base = { expectedVersion: ws.stateVersion, player: "house" as const };
   switch (ws.phase) {
     case "cast":
@@ -38,18 +39,22 @@ export function houseMove(ws: Workspace): PendingMove | null {
 
     case "verdict": {
       const has = (kind: string) => ws.hypotheses.some((item) => item.kind === kind && item.status !== "killed");
+      const wasKilled = (text: string) => ws.kills.some((kill) => nearDuplicate(kill.text, text));
       const verdict = houseVerdict(ws);
       const hungers = ws.hypotheses.filter((item) => item.kind === "hunger" && item.status !== "killed");
-      if (hungers.length === 0) return { ...base, type: "propose_hypothesis", kind: "hunger", text: verdict.hunger.text, proofRefs: verdict.hunger.proofRefs };
+      if (hungers.length === 0) {
+        const candidate = [verdict.hunger, verdict.hunger2].find((item) => item && !wasKilled(item.text));
+        return candidate ? { ...base, type: "propose_hypothesis", kind: "hunger", text: candidate.text, proofRefs: candidate.proofRefs } : null;
+      }
       // Another player wrote the verdict: the house never mixes its voice into it. Optional lines stay absent.
       if (hungers.some((item) => item.player !== "house") && has("edge")) return null;
-      if (hungers.length === 1 && verdict.hunger2 && verdict.hunger2.text !== hungers[0].text && !ws.kills.some((kill) => kill.text === verdict.hunger2!.text)) {
+      if (hungers.length === 1 && verdict.hunger2 && verdict.hunger2.text !== hungers[0].text && !wasKilled(verdict.hunger2.text)) {
         return { ...base, type: "propose_hypothesis", kind: "hunger", text: verdict.hunger2.text, proofRefs: verdict.hunger2.proofRefs };
       }
-      if (!has("mask") && verdict.mask && !ws.kills.some((kill) => kill.text === verdict.mask!.text)) {
+      if (!has("mask") && verdict.mask && !wasKilled(verdict.mask.text)) {
         return { ...base, type: "propose_hypothesis", kind: "mask", text: verdict.mask.text, proofRefs: verdict.mask.proofRefs };
       }
-      if (!has("edge") && !ws.kills.some((kill) => kill.text === verdict.edge.text)) {
+      if (!has("edge") && !wasKilled(verdict.edge.text)) {
         return { ...base, type: "propose_hypothesis", kind: "edge", text: verdict.edge.text, proofRefs: verdict.edge.proofRefs };
       }
       return null;
@@ -74,7 +79,8 @@ export function houseMove(ws: Workspace): PendingMove | null {
 
     case "card": {
       if (!ws.brief) return { ...base, type: "write_brief", text: houseBrief(ws) };
-      if (ws.dare?.status === "accepted" && !ws.letter && !ws.record.bust) {
+      const dueAt = ws.dare?.dueAt ? new Date(ws.dare.dueAt).getTime() : null;
+      if (ws.dare?.status === "accepted" && dueAt !== null && at.getTime() < dueAt && !ws.letter && !ws.record.bust && ws.record.chips >= LETTER_STAKE) {
         const letter = houseLetter(ws);
         return { ...base, type: "seal_letter", ...letter };
       }
@@ -87,6 +93,6 @@ export function houseMove(ws: Workspace): PendingMove | null {
 }
 
 /** True when the house has said everything it can on this screen and the person must act. */
-export function houseIsDone(ws: Workspace): boolean {
-  return houseMove(ws) === null;
+export function houseIsDone(ws: Workspace, at: Date = new Date()): boolean {
+  return houseMove(ws, at) === null;
 }

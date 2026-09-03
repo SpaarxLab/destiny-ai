@@ -1,145 +1,206 @@
 # STING — Devpost submission kit
 
+## Links
+
+- **Live demo:** https://sting-webmcp.vercel.app
+- **Public source:** https://github.com/SpaarxLab/destiny-ai
+- **License:** MIT, visible in the repository root
+- **Demo video:** add the public YouTube URL after upload
+
 ## Project name
 
 **STING**
 
-## Tagline (≤60 chars)
+## Tagline (46 characters)
 
-> Your AI says it knows you. STING makes it bet. (46 chars)
+> Your AI says it knows you. STING makes it bet.
 
-## Three candidate one-liners
+## About the project (Devpost copy, ≤350 words)
 
-1. Your AI says it knows you. STING makes it bet, chip by chip, on every tap.
-2. Your own agent, carrying its memory of you, casts your life and stakes chips to prove it.
-3. Prove your AI wrong: it bets through the page's own tools, and reality collects.
+Most AI experiences ask you to trust a fluent answer. STING makes an AI **earn the right to
+describe you**.
 
----
+STING is a three-minute, no-typing-required game for people who ask AI for direction. The core
+match is tap-only; writing a personal rule is optional. Your agent casts
+eight possible lives. Before each duel choice, it must seal a chip-staked bet on which side you
+will pick. A hit earns chips; a miss costs chips and forces a public correction before the
+agent can bet again. Only after enough evidence and one corrected miss may its read be marked
+earned. Lower-standing drafts are visibly labelled unearned. Reject a line and the kernel blocks
+the same or a near-duplicate line; participant-written rules remain visible guidance to later agents.
 
-## About the project (≤350 words)
+**WebMCP leverage.** Nine phase-gated capabilities ship across the match. They are registered
+through `document.modelContext.registerTool`, and the catalogue itself becomes the trust meter.
+At the door, the agent can only `inspect_room`. Play reveals `stage_cast`. A miss removes
+`stage_duel` until a revision lands. Going bust leaves only the read-only tool. The agent's
+browser-level authority changes with its record.
 
-STING is a three-minute, no-typing game played inside ChatGPT over WebMCP. Your own agent —
-with its memory of you — casts eight life-cards from what it already knows and **seals a
-chip-staked bet on which of two you'll pick before you tap**. Right, it earns chips. Wrong, it
-loses them and must correct itself before betting again. Only with enough chips and one
-confessed miss may it describe your hunger, mask and edge, cited to your own taps.
+One command kernel serves the UI and WebMCP. Writes require an
+`operationId` and `expectedVersion`; replays return the original receipt, stale writes are
+denied, bets use commit-reveal hashes, and receipts form a per-room hash chain. There is no
+tool for tapping, killing a line, crowning a want, setting limits, accepting a dare, or opening
+a sealed letter. Those decisions belong to the person.
 
-**WebMCP Leverage.** WebMCP's premise is a website an agent uses on someone's behalf; STING turns
-that around — your own agent uses the page's tools to prove it knows you, staking chips on a tap
-it can't see coming. Every move is a real `registerTool` call (`web/src/sting/webmcp.ts`),
-phase-gated so the catalogue is the authority meter: a miss removes `stage_duel`, a bust leaves
-only `inspect_room`, every change fires `toolchange`. Bets are commit-reveal, hash before the
-tap, seal only after. All nine tools (§9) are live, including a captain's turn — one call
-chooses to bet, ask, or close — plus an optional `aside` on every write, kernel-filtered.
+**Better together.** Ordinary chat advises after seeing your answer, making confidence hard to
+audit. STING makes the agent predict before observation, exposes mistakes, and lets its
+record—not its tone—control what it may do next. The result is one bounded weekly test and a
+field brief any future AI can use as revisable evidence, never as identity or diagnosis.
 
-**Execution.** One kernel enforces every rule server-side-equivalent in the client document:
-`operationId` replay returns the original receipt, `expectedVersion` mismatches deny
-`STALE_VERSION`, every write is an append-only hash-chained receipt. The whole match runs with
-zero network calls if no agent connects.
+If no agent is available, the deterministic house completes the entire experience with zero
+model calls. That makes STING a complete product as well as a non-trivial WebMCP implementation.
 
-**Potential Impact.** Career stuckness isn't solved by a quiz; it needs a calibrated bettor and a
-week of contact with reality. The chip economy makes an agent's confidence costly and checkable
-— no chat interface can replicate that (`docs/STING.md` §5).
+## Why it can win each judging criterion
 
-**Creativity & Ambition.** Most WebMCP entries let an agent act for a person. STING inverts it:
-your AI already claims to know you from the chat you just had; the page makes that claim cost
-something. A commit-reveal market with a human referee, played through a catalogue whose captain
-picks its own move, uses `registerTool`/`toolchange` most entries won't attempt. Not shipped:
-rival-agent mode, "blind challenge". Shipped: the shrinking catalogue, rules of me, the sealed
-letter, `ask_once`, seal verification, asides, the captain's turn, the handoff.
+### WebMCP Leverage
 
----
+- Nine tools are deliberately distributed across phases instead of exposed as a static API.
+- Native registration and catalogue replacement make capability changes observable to the host.
+- `stage_duel` creates a real human-agent interlock: after a required sealed cold read, the tool returns `awaiting_participant`,
+  the bet stays sealed, and only the person's tap resolves it.
+- Tool availability expresses earned authority. A miss revokes a capability; a correction
+  restores it; a bust leaves a read-only surface.
+- The WebMCP adapter is thin. Policy, validation, idempotency, state versions, commitments, and
+  receipts live in the shared kernel used by the UI.
+- `present_evidence` is deliberately a write: it stages the two evidence posters, while the
+  participant-only crown command keeps the decision human.
 
-## How to test
+### Execution
 
-**Proof you can re-run (2026-09-03):** `cd web && npm run test:chrome` launches real Google Chrome 152 with the
-WebMCP flag and drives STING through `document.modelContext` itself: the door exposes one tool, Play adds
-`stage_cast`, the first write stamps "Chrome 152" as the agent's passport, the sealed bet is absent from
-`inspect_room` until the tap, a wrong bet removes `stage_duel` from `getTools()` until a revision lands, and
-39 `toolchange` events fire with zero console errors. `npm run test:browser` plays a full house match to the
-card and opens the sealed letter under `?clock=+8d`. `npm run test:sting-live` does the same with the real
-Muse Spark 1.3 model (18 model calls, all 200, including the paid question).
+- Complete journey: door → cast → five-to-nine duels → verdict → fight → three lives → bounded
+  dare → card → sealed reality bet.
+- No account and no typing required; the fallback house runs without a model provider.
+- Public Vercel deployment, public MIT repository, responsive UI, human-readable tool activity,
+  keyboard controls, reload recovery, and a demo clock for judging the one-week letter flow.
 
-**ChatGPT (primary path).** Open the live URL inside ChatGPT's desktop app, built-in browser,
-model **GPT-5.6 Sol** or **GPT-5.6 Terra** (GPT-5.6 Luna has site tools disabled; Enterprise/Edu
-workspaces do not expose them at all — switch account tier if tools don't appear). Say "play
-STING with me." Tap through cast and a duel; watch the strip show a sealed bet and chip count
-before you tap.
+### Potential Impact
 
-**Chrome (backup path).** Chrome 149+, `chrome://flags/#enable-webmcp-testing` → Enabled →
-relaunch. Install a WebMCP-capable extension (e.g. the Model Context Tool Inspector) to drive
-tools manually or via Gemini, or use the manual path below.
+- Audience: people already asking AI for personal or career direction.
+- Problem: confident personalised advice is usually post-hoc, hard to falsify, and easy to
+  mistake for understanding.
+- Intervention: pre-committed predictions, visible cost for misses, evidence thresholds,
+  rejectable claims, and one bounded real-world test. The kernel blocks named irreversible
+  actions and enforces limits; that is a concrete guard, not a proof that every proposal is safe.
+- Boundary: STING does not claim therapy, diagnosis, prediction of a career, or validated
+  participant outcomes. It demonstrates a safer interaction model that can now be user-tested.
 
-**DevTools manual-run path — watch a denial.** Open the live URL in Chrome with the flag on.
-DevTools → Application → WebMCP lists every registered tool. Select `stage_duel`, fill a duel
-call with any valid `operationId` but an `expectedVersion` one lower than the value `inspect_room`
-currently reports, and invoke it. The kernel returns `{ ok: false, denied: { code:
-"STALE_VERSION", message: "The room moved on. Read it again." } }` — the write is rejected, no
-state changes, and calling `inspect_room` again shows the version unchanged.
+### Creativity & Ambition
 
----
+Instead of giving an agent more power to act for a person, STING makes the agent the contestant
+and the person the referee. Its score is not decoration: the score changes the agent's actual
+browser capabilities. The final artifact is not an AI verdict; it is a record of what survived
+the person's choices and what should be tested next.
 
-## Video script (< 2:45, three acts)
+## How judges can test it
 
-| Time | On screen | Voiceover |
-|---|---|---|
-| 0:00–0:10 | ChatGPT chat window, ordinary conversation | "Your AI says it knows you. I'm about to make it bet — with chips it can lose." |
-| **Act 1 — the bet** | | |
-| 0:10–0:18 | In ChatGPT, the person types "play STING with me"; a tab opens to the door, which reads "waiting for your agent" | "I just say it: play STING with me. The page waits for it — it never plays over my agent." |
-| 0:18–0:35 | Cast: eight lives land; a one-line aside from the agent appears on the page before the taps ("Something like: you keep circling mornings."); DevTools WebMCP panel shows `registerTool` calls landing | "It just called `registerTool` — `stage_cast` — and it's talking to me, right there on the page, not just in the chat." |
-| 0:35–0:55 | Duel screen, chip stake and commitment hash shown before the tap | "Before I tap, `stage_duel` seals a bet — a commitment hash, right there. It can't see my thumb, can't change its mind after." |
-| **Act 2 — the cost** | | |
-| 0:55–1:15 | Tap, reveal, a miss; chip count drops on screen | "Wrong. It loses the chips it staked. Watch the tool panel." |
-| 1:15–1:35 | DevTools WebMCP panel: `stage_duel` disappears from the registered-tools list; `toolchange` fires | "`toolchange` just fired. `stage_duel` is gone from its own tool list until it corrects itself. That's not a UI lock — that's the browser's own registry." |
-| 1:35–1:50 | `propose_hypothesis` call with kind revision; correction text appears | "It has to call `propose_hypothesis`, kind revision, and admit what it misread, before it can bet again." |
-| **Act 3 — the referee** | | |
-| 1:50–2:05 | Verdict: hunger/mask/edge lines with `▸ proof` taps expanding to real reaction refs | "Only now, with enough chips and one corrected miss, may it describe me — and every line cites the actual tap." |
-| 2:05–2:15 | Kill a line; `propose_hypothesis` description regenerates live in DevTools | "I kill one. Its own tool description just rewrote itself to say it can never bring that line back." |
-| 2:15–2:28 | Dare accepted; `seal_letter` call, commitment hash shown, write tools vanish | "It dares me to one real thing this week — and seals a letter about whether I'll do it. Sealed from everyone, even itself, until the letter opens." |
-| 2:28–2:44 | `?clock=+7d` in the URL bar; two taps open the letter; card updates live | "I skip ahead with the demo clock. Two taps open the letter. Reality signs the card — not the AI." |
+### Primary path: ChatGPT in-app browser
 
-Total runtime: 2:44.
+1. Open https://sting-webmcp.vercel.app in ChatGPT's built-in browser.
+2. Confirm the page initially exposes only `inspect_room`.
+3. Select **Play**, then ask the agent: “Play STING with me.”
+4. Watch `stage_cast` appear and let the agent stage eight lives.
+5. Make the three participant-only cast taps. Confirm `stage_duel` and `ask_once` are still absent.
+6. Let the agent call `propose_hypothesis` with `kind: cold_read`; only then does `stage_duel` appear.
+7. Let the agent call `stage_duel`. Before selecting either life, note the chip stake and commitment hash.
+8. Select the opposite life. Refresh the tool list: `stage_duel` is absent.
+9. The agent must call `propose_hypothesis` with `kind: revision` before the tool returns.
 
----
+If Site tools are unavailable in that chat, select **Play the house instead**. The complete
+product still runs; the Chrome path below proves the native WebMCP surface independently.
+
+### Chrome path
+
+Use Chrome with `chrome://flags/#enable-webmcp-testing` enabled, then relaunch. Open the live
+URL with a WebMCP-capable inspector or agent. Chrome DevTools → Application → WebMCP shows the
+registered catalogue.
+
+For a quick denial proof, call `inspect_room`, then invoke any current write tool using an
+`expectedVersion` lower than the returned `stateVersion`. The kernel returns
+`STALE_VERSION`, applies no mutation, and tells the caller to read the room again.
+
+### Reproducible source proof
+
+From `web/`:
+
+```bash
+npm install
+npm run test
+npm run lint
+npm run typecheck
+npm run build -- --webpack
+```
+
+The current deterministic suite is 26 Vitest files / 271 tests. The repeatable native-Chrome
+journey covers door discovery, cast, three human taps, the required cold read, a sealed duel,
+miss, capability revocation, correction, and restoration through `document.modelContext`.
+
+Additional journeys:
+
+```bash
+npm run test:browser  # complete deterministic house match
+npm run build -- --webpack && npx next start -p 3111
+# In a second terminal:
+npm run test:chrome   # native Chrome document.modelContext + toolchange flow
+```
+
+The public deployment intentionally leaves the optional in-page model provider off. This removes
+provider latency and spend from judging while preserving the external-agent WebMCP path and the
+deterministic house fallback. If Spark is explicitly enabled, the browser POSTs a bounded
+`PlayerContext` to `/api/sting/move`, which sends it to the configured provider. The app does not
+control or guarantee that provider's retention policy.
+
+## Demo video script — 2:54
+
+| Time | Visual | Voiceover |
+| --- | --- | --- |
+| 0:00–0:10 | Live door, immediately readable | “Your AI says it knows you. STING makes it prove it—before you give it the answer.” |
+| 0:10–0:25 | Door into eight lives | “STING is a three-minute, no-typing-required game for a person and their agent. The agent casts eight possible lives from what it knows. You tap the ones that sting.” |
+| 0:25–0:43 | Cast and current tool catalogue | “This is not an AI quiz. The page gives the agent structured WebMCP tools, but only the move this phase permits. First it may inspect and cast. After a mandatory cold read, it may bet or ask once. The person still owns every tap.” |
+| 0:43–1:05 | Sealed duel and commitment | “Here is the key move. Before I choose, the agent calls stage duel and seals a chip-staked bet on which side I will pick. The page hashes that commitment. It cannot see my tap or rewrite the bet afterward.” |
+| 1:05–1:27 | Miss, lost chips, correction | “I choose the other side. It loses two chips. Now the browser changes what the agent may do: stage duel disappears. It cannot bet again until it makes a specific public correction about what it misread.” |
+| 1:27–1:47 | Catalogue before and after correction | “That is WebMCP doing product work, not sitting beside the product. The catalogue is the trust meter. A miss changes the agent's actual capabilities, not just the colour of a button.” |
+| 1:47–2:08 | Verdict with expandable tap proof | “After enough earned evidence, STING gives a provisional read: what I kept choosing, the tension I have not settled, and what I may be underrating. I can kill a wrong line, and that exact claim cannot return.” |
+| 2:08–2:28 | Dare, card, sealed letter | “Then it turns the read into one bounded test this week, with a clear done looks like. A sealed letter is withheld until the due date, so reality settles the next bet. The result is not advice. It is a record of what survived contact with my choices.” |
+| 2:28–2:42 | Field brief, shown large enough to read | “Finally, STING writes a field brief for any future AI: treat this as revisable evidence, name the tradeoff, make a bet, and admit what you misread. Less performance. More proof.” |
+| 2:42–2:54 | End slate with live and source URLs | “STING. Your AI says it knows you. Prove it wrong.” |
+
+The table above is the canonical spoken script for `demo-assets/STING_DEMO_NARRATED.mp4`; upload `demo-assets/STING_DEMO_NARRATED.srt` with it.
 
 ## Submission checklist
 
 **Deadline: 2026-09-03, 1:00pm PDT = 2026-09-04, 01:30 IST.**
 
-- [ ] Public repo (GitHub) — MIT `LICENSE` visible in the About section
-- [ ] Live URL, testable through judging end (Sep 21, 5:00pm PT); root directory `web` per `docs/DEPLOY.md`
-- [ ] `WEBMCP_ORIGIN_TRIAL_TOKEN` registered against the exact production origin (not a preview URL) — see `docs/DEPLOY.md`
-- [ ] Demo video, public on YouTube, under 3:00, with audio, uploaded and linked
-- [ ] Submission text: this file's "About the project," "How to test," and Risks sections pasted into the Devpost form
-- [ ] Testing Instructions field: model requirement (GPT-5.6 Sol/Terra, not Luna, not Enterprise/Edu), Chrome flag fallback, DevTools denial walkthrough
-- [ ] Five screenshots (see below)
-- [ ] Reviewer / representative name filed for the team
-- [ ] `git log --reverse` confirms first commit `2026-09-01`, inside the Aug 25 – Sep 3 window — no prior-work ledger needed
+- [x] Public repository: https://github.com/SpaarxLab/destiny-ai
+- [x] MIT `LICENSE` in repository root
+- [x] Stable live URL: https://sting-webmcp.vercel.app
+- [x] Source instructions and WebMCP architecture in `README.md`
+- [x] Judge-first voiceover script, captions, visual cut, and reproducible audio workflow prepared locally
+- [x] Synthetic narration generated locally with the macOS Daniel voice (not an impersonation)
+- [x] Final 2:54 `STING_DEMO_NARRATED.mp4` verified with H.264 video and an audible AAC narration stream
+- [ ] Upload the final MP4 as a public YouTube video and paste its URL above
+- [ ] Add the final video URL and screenshots to Devpost
+- [ ] Submit the Devpost entry
+- [ ] After submission, freeze the submitted repository SHA, video and live deployment and keep
+  them accessible through the judging period ending 2026-09-21, 5:00pm PDT
+- [ ] Optional: install and verify a production-bound WebMCP origin-trial token for stock Chrome
 
-### Screenshots (5)
+## Screenshot order
 
-1. **Door** — dark room, "ChatGPT thinks it knows what you want. Prove it wrong," strip reading "ChatGPT is here."
-2. **Duel with sealed bet** — two lives side by side, chip stake and commitment hash visible before the tap.
-3. **DevTools → Application → WebMCP panel** — the live registered-tool list, showing the phase-gated catalogue.
-4. **Verdict with proof** — a hunger/mask/edge line expanded to show `▸ proof · n taps`, cold read revealed beneath.
-5. **Card** — chip record (hits/misses/chips), cold read vs. earned read, and the dare with its sealed reality bet.
+1. Door: the thesis and **Play** button.
+2. Sealed duel: two lives, chip stake, and commitment before the human tap.
+3. Tool catalogue after a miss: `stage_duel` absent.
+4. Verdict: a line with its three tap references expanded.
+5. Card: record, bounded dare, sealed letter, and field brief.
 
----
+## Honest caveats
 
-## Risks and honest caveats
-
-- **Luna / Enterprise gap.** GPT-5.6 Luna has site tools disabled, and ChatGPT Desktop under
-  Enterprise or Edu workspaces does not expose site tools at all — a judge on either will see the
-  house play instead of ChatGPT, with no on-screen explanation yet. Testing Instructions call this
-  out explicitly so it isn't mistaken for a bug.
-- **Origin trial token is origin-bound.** `WEBMCP_ORIGIN_TRIAL_TOKEN` must be registered against
-  the exact scheme+host+port of the production deploy; a Vercel preview URL gets a different
-  origin per deploy and will not carry a valid token. Without it, judges on stock Chrome (no flag
-  flipped) will not see `document.modelContext` at all and will fall back to the house.
-- **iOS is unsupported.** WebMCP has no shipped or trialed support on any iOS milestone (Safari's
-  WebKit engine); STING's pitch of "stays on your phone" only gets the agent-side WebMCP
-  experience on Android or desktop Chrome/ChatGPT today. iPhone visitors get the house, which is a
-  complete game, but not the ChatGPT-plays experience.
-- **`toolchange` timing is not guaranteed by spec.** The shrinking-catalogue moments are narrated
-  by STING's own on-screen activity sentences as the primary signal; the browser's native tool
-  panel updating in sync is a bonus, not something the demo depends on exactly.
+- The public deployment uses the deterministic house for its optional in-page model player;
+  an external ChatGPT or Chrome agent can still use the native WebMCP tools.
+- Without an origin-trial token, stock Chrome needs the WebMCP testing flag. ChatGPT's in-app
+  browser supports the challenge path directly.
+- The impact case is mechanism-level and product-level, not a claim of clinical benefit or
+  validated participant outcomes.
+- Match state is stored in browser `localStorage` and writes are serialized with Web Locks when
+  available. There is no shipped JSON import/export, multi-tab ownership mode, or remote backup.
+- The ready narrated video is a still-based montage. It accurately labels the native Chrome proof,
+  but it is not presented as a continuous screen recording of every interaction.
+- Tool-change timing belongs to the host. STING also renders every authority change in plain
+  language so the human experience does not depend on an inspector refreshing instantly.

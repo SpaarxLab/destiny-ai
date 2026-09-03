@@ -1,0 +1,56 @@
+1
+00:00:00,300 --> 00:00:09,500
+Your AI says it knows you.
+STING makes it prove it, before you give it the answer.
+
+2
+00:00:10,300 --> 00:00:24,500
+STING is a three-minute, no-typing-required game for a person and their agent.
+The agent casts eight possible lives from what it knows. You tap the ones that sting.
+
+3
+00:00:25,300 --> 00:00:42,500
+This is not an AI quiz. The page gives the agent structured WebMCP tools,
+but only the move this phase permits. First it may inspect and cast.
+After a mandatory cold read, it may bet or ask once. The person still owns every tap.
+
+4
+00:00:43,300 --> 00:01:04,500
+Here is the key move. Before I choose, the agent calls stage_duel and seals a
+chip-staked bet on which side I will pick. The page hashes that commitment.
+It cannot see my tap or rewrite the bet afterward.
+
+5
+00:01:05,300 --> 00:01:26,500
+I choose the other side. It loses two chips. Now the browser changes what the
+agent may do: stage_duel disappears. It cannot bet again until it makes a specific
+public correction about what it misread.
+
+6
+00:01:27,300 --> 00:01:46,500
+That is WebMCP doing product work, not sitting beside the product. The catalogue
+is the trust meter. A miss changes the agent's actual capabilities,
+not just the colour of a button.
+
+7
+00:01:47,300 --> 00:02:07,500
+After enough earned evidence, STING gives a provisional read: what I kept choosing,
+the tension I have not settled, and what I may be underrating. I can kill a wrong
+line, and that exact claim cannot return.
+
+8
+00:02:08,300 --> 00:02:27,500
+Then it turns the read into one bounded test this week, with a clear done looks like.
+A sealed letter is withheld until the due date, so reality settles the next bet.
+The result is not advice. It is a record of what survived contact with my choices.
+
+9
+00:02:28,300 --> 00:02:41,500
+Finally, STING writes a field brief for any future AI: treat this as revisable
+evidence, name the tradeoff, make a bet, and admit what you misread.
+Less performance. More proof.
+
+10
+00:02:42,300 --> 00:02:53,500
+STING. Your AI says it knows you.
+Prove it wrong.

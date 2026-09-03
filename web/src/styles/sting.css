@@ -3,6 +3,8 @@
 .sting {
   --bg: #0b0b0c;
   --bg-2: #141416;
+  --panel: #141416;
+  --line: #343438;
   --ink: #f2efe9;
   --ink-2: #8e8b85;
   --ink-3: #4d4b47;
@@ -62,7 +64,7 @@ body:has(.sting) {
   width: 100%;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 24px 20px 220px;
+  padding: 24px 20px max(48px, calc(env(safe-area-inset-bottom) + 24px));
   display: flex;
   flex-direction: column;
   gap: 20px;

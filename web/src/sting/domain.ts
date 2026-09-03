@@ -203,6 +203,10 @@ export type Voice = z.infer<typeof voiceSchema>;
 
 export const recordSchema = z.object({
   player: playerSchema,
+  /** Creative players who contributed to this match, in first-contribution order. */
+  players: z.array(playerSchema).max(4).default([]),
+  /** False once the participant explicitly hands the saved room to an in-page player. */
+  externalAllowed: z.boolean().default(true),
   /** Which client the player spoke through, e.g. "ChatGPT desktop" or "Chrome 152". Set by the agent itself. */
   via: z.string().max(80).optional(),
   chips: z.number().int(),
@@ -221,6 +225,7 @@ export const receiptSchema = z.object({
   stateVersion: z.number().int(),
   at: z.string(),
   summary: z.string(),
+  requestHash: z.string().optional(),
   prev: z.string(),
   hash: z.string(),
 });
@@ -267,7 +272,7 @@ export function freshWorkspace(now = new Date().toISOString()): Workspace {
     createdAt: now,
     settings: { timing: true, sound: false },
     phase: "door",
-    record: { player: "house", chips: START_CHIPS, hits: 0, misses: 0, streak: 0, earned: false, bust: false },
+    record: { player: "house", players: [], externalAllowed: true, chips: START_CHIPS, hits: 0, misses: 0, streak: 0, earned: false, bust: false },
     lives: [],
     picks: { stings: [], secretSkipped: false, dwell: {} },
     probes: [],

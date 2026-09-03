@@ -29,7 +29,7 @@ export function QuestionCard({ ws, act }: { ws: Workspace; act: Act }) {
   );
 }
 
-/** Everything the person has ruled out, in their words. Every tool description carries these. */
+/** Everything the person has ruled out, in their words. Future hypotheses read this guidance. */
 export function RulesOfMe({ ws, act }: { ws: Workspace; act: Act }) {
   const [draft, setDraft] = useState("");
   const rules = rulesOfMe(ws);
@@ -43,7 +43,7 @@ export function RulesOfMe({ ws, act }: { ws: Workspace; act: Act }) {
   return (
     <details className="rules" open={rules.length > 0}>
       <summary>rules of me · {rules.length}</summary>
-      <p className="sting-small">Every line you cross out becomes a rule. Add your own. Any AI that opens this room reads them before it may speak.</p>
+      <p className="sting-small">Every line you cross out becomes a rule. Add your own. The room shows them to any AI inspecting it and repeats them before future descriptions.</p>
       {rules.length ? <ul className="rules__list">{rules.map((rule) => <li key={rule}>{rule}</li>)}</ul> : null}
       {!full ? (
         <form
@@ -63,7 +63,7 @@ export function RulesOfMe({ ws, act }: { ws: Workspace; act: Act }) {
   );
 }
 
-/** The sealed letter about the person's week: hidden from everyone until the dare is due, then scored by reality. */
+/** The sealed letter about the person's week: hidden until the dare is due, then checked against reality. */
 export function LetterCard({ ws, act, now }: { ws: Workspace; act: Act; now: () => Date }) {
   const [verified, setVerified] = useState<"match" | "mismatch" | null>(null);
   const [didIt, setDidIt] = useState<boolean | null>(null);
@@ -82,8 +82,8 @@ export function LetterCard({ ws, act, now }: { ws: Workspace; act: Act; now: () 
         <p className="letter__note">“{letter.sealed.note}”</p>
         <ul className="rules__list">
           <li>It bet you {letter.sealed.willDo ? "would" : "would not"} do it. You {letter.opened.didIt ? "did" : "did not"}.</li>
-          <li>It guessed it would feel “{letter.sealed.feeling}”. You said {letter.opened.feltLikeIt ? "it did" : "it didn’t"}.</li>
-          <li>{hit ? "+" : "−"}{Math.abs(letter.opened.chipsMoved)} chips, settled by your week, not your thumb.</li>
+          <li>Its hidden feeling guess was “{letter.sealed.feeling}”. Before opening it, you said the week felt {letter.opened.feltLikeIt ? "as you expected" : "different from what you expected"}. That context is shown, not scored.</li>
+          <li>{hit ? "+" : "−"}{Math.abs(letter.opened.chipsMoved)} chips on whether you did the dare, settled by your week rather than a preference tap.</li>
         </ul>
         <button
           className="sting-btn sting-btn--quiet"
@@ -100,18 +100,18 @@ export function LetterCard({ ws, act, now }: { ws: Workspace; act: Act; now: () 
     <div className="letter sting-enter">
       <span className="sting-eyebrow" style={{ color: "var(--cold)" }}>a sealed letter about your week · {letter.commitment}</span>
       <p className="sting-body">
-        {name} wrote down whether you’ll do it and how it will feel, then sealed it. Nobody can read it, not even the one who wrote it, until {when}.
+        {name} wrote down whether you’ll do it and how it will feel, then sealed it. This page will not reveal or change those fields until {when}.
       </p>
       {due ? (
         <div className="letter__open">
-          <span className="sting-small">It’s {when}. Two taps and reality settles the bet.</span>
+          <span className="sting-small">It’s {when}. Your first answer settles the chip bet; the second records how the week felt.</span>
           <div className="ask__options">
             <button className={`ask__option ${didIt === true ? "ask__option--on" : ""}`} onClick={() => setDidIt(true)}>I did it</button>
             <button className={`ask__option ${didIt === false ? "ask__option--on" : ""}`} onClick={() => setDidIt(false)}>I didn’t</button>
           </div>
           {didIt !== null ? (
             <>
-              <span className="sting-small">Did it feel the way you thought it would?</span>
+              <span className="sting-small">Before the letter opens: did the week feel how you expected? This answer adds context; it does not move chips.</span>
               <div className="ask__options">
                 <button className="ask__option" onClick={() => void act({ type: "open_letter", didIt, feltLikeIt: true })}>Yes</button>
                 <button className="ask__option" onClick={() => void act({ type: "open_letter", didIt, feltLikeIt: false })}>No</button>
@@ -120,7 +120,7 @@ export function LetterCard({ ws, act, now }: { ws: Workspace; act: Act; now: () 
           ) : null}
         </div>
       ) : (
-        <span className="sting-small">Come back {when}. The tool to open it does not exist until then.</span>
+        <span className="sting-small">Come back {when}. The person-only open control stays locked until then.</span>
       )}
     </div>
   );

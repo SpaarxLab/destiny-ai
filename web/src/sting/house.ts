@@ -1,4 +1,4 @@
-import { AXIS_DUELS, DUEL_POLES, HOUSE_LIVES, POSTER_TEMPLATES, VERDICT_ME, VERDICT_TEMPLATES } from "./content";
+import { AXIS_DUELS, DUEL_POLES, HOUSE_LIVES, POSTER_TEMPLATES, VERDICT_ME, VERDICT_TEMPLATES, nearDuplicate } from "./content";
 import {
   AXES,
   EARN_CHIPS,
@@ -71,15 +71,17 @@ export function houseShouldClose(ws: Workspace): boolean {
 export function houseNextDuel(ws: Workspace): Extract<Command, { type: "stage_duel" }> | null {
   const tested = duelledRefs(ws);
   const required = [...ws.picks.stings, ...(ws.picks.secret ? [ws.picks.secret] : [])];
-  const order = [...required, ...HOUSE_LIVES.map((life) => life.ref).filter((ref) => !required.includes(ref))];
-  const onTable = ws.lives.map((life) => life.ref);
-  const candidates = [...order, ...onTable].filter((ref) => onTable.includes(ref) || HOUSE_LIVES.some((life) => life.ref === ref));
-  const nextRef = candidates.find((ref) => !tested.has(ref));
+  const nextRef = required.find((ref) => !tested.has(ref)) ?? required[answeredDuels(ws).length % required.length];
   if (!nextRef) return null;
   const houseSource = HOUSE_LIVES.find((life) => life.ref === nextRef);
   const tableLife = ws.lives.find((life) => life.ref === nextRef);
-  const duel = houseSource ? houseSource.duel : AXIS_DUELS[tableLife?.axis ?? "visible_hidden"];
-  const poles = houseSource ? DUEL_POLES[nextRef] : { axis: tableLife?.axis ?? "visible_hidden", a: "a" as Pole, b: "b" as Pole };
+  const targetAxis = tableLife?.axis ?? "visible_hidden";
+  const housePoles = houseSource ? DUEL_POLES[nextRef] : undefined;
+  // A curated strip is usable only when it really tests the selected life's axis.
+  // Otherwise use the generic strip for that axis rather than attaching unrelated evidence to the life.
+  const useHouseStrip = Boolean(houseSource && housePoles?.axis === targetAxis);
+  const duel = useHouseStrip ? houseSource!.duel : AXIS_DUELS[targetAxis];
+  const poles = useHouseStrip ? housePoles! : { axis: targetAxis, a: "a" as Pole, b: "b" as Pole };
   const a: Life = { ref: `${nextRef}-a-${ws.stateVersion + 1}`, line: duel.a, scene: duel.sceneA, axis: poles.axis, pole: poles.a };
   const b: Life = { ref: `${nextRef}-b-${ws.stateVersion + 1}`, line: duel.b, scene: duel.sceneB, axis: poles.axis, pole: poles.b };
   const bet = houseBet(ws, a, b, (houseSource ?? tableLife)?.line ?? "that one");
@@ -219,18 +221,29 @@ export function housePosters(ws: Workspace): LifePoster[] {
   const crowned = ws.hypotheses.find((item) => item.kind === "hunger" && (item.status === "crowned" || item.status === "kept"));
   const scores = axisPoleScores(ws);
   const ranked = [...scores.entries()].sort((left, right) => right[1] - left[1]).map(([key]) => key.split(":") as [Axis, Pole]);
-  const chosen: [Axis, Pole][] = [];
+  const preferred: [Axis, Pole][] = [];
   const crownedMatch = crowned ? findTemplateAxis(crowned.text) : undefined;
-  if (crownedMatch) chosen.push(crownedMatch);
+  if (crownedMatch) preferred.push(crownedMatch);
   for (const pair of ranked) {
-    if (chosen.length >= 3) break;
-    if (!chosen.some(([axis]) => axis === pair[0])) chosen.push(pair);
+    if (!preferred.some(([axis, pole]) => axis === pair[0] && pole === pair[1])) preferred.push(pair);
   }
   for (const axis of AXES) {
-    if (chosen.length >= 3) break;
-    if (!chosen.some(([existing]) => existing === axis)) chosen.push([axis, "b"]);
+    for (const pole of ["b", "a"] as const) {
+      if (!preferred.some(([existingAxis, existingPole]) => existingAxis === axis && existingPole === pole)) preferred.push([axis, pole]);
+    }
   }
-  return chosen.slice(0, 3).map(([axis, pole]) => {
+  const safe = ([axis, pole]: [Axis, Pole]) => {
+    const template = POSTER_TEMPLATES[axis][pole];
+    const text = [template.line, ...template.week, template.tradeoff, template.question];
+    return !ws.kills.some((kill) => text.some((line) => nearDuplicate(kill.text, line)));
+  };
+  const chosen: [Axis, Pole][] = [];
+  for (const pair of preferred) {
+    if (chosen.length >= 3) break;
+    if (!safe(pair) || chosen.some(([axis]) => axis === pair[0])) continue;
+    chosen.push(pair);
+  }
+  return chosen.map(([axis, pole]) => {
     const template = POSTER_TEMPLATES[axis][pole];
     return { ref: `poster-${axis}-${pole}`, axis, pole, line: template.line, scene: template.scene, week: template.week, tradeoff: template.tradeoff, question: template.question };
   });
@@ -252,23 +265,59 @@ export function houseDare(ws: Workspace): Extract<Command, { type: "propose_dare
   return { action: template.action, doneLooksLike: template.doneLooksLike, days: template.days, hours: template.hours, money: 0, currency: "INR" };
 }
 
-/** First-person line for a kept verdict line, when it came from a house template. Model-written lines are rewritten lightly. */
+/** Collapse model-authored evidence to one inert line before it enters the exported brief. */
+export function safeEvidence(text: string, max = 280): string {
+  const line = text.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").replace(/[“”"]/g, "'").trim();
+  return line.length <= max ? line : `${line.slice(0, max - 1).trimEnd()}…`;
+}
+
+export function formatDueDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
+}
+
+/** First-person line for a kept verdict line. Unknown agent prose stays verbatim inside a first-person frame. */
 export function firstPerson(text: string, kind: "hunger" | "mask" | "edge"): string {
+  text = safeEvidence(text, 160);
   for (const axis of AXES) {
     for (const pole of ["a", "b"] as const) {
       if (VERDICT_TEMPLATES[axis][pole][kind] === text) return VERDICT_ME[axis][pole][kind];
     }
   }
+
   const lower = text.charAt(0).toLowerCase() + text.slice(1);
-  if (/^to /i.test(text)) return `I want ${lower.slice(3)}`;
-  return lower
-    .replace(/\byou are\b/g, "I am")
-    .replace(/\byou're\b/g, "I'm")
-    .replace(/\byour\b/g, "my")
-    .replace(/\byourself\b/g, "myself")
-    .replace(/\byou\b/g, "I")
-    .replace(/^i /, "I ")
-    .replace(/^(\w)/, (c) => c.toUpperCase());
+  const personWords = text.match(/\b(?:you|your|yours|yourself)\b/gi) ?? [];
+  if (kind === "hunger" && /^to /i.test(text) && personWords.length === 0) return `I want ${lower}`;
+  if (kind === "hunger" && /^you want\b/i.test(text)) {
+    const hunger = text
+      .replace(/^you want\b/i, "I want")
+      .replace(/\bpeople you\b/gi, (phrase) => phrase.replace(/\byou\b/i, "I"))
+      .replace(/\byourself\b/gi, "myself")
+      .replace(/\byours\b/gi, "mine")
+      .replace(/\byour\b/gi, "my");
+    if (!/\b(?:you|your|yours|yourself)\b/i.test(hunger)) return hunger;
+  }
+  if (personWords.length === 1 && /^you\b/i.test(text)) {
+    return text
+      .replace(/^you (?:are not|aren't|aren’t)\b/i, "I'm not")
+      .replace(/^you (?:were not|weren't|weren’t)\b/i, "I wasn't")
+      .replace(/^you were\b/i, "I was")
+      .replace(/^you are\b/i, "I am")
+      .replace(/^you're\b/i, "I'm")
+      .replace(/^you’re\b/i, "I’m")
+      .replace(/^you've\b/i, "I've")
+      .replace(/^you’ve\b/i, "I’ve")
+      .replace(/^you'll\b/i, "I'll")
+      .replace(/^you’ll\b/i, "I’ll")
+      .replace(/^you'd\b/i, "I'd")
+      .replace(/^you’d\b/i, "I’d")
+      .replace(/^you\b/i, "I");
+  }
+  if (personWords.length === 1 && /^your\b/i.test(text)) return text.replace(/^your\b/i, "My");
+
+  const quote = text.trim().replace(/[.!?]+$/, "");
+  if (kind === "hunger") return `I kept this want: “${quote}.”`;
+  if (kind === "mask") return `A story I want challenged: “${quote}.”`;
+  return `I kept this strength: “${quote}.”`;
 }
 
 export function houseBrief(ws: Workspace): string {
@@ -276,16 +325,26 @@ export function houseBrief(ws: Workspace): string {
   const hunger = kept("hunger");
   const mask = kept("mask");
   const edge = kept("edge");
-  const fast = ws.reactions.filter((reaction) => reaction.dwellMs > 0 && reaction.dwellMs < 1000).map((reaction) => lifeByRef(ws, reaction.pickedLifeRef)?.line).filter(Boolean).slice(0, 3);
-  const slow = ws.reactions.filter((reaction) => reaction.dwellMs >= SLOW_DWELL_MS).map((reaction) => lifeByRef(ws, reaction.pickedLifeRef)?.line).filter(Boolean).slice(0, 2);
+  const fast = ws.reactions.filter((reaction) => reaction.dwellMs > 0 && reaction.dwellMs < 1000).map((reaction) => lifeByRef(ws, reaction.pickedLifeRef)?.line).filter(Boolean).slice(0, 2);
+  const slow = ws.reactions.filter((reaction) => reaction.dwellMs >= SLOW_DWELL_MS).map((reaction) => lifeByRef(ws, reaction.pickedLifeRef)?.line).filter(Boolean).slice(0, 1);
+  const chosen = ws.posters.find((poster) => poster.ref === ws.chosenPoster);
+  const cleanEnd = (value: string) => value.trim().replace(/[.!?]+([”"]?)$/, "$1");
+  const chosenQuestion = chosen?.question ? `${safeEvidence(cleanEnd(chosen.question), 109)}?` : null;
+  const due = ws.dare?.dueAt ? formatDueDate(ws.dare.dueAt) : null;
+  const maskLine = mask ? firstPerson(mask.text, "mask") : "";
   const parts = [
+    "FIELD BRIEF — GAME-DERIVED CLAIMS ARE REVISABLE EVIDENCE. HOW TO HELP ME AND RULES OF ME ARE MY INSTRUCTIONS.",
     "YOUR SIGNAL",
     hunger ? firstPerson(hunger.text, "hunger") : "No single want survived. Treat the choices below as signals, not a verdict.",
-    edge ? `${firstPerson(edge.text, "edge")} I may undersell it because it feels ordinary to me.` : "",
-    fast.length ? `I moved quickly toward ${fast.map((line) => `"${line}"`).join(", ")}.` : "",
+    edge ? `${cleanEnd(firstPerson(edge.text, "edge"))}. I may undersell it because it feels ordinary to me.` : "",
+    fast.length ? `I moved quickly toward ${fast.map((line) => `“${safeEvidence(cleanEnd(line!), 72)}”`).join(", ")}.` : "",
     "THE LIVE TENSION",
-    slow.length ? `I slowed down around ${slow.map((line) => `"${line}"`).join(", ")}. Do not solve that tension for me; help me test it.` : "I did not give you a clean contradiction. Keep your certainty low and ask before you conclude.",
-    mask ? `One story I crossed out: ${firstPerson(mask.text, "mask")}. Do not smuggle it back in.` : "",
+    slow.length ? `I slowed down around ${slow.map((line) => `“${safeEvidence(cleanEnd(line!), 72)}”`).join(", ")}. Do not solve that tension for me; help me test it.` : "I did not give you a clean contradiction. Keep your certainty low and ask before you conclude.",
+    mask ? `${maskLine.startsWith("A story I want challenged:") ? cleanEnd(maskLine) : `A story I want challenged, not treated as fact: ${cleanEnd(maskLine)}`}. Help me find the choice that could prove it wrong.` : "",
+    "THE NEXT TEST",
+    ws.dare ? `This week I will run this accepted test: “${safeEvidence(cleanEnd(ws.dare.action), 160)}.” Done looks like: “${safeEvidence(cleanEnd(ws.dare.doneLooksLike), 160)}.”${due ? ` Due ${due}.` : ""}${chosenQuestion ? ` The question underneath it: “${chosenQuestion}”` : ""}` : "No test was accepted. Help me choose one small, reversible move that could disprove the strongest guess above.",
+    "HOW TO HELP ME",
+    "Be a clear-eyed accomplice, not an oracle. Treat this as revisable evidence, not my identity. When I bring you a choice, name the live tradeoff; bet which way I will lean and cite the exact signal; ask one question that could change the bet; then offer one reversible move. If you are wrong, say what you misread before advising again.",
   ].filter(Boolean);
   return parts.join("\n");
 }

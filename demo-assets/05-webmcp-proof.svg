@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#080808"/>
+  <rect x="112" y="94" width="16" height="892" rx="8" fill="#72c8f0"/>
+  <text x="180" y="156" fill="#72c8f0" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="6">CHROME 152 · NATIVE WEBMCP</text>
+  <text x="176" y="244" fill="#f5f2ec" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="900">document.modelContext.getTools()</text>
+  <text x="180" y="302" fill="#9d9b96" font-family="Arial, Helvetica, sans-serif" font-size="28">Visualization of live getTools() results · localhost:3113 · 2026-09-03</text>
+
+  <g>
+    <rect x="178" y="370" width="728" height="478" rx="34" fill="#111216" stroke="#31333a" stroke-width="4"/>
+    <text x="228" y="438" fill="#ff5a38" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="900" letter-spacing="4">AFTER A MISS</text>
+    <text x="228" y="493" fill="#f5f2ec" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="800">The bet tool is gone.</text>
+    <g font-family="Menlo, Monaco, monospace" font-size="28">
+      <rect x="228" y="545" width="248" height="58" rx="16" fill="#1a1b20"/><text x="252" y="584" fill="#c9c7c2">ask_once</text>
+      <rect x="492" y="545" width="286" height="58" rx="16" fill="#1a1b20"/><text x="516" y="584" fill="#c9c7c2">inspect_room</text>
+      <rect x="228" y="621" width="394" height="58" rx="16" fill="#1a1b20"/><text x="252" y="660" fill="#c9c7c2">propose_hypothesis</text>
+      <rect x="228" y="714" width="274" height="58" rx="16" fill="none" stroke="#ff5a38" stroke-width="3" stroke-dasharray="9 9"/>
+      <text x="252" y="753" fill="#ff5a38">stage_duel</text>
+      <line x1="246" y1="741" x2="468" y2="741" stroke="#ff5a38" stroke-width="5"/>
+      <text x="534" y="753" fill="#ff5a38" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="800">ABSENT</text>
+    </g>
+  </g>
+
+  <g>
+    <rect x="1014" y="370" width="728" height="478" rx="34" fill="#111216" stroke="#72c8f0" stroke-width="4"/>
+    <text x="1064" y="438" fill="#72c8f0" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="900" letter-spacing="4">AFTER “I MISREAD YOU…”</text>
+    <text x="1064" y="493" fill="#f5f2ec" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="800">The bet tool returns.</text>
+    <g font-family="Menlo, Monaco, monospace" font-size="28">
+      <rect x="1064" y="545" width="248" height="58" rx="16" fill="#1a1b20"/><text x="1088" y="584" fill="#c9c7c2">ask_once</text>
+      <rect x="1328" y="545" width="286" height="58" rx="16" fill="#1a1b20"/><text x="1352" y="584" fill="#c9c7c2">inspect_room</text>
+      <rect x="1064" y="621" width="394" height="58" rx="16" fill="#1a1b20"/><text x="1088" y="660" fill="#c9c7c2">propose_hypothesis</text>
+      <rect x="1064" y="714" width="274" height="58" rx="16" fill="#18282f" stroke="#72c8f0" stroke-width="3"/>
+      <text x="1088" y="753" fill="#72c8f0">stage_duel</text>
+      <text x="1370" y="753" fill="#72c8f0" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="800">RESTORED</text>
+    </g>
+  </g>
+
+  <line x1="180" y1="912" x2="1740" y2="912" stroke="#2a2a2d" stroke-width="3"/>
+  <text x="180" y="966" fill="#f5f2ec" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Same page. Same kernel. One correction changes the browser catalogue.</text>
+</svg>

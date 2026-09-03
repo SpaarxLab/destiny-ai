@@ -8,7 +8,7 @@ import { StingKernel, playerName, type Command, type Move, type PendingMove } fr
 import { allowedTurnMoves, askSpark, buildContext, commandFromOutput, fetchPlayerStatus, isPersonsTurn, requiredMove, type PlayerStatus } from "../player";
 import type { MoveKind } from "../spark/schemas";
 import { LocalStore } from "../store";
-import { StingWebMcp, toolsForRoom } from "../webmcp";
+import { StingWebMcp, canExternalAgentMove, toolsForRoom } from "../webmcp";
 import { waitForModelContext } from "../../webmcp/runtime";
 import { AuthorityStrip } from "./authority";
 import { CardScreen } from "./card";
@@ -74,6 +74,7 @@ export function StingApp() {
   const holdUntil = useRef(0);
   const bridge = useRef<StingWebMcp | null>(null);
   const takeover = useRef(false);
+  const handoffPending = useRef(false);
   const sparkVerdictDone = useRef<number | null>(null);
   /** State version at which every player gave up on a move; the person then gets the controls back. */
   const [gaveUp, setGaveUp] = useState<number | null>(null);
@@ -100,6 +101,16 @@ export function StingApp() {
       const created = new StingWebMcp({
         kernel: k,
         onChanged: (room) => {
+          // Any successful agent move cancels the delayed house fallback. A
+          // late agent response must never leave both players' controls live.
+          setHouseOffer(false);
+          // A WebMCP move can hand authority straight back to the person (for
+          // example, a staged duel or a completed verdict). Clear the previous
+          // agent-thinking state at that boundary or the human controls stay
+          // hidden behind a stale "your agent's move" state.
+          if (isPersonsTurn(room, now())) {
+            setThinking(null);
+          }
           setWs(room);
           setTurn((value) => value + 1);
         },
@@ -161,9 +172,14 @@ export function StingApp() {
       const k = kernel.current;
       if (!k) return false;
       const current = k.load();
-      const command = { ...move, expectedVersion: current.stateVersion, operationId: uuid() } as Command;
+      // A person's tap belongs to the room they can actually see. Reloading the
+      // newest storage version here could silently reinterpret a stale tab's
+      // tap as a different decision (for example, a third cast pick as secret).
+      const expectedVersion = actor === "participant" ? (ws?.stateVersion ?? current.stateVersion) : current.stateVersion;
+      const command = { ...move, expectedVersion, operationId: uuid() } as Command;
       const result = await k.execute(actor, command);
       if (!result.ok) {
+        if (result.code === "STALE_VERSION") setWs(k.load());
         if (actor === "participant") say(result.message, "warm");
         else console.warn("[sting] denied", actor, move.type, result.code, result.message);
         return false;
@@ -173,7 +189,7 @@ export function StingApp() {
       if (latest && actor !== "participant" && move.type !== "stage_duel" && move.type !== "cast") say(latest.text, latest.who === "house" ? "house" : latest.who === "room" ? "room" : "cold");
       return true;
     },
-    [say],
+    [say, ws?.stateVersion],
   );
 
   const act = useCallback(
@@ -185,25 +201,73 @@ export function StingApp() {
     [exec],
   );
 
+  const handTo = useCallback(async (target: "spark" | "house") => {
+    // Freeze the page driver before the first await, but keep the visiting
+    // bridge alive until the yield receipt is safely persisted. If persistence
+    // fails, roll the visible owner back instead of splitting UI/tool authority.
+    const previousTakeover = takeover.current;
+    const previousFallback = fallback;
+    handoffPending.current = true;
+    takeover.current = target === "house";
+    setFallback(target);
+    const k = kernel.current;
+    if (!k) {
+      handoffPending.current = false;
+      takeover.current = previousTakeover;
+      setFallback(previousFallback);
+      return;
+    }
+    let recorded = false;
+    try {
+      for (let attempt = 0; attempt < 3 && !recorded; attempt += 1) {
+        const current = k.load();
+        const result = await k.execute("participant", { type: "yield_agent", target, expectedVersion: current.stateVersion, operationId: uuid() });
+        if (result.ok) {
+          setWs(result.workspace);
+          recorded = true;
+        } else if (result.code !== "STALE_VERSION") {
+          say(result.message, "warm");
+          break;
+        }
+      }
+    } catch (error) {
+      say(`The handoff was not saved: ${String(error).slice(0, 120)}`, "warm");
+    }
+    if (!recorded) {
+      handoffPending.current = false;
+      takeover.current = previousTakeover;
+      setFallback(previousFallback);
+      setWs(k.load());
+      setTurn((value) => value + 1);
+      return;
+    }
+    bridge.current?.suspend();
+    setConnected(false);
+    handoffPending.current = false;
+    setHouseOffer(false);
+    setTurn((value) => value + 1);
+  }, [fallback, say]);
+
   const startOver = useCallback(async () => {
     if (!window.confirm(LINES.startOver)) return;
     abort.current?.abort();
+    bridge.current?.stop();
     const store = new LocalStore(window.localStorage);
     await store.clear();
-    kernel.current = new StingKernel(store, now);
-    setWs(kernel.current.load());
-  }, [now]);
+    // Reloading recreates the kernel and WebMCP bridge together, clears every
+    // transient fallback/timer, and removes a demo-clock query from the new match.
+    window.location.assign(window.location.pathname);
+  }, []);
 
   // The player's turn: Spark through OpenCode Go first, the house if Spark is off, stalls, or is denied twice.
   // Driven by an explicit turn counter so a finished turn always schedules the next check.
   useEffect(() => {
     const k = kernel.current;
-    if (!ws || !k || busy.current) return;
-    if (ws.phase === "door" || isPersonsTurn(ws) || gaveUp === ws.stateVersion) return;
-    const needed = requiredMove(ws);
-    if (connected && !fallback && !takeover.current && needed !== "close" && needed !== "fight") {
+    if (!ws || !k || busy.current || handoffPending.current) return;
+    if (ws.phase === "door" || isPersonsTurn(ws, now()) || gaveUp === ws.stateVersion) return;
+    if (connected && !fallback && !takeover.current && canExternalAgentMove(ws, now())) {
       // An agent can reach this page. Its moves come through the tools; the page waits and shows what it does.
-      // Closing the duels and staging the fight are structural, so the room does those itself below.
+      // Structural moves and any move revoked by standing are completed by the room below.
       setThinking({ player: "chatgpt", label: agentSeen ? "your agent's move" : "waiting for your agent" });
       // A reload cannot know whether an external agent is still present. Give the
       // browser a real wait before inserting a competing "play instead" decision.
@@ -220,17 +284,19 @@ export function StingApp() {
     };
     const run = async () => {
       const room = k.load();
-      const kind = requiredMove(room);
+      const kind = requiredMove(room, now());
       if (!kind) return;
+      const externalCanAct = connected && !fallback && !takeover.current && canExternalAgentMove(room, now());
       const wantSpark = status.enabled && (!connected || fallback === "spark");
-      const matchPlayer: Player = takeover.current || fallback === "house" ? "house" : room.record.player === "chatgpt" ? "chatgpt" : room.record.player === "spark" || (room.phase === "cast" && wantSpark) ? "spark" : "house";
-      // During the duels Spark chooses its own move (bet, ask, or close); the house only decides when Spark cannot.
-      const captain = matchPlayer === "spark" && status.enabled && (kind === "duel" || kind === "question" || kind === "close") && allowedTurnMoves(room).length > 0;
+      const matchPlayer: Player = takeover.current || fallback === "house" ? "house" : fallback === "spark" && status.enabled ? "spark" : room.record.player === "chatgpt" ? externalCanAct ? "chatgpt" : "house" : room.record.player === "spark" || (room.phase === "cast" && wantSpark) ? "spark" : "house";
+      // During the duels Spark chooses whether to bet or ask; closing is a deterministic room transition.
+      const captain = matchPlayer === "spark" && status.enabled && (kind === "duel" || kind === "question") && allowedTurnMoves(room).length > 0;
 
-      if (kind === "fight" || (kind === "close" && !captain)) {
+      if (kind === "fight" || kind === "brief" || (kind === "close" && !captain)) {
         await holdOut();
-        const move = houseMove(k.load());
-        if (move) await exec(matchPlayer, { ...move, player: matchPlayer } as PendingMove);
+        const move = houseMove(k.load(), now());
+        const structuralPlayer: Player = kind === "brief" ? "house" : matchPlayer;
+        if (move) await exec(structuralPlayer, { ...move, player: structuralPlayer } as PendingMove);
         return;
       }
       if (kind !== "verdict") sparkVerdictDone.current = null;
@@ -243,7 +309,7 @@ export function StingApp() {
       // Spark gives the whole verdict in one call; anything it left out, the house fills locally.
       const askSparkNow = matchPlayer === "spark" && status.enabled && !(kind === "verdict" && sparkVerdictDone.current === room.stateVersion);
       if (askSparkNow) {
-        const sparkKind: MoveKind = captain || kind === "close" ? "turn" : kind;
+        const sparkKind: MoveKind = captain ? "turn" : kind;
         setThinking({ player: "spark", label: `${status.label} is ${VERBS[sparkKind]}` });
         const played = await sparkTurn(k, sparkKind, room, setHouseOffer, (controller) => (abort.current = controller), setWs, holdOut);
         if (kind === "verdict") sparkVerdictDone.current = k.load().stateVersion;
@@ -251,12 +317,15 @@ export function StingApp() {
         if (kind !== "verdict") say(`${status.label} stalled. The house dealt this one.`, "house");
       }
 
-      setThinking({ player: "house", label: `The house is ${VERBS[kind === "close" ? "turn" : kind]}` });
+      setThinking({ player: "house", label: `The house is ${VERBS[kind]}` });
       await holdOut();
       await sleep(HOUSE_FEEL_MS);
       const latest = k.load();
-      const move = houseMove(latest);
-      const done = move ? await exec("house", move) : false;
+      const move = houseMove(latest, now());
+      // The room may have advanced during the reveal/feel delay. A missing
+      // move now is a successful no-op, not a failed house attempt.
+      if (!move || isPersonsTurn(latest, now())) return;
+      const done = await exec("house", move);
       if (!done) {
         const failures = houseFailures.current.version === latest.stateVersion ? houseFailures.current.count + 1 : 1;
         houseFailures.current = { version: latest.stateVersion, count: failures };
@@ -278,7 +347,7 @@ export function StingApp() {
         setWs(k.load());
         setTurn((value) => value + 1);
       });
-  }, [ws, status, turn, connected, agentSeen, fallback, gaveUp, exec, say]);
+  }, [ws, status, turn, connected, agentSeen, fallback, gaveUp, exec, say, now]);
 
   // Keys 1 and 2 answer a duel.
   useEffect(() => {
@@ -306,10 +375,11 @@ export function StingApp() {
   }
   if (!ws) return <div className="sting" aria-busy="true" />;
 
+  const visitingAgentIsCurrent = connected && !fallback && ws.record.externalAllowed && !ws.record.players.some((item) => item !== "chatgpt") && (isPersonsTurn(ws, now()) || canExternalAgentMove(ws, now()));
   const player: Player =
-    ws.record.player === "spark" ? "spark" : ws.record.player === "chatgpt" ? "chatgpt" : connected && agentSeen ? "chatgpt" : ws.phase === "cast" && ws.lives.length === 0 && status.enabled ? "spark" : "house";
+    fallback === "house" ? "house" : fallback === "spark" ? "spark" : ws.record.player === "spark" && status.enabled ? "spark" : ws.record.player === "chatgpt" && visitingAgentIsCurrent ? "chatgpt" : connected && agentSeen && visitingAgentIsCurrent ? "chatgpt" : ws.phase === "cast" && ws.lives.length === 0 && status.enabled ? "spark" : "house";
   const playerLabel = player === "spark" ? status.label : playerName(player);
-  const screenProps = { ws, act, player, playerLabel, thinking: thinking?.label ?? null, ready: !thinking && (isPersonsTurn(ws) || gaveUp === ws.stateVersion) };
+  const screenProps = { ws, act, player, playerLabel, thinking: thinking?.label ?? null, ready: !thinking && (isPersonsTurn(ws, now()) || gaveUp === ws.stateVersion) };
 
   return (
     <div className="sting">
@@ -318,8 +388,8 @@ export function StingApp() {
           <div className="strip" role="status" aria-live="polite">
             <div className="strip__inner">
               <span className="strip__who">
-                <span className={`strip__dot ${player === "house" ? "strip__dot--house" : ""} ${thinking && !isPersonsTurn(ws) ? "strip__dot--thinking" : ""}`} />
-                <span>{isPersonsTurn(ws) ? "Your choice" : thinking ? `${thinking.label}${elapsed >= 3 ? ` · ${elapsed}s` : ""}` : `${playerLabel} is here${ws.record.via ? ` via ${ws.record.via}` : ""}`}{clockOffset.current ? " · demo clock" : ""}</span>
+                <span className={`strip__dot ${player === "house" ? "strip__dot--house" : ""} ${thinking && !isPersonsTurn(ws, now()) ? "strip__dot--thinking" : ""}`} />
+                <span>{isPersonsTurn(ws, now()) ? "Your choice" : thinking ? `${thinking.label}${elapsed >= 3 ? ` · ${elapsed}s` : ""}` : `${playerLabel} is here${player === "chatgpt" && ws.record.via ? ` via ${ws.record.via}` : ""}`}{clockOffset.current ? " · demo clock" : ""}</span>
               </span>
               <span className="strip__score">
                 <span aria-label={`${ws.record.hits} right`}><b>{ws.record.hits}</b> ✓</span>
@@ -342,18 +412,14 @@ export function StingApp() {
         {ws.phase === "lives" && <LivesScreen {...screenProps} />}
         {ws.phase === "dare" && <DareScreen {...screenProps} />}
         {ws.phase === "card" && <CardScreen ws={ws} playerLabel={playerLabel} onStartOver={startOver} thinking={thinking?.label ?? null} act={act} now={now} />}
-        {ws.phase !== "door" ? <AuthorityStrip fallbackNames={toolsForRoom(ws)} /> : null}
-        {houseOffer && thinking && !isPersonsTurn(ws) ? (
+        {ws.phase !== "door" ? <AuthorityStrip fallbackNames={toolsForRoom(ws, now())} active={connected && !fallback && !takeover.current} inactiveLabel={player === "house" ? "the house controls this room" : `${playerLabel} plays inside this page`} /> : null}
+        {houseOffer && thinking && !isPersonsTurn(ws, now()) ? (
           <div className="sting-actions" style={{ flexWrap: "wrap", alignItems: "center" }}>
             <span className="sting-small">{connected && !agentSeen ? "Tell your agent: “play STING with me”. Or:" : "Still with you."}</span>
             {connected && !fallback && status.enabled ? (
               <button
                 className="sting-btn sting-btn--ghost"
-                onClick={() => {
-                  setFallback("spark");
-                  setHouseOffer(false);
-                  setTurn((value) => value + 1);
-                }}
+                onClick={() => void handTo("spark")}
               >
                 Play {status.label} instead
               </button>
@@ -362,10 +428,7 @@ export function StingApp() {
               className="sting-btn sting-btn--quiet"
               onClick={() => {
                 if (connected) {
-                  takeover.current = true;
-                  setFallback("house");
-                  setHouseOffer(false);
-                  setTurn((value) => value + 1);
+                  void handTo("house");
                 } else {
                   abort.current?.abort();
                 }

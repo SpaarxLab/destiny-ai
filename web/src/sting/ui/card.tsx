@@ -4,24 +4,32 @@ import { useMemo, useState } from "react";
 import { LINES } from "../content";
 import { lifeByRef, type Workspace } from "../domain";
 import { playerName } from "../kernel";
-import { houseBrief } from "../house";
+import { formatDueDate, houseBrief, safeEvidence } from "../house";
 import { AgentView } from "./agent-view";
 import { LetterCard, RulesOfMe } from "./asks";
 import type { Move } from "../kernel";
 import { Thinking } from "./primitives";
 
 export function buildHelper(ws: Workspace, playerLabel: string): string {
-  const due = ws.dare?.dueAt ? new Date(ws.dare.dueAt).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }) : null;
-  const body = ws.brief?.text ?? houseBrief(ws);
-  const hasNextTest = /THE NEXT TEST/i.test(body);
-  const hasHelp = /HOW TO HELP ME/i.test(body);
-  const nextTest = !hasNextTest && ws.dare ? `\n\nTHE NEXT TEST\nThis week I will ${ws.dare.action.replace(/[.!?]?$/, ".")} Done looks like: ${ws.dare.doneLooksLike.replace(/[.!?]?$/, ".")}${due ? ` Due ${due}.` : ""}` : "";
-  const boundary = ws.kills.length ? ` Never revive or paraphrase: ${ws.kills.map((kill) => `"${kill.text}"`).join(", ")}.` : "";
-  const help = !hasHelp
-    ? `\n\nHOW TO HELP ME\nBe a clear-eyed accomplice, not an oracle. Treat this as evidence I can revise, not my identity. When I bring you a choice: name the live tradeoff in one sentence; bet which way I will lean and say what earned that bet; ask one question that could change it; then offer one reversible move I can make this week. If you are wrong, say what you misread.${boundary}`
+  // The exported prompt is always compiled from room state. `brief` is a
+  // readiness receipt, never an authority that can replace these sections.
+  const body = houseBrief(ws);
+  const quotedBoundary = (text: string, max: number) => `“${safeEvidence(text, max).replace(/[.!?]+$/, "")}”`;
+  const killedBoundary = ws.kills.length
+    ? `\nKilled lines — never revive or paraphrase: ${ws.kills.map((kill) => quotedBoundary(kill.text, 160)).join(", ")}.`
     : "";
-  const record = `\n\n(${playerLabel} played me and got ${ws.record.hits} right, ${ws.record.misses} wrong.)`;
-  return `${body.trim()}${nextTest}${help}${record}`;
+  const writtenBoundary = ws.rules.length
+    ? `\nParticipant-written rules: ${ws.rules.map((rule) => quotedBoundary(rule.text, 120)).join(", ")}.`
+    : "";
+  const boundary = killedBoundary || writtenBoundary ? `\n\nRULES OF ME${killedBoundary}${writtenBoundary}` : "";
+  const record = `\n\n(${matchPlayers(ws, playerLabel)} played me and got ${ws.record.hits} right, ${ws.record.misses} wrong.)`;
+  return `${body.trim()}${boundary}${record}`;
+}
+
+function matchPlayers(ws: Workspace, fallback: string): string {
+  const players = ws.record.players.length ? ws.record.players : [ws.record.player];
+  const labels = players.map((player) => player === "house" ? "the house" : playerName(player));
+  return labels.length ? labels.join(" + ") : fallback;
 }
 
 export function CardScreen({ ws, playerLabel, onStartOver, thinking, act, now }: { ws: Workspace; playerLabel: string; onStartOver: () => void; thinking: string | null; act: (move: Move) => Promise<boolean>; now: () => Date }) {
@@ -33,8 +41,8 @@ export function CardScreen({ ws, playerLabel, onStartOver, thinking, act, now }:
   const cold = ws.hypotheses.find((item) => item.kind === "cold_read");
   const stings = ws.picks.stings.map((ref) => lifeByRef(ws, ref)?.line).filter(Boolean);
   const litUp = ws.reactions.filter((reaction) => reaction.dwellMs > 0 && reaction.dwellMs < 1000).map((reaction) => lifeByRef(ws, reaction.pickedLifeRef)?.line).filter(Boolean).slice(0, 3);
-  const player = playerName(ws.record.player);
-  const due = ws.dare?.dueAt ? new Date(ws.dare.dueAt).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }) : null;
+  const player = matchPlayers(ws, playerLabel);
+  const due = ws.dare?.dueAt ? formatDueDate(ws.dare.dueAt) : null;
 
   const copy = async () => {
     try {
@@ -50,7 +58,7 @@ export function CardScreen({ ws, playerLabel, onStartOver, thinking, act, now }:
     <div className="sting-enter" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <div>
         <span className="sting-eyebrow">your card</span>
-        <h2 className="sting-title" style={{ marginTop: 8 }}>{hunger ? "What you kept choosing." : "You crossed out every line. Your week still stands."}</h2>
+        <h2 className="sting-title" style={{ marginTop: 8 }}>{hunger ? "What you kept choosing." : "No want survived the table. Your week still stands."}</h2>
       </div>
       <div className="card" id="sting-card">
         <span className="card__stamp">{LINES.cardDraft}</span>
@@ -73,7 +81,7 @@ export function CardScreen({ ws, playerLabel, onStartOver, thinking, act, now }:
           <span className="card__value">
             {ws.record.hits} right · {ws.record.misses} wrong · {ws.record.chips} chips{ws.record.bust ? " · bust" : ws.record.earned ? " · earned" : " · never earned"}
           </span>
-          {cold?.text ? <span className="sting-small">Cold guess: “{cold.text}”{hunger ? ` · Earned guess: “${hunger.text}”` : ""}</span> : null}
+          {cold?.text ? <span className="sting-small">Cold guess: “{cold.text}”{hunger ? ` · ${hunger.earned ? "Earned guess" : "Kept unearned draft"}: “${hunger.text}”` : ""}</span> : null}
         </div>
         {ws.dare ? (
           <div className="card__row">
@@ -151,7 +159,7 @@ export function downloadCard(ws: Workspace, playerLabel: string) {
   if (mask) { label("your mask"); value(mask.text); }
   const edge = find("edge");
   if (edge) { label("your edge"); value(edge.text); }
-  label(`${playerLabel} on you`);
+  label(`${matchPlayers(ws, playerLabel)} on you`);
   value(`${ws.record.hits} right · ${ws.record.misses} wrong · ${ws.record.chips} chips`, "#8fd3ff", 44);
   if (ws.dare) { label("the dare"); value(ws.dare.action, "#f2efe9", 40); }
   ctx.fillStyle = "#4d4b47";

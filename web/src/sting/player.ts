@@ -1,4 +1,4 @@
-import { MAX_DUELS, MIN_DUELS, QUESTION_COST, SLOW_DWELL_MS, answeredDuels, lifeByRef, openProbe, openQuestion, rulesOfMe, type Life, type Player, type Workspace } from "./domain";
+import { MAX_DUELS, QUESTION_COST, SLOW_DWELL_MS, answeredDuels, lifeByRef, openProbe, openQuestion, rulesOfMe, type Life, type Player, type Workspace } from "./domain";
 import { houseMove } from "./driver";
 import type { PendingMove } from "./kernel";
 import type { MoveKind, MoveOutput, PlayerContext } from "./spark/schemas";
@@ -6,8 +6,8 @@ import type { MoveKind, MoveOutput, PlayerContext } from "./spark/schemas";
 export type { PendingMove };
 
 /** Which move the room needs from the player right now, if any. Mirrors the house driver's decisions. */
-export function requiredMove(ws: Workspace): MoveKind | "fight" | "close" | null {
-  const move = houseMove(ws);
+export function requiredMove(ws: Workspace, at: Date = new Date()): MoveKind | "fight" | "close" | null {
+  const move = houseMove(ws, at);
   if (!move) return null;
   switch (move.type) {
     case "cast":
@@ -70,6 +70,11 @@ export function buildContext(ws: Workspace, locale: string, hour: number): Playe
   const required = [...ws.picks.stings, ...(ws.picks.secret ? [ws.picks.secret] : [])];
   const untested = required.filter((ref) => !tested.has(ref)).map((ref) => ws.lives.find((life) => life.ref === ref)!).filter(Boolean);
   const cold = ws.hypotheses.find((item) => item.kind === "cold_read");
+  // A sealed cold read belongs to the player that committed it. Handoffs
+  // change record.player before the next in-page model call, so a successor
+  // must not receive the previous player's hidden guess. Once revealed, it is
+  // ordinary room evidence and may safely continue through the handoff.
+  const visibleColdRead = cold && (cold.player === ws.record.player || cold.status === "revealed") ? cold.text : undefined;
   const crowned = ws.hypotheses.find((item) => item.status === "crowned");
   const chosen = ws.posters.find((poster) => poster.ref === ws.chosenPoster);
   return {
@@ -78,15 +83,18 @@ export function buildContext(ws: Workspace, locale: string, hour: number): Playe
     hour,
     record: { chips: ws.record.chips, hits: ws.record.hits, misses: ws.record.misses, earned: ws.record.earned, bust: ws.record.bust },
     lives: ws.lives.map(({ ref, line, axis, pole }) => ({ ref, line, axis, pole })),
-    picks: { stings: ws.picks.stings.map(lifeInfo), secret: ws.picks.secret ? lifeInfo(ws.picks.secret) : undefined, secretSkipped: ws.picks.secretSkipped },
+    // A too-close skip advances the page but is deliberately absent from every
+    // model-facing projection. The agent gets neither the life nor the fact of
+    // the skip.
+    picks: { stings: ws.picks.stings.map(lifeInfo), secret: ws.picks.secret ? lifeInfo(ws.picks.secret) : undefined },
     duels: duels.slice(-12),
     untested: untested.map(({ ref, line, axis, pole }) => ({ ref, line, axis, pole })),
-    coldRead: cold?.text || undefined,
+    coldRead: visibleColdRead,
     lines: ws.hypotheses.filter((item) => item.kind !== "cold_read" && item.kind !== "revision").map((item) => ({ kind: item.kind, text: item.text, status: item.status })),
     killed: ws.kills.map((kill) => kill.text),
     crowned: crowned?.text,
-    chosenLife: chosen ? { line: chosen.line, axis: chosen.axis, pole: chosen.pole } : undefined,
-    dare: ws.dare ? { action: ws.dare.action, doneLooksLike: ws.dare.doneLooksLike, days: ws.dare.days, hours: ws.dare.hours, money: ws.dare.money, currency: ws.dare.currency } : undefined,
+    chosenLife: chosen ? { line: chosen.line, scene: chosen.scene, axis: chosen.axis, pole: chosen.pole, week: chosen.week, tradeoff: chosen.tradeoff, question: chosen.question } : undefined,
+    dare: ws.dare ? { action: ws.dare.action, doneLooksLike: ws.dare.doneLooksLike, days: ws.dare.days, hours: ws.dare.hours, money: ws.dare.money, currency: ws.dare.currency, source: ws.dare.source } : undefined,
     questions: ws.questions.slice(-3).map((question) => ({ text: question.text, answer: question.choice === undefined ? null : question.options[question.choice] })),
     allowed: allowedTurnMoves(ws),
     rulesOfMe: rulesOfMe(ws).slice(0, 20).map((rule) => rule.slice(0, 200)),
@@ -94,25 +102,26 @@ export function buildContext(ws: Workspace, locale: string, hour: number): Playe
   };
 }
 
-/** What a model player may choose between during the duels. Mirrors the kernel's rules for stage_duel, ask_once and close_duels. */
-export function allowedTurnMoves(ws: Workspace): ("duel" | "question" | "close")[] {
+/** What a model player may choose between during the duels. Closing is a deterministic room transition. */
+export function allowedTurnMoves(ws: Workspace): ("duel" | "question")[] {
   if (ws.phase !== "duel" || openProbe(ws) || openQuestion(ws) || ws.record.bust) return [];
+  if (!ws.hypotheses.some((item) => item.kind === "cold_read")) return [];
   const last = ws.reactions.at(-1);
   if (last && last.betOutcome === "miss" && !last.corrected) return [];
   const done = answeredDuels(ws);
-  const out: ("duel" | "question" | "close")[] = [];
+  const out: ("duel" | "question")[] = [];
   if (done.length < MAX_DUELS) out.push("duel");
   if (ws.questions.length === 0 && ws.record.chips > QUESTION_COST) out.push("question");
-  const tested = new Set(done.map((probe) => probe.testsLifeRef).filter(Boolean));
-  const required = [...ws.picks.stings, ...(ws.picks.secret ? [ws.picks.secret] : [])];
-  if (done.length >= MIN_DUELS && required.every((ref) => tested.has(ref))) out.push("close");
   return out;
 }
 
 /** Turn a model output into the kernel command for that move. Refs are assigned here, never by the model. */
-export function commandFromOutput<K extends MoveKind>(ws: Workspace, move: K, output: MoveOutput[K], player: Player): PendingMove[] {
-  const base = { expectedVersion: ws.stateVersion, player };
-  const v = ws.stateVersion + 1;
+export function commandFromOutput<K extends MoveKind>(ws: Workspace, move: K, output: MoveOutput[K], player: Player, sourceVersion = ws.stateVersion): PendingMove[] {
+  const base = { expectedVersion: sourceVersion, player };
+  // Browser-tool retries rebuild the command after the room has moved. IDs
+  // must derive from the version the caller actually supplied, not whatever
+  // version happens to be current when a retry arrives.
+  const v = sourceVersion + 1;
   switch (move) {
     case "cast": {
       const value = output as MoveOutput["cast"];
@@ -130,8 +139,9 @@ export function commandFromOutput<K extends MoveKind>(ws: Workspace, move: K, ou
       const tested = new Set(ws.probes.filter((probe) => probe.kind === "duel").map((probe) => probe.testsLifeRef));
       const required = [...ws.picks.stings, ...(ws.picks.secret ? [ws.picks.secret] : [])];
       const fallbackTarget = required.find((ref) => !tested.has(ref));
-      const testsLifeRef = ws.lives.some((life) => life.ref === value.testsLifeRef) ? value.testsLifeRef : fallbackTarget;
-      return [{ ...base, type: "stage_duel", lives: [a, b], variable: value.variable, bet: value.bet, testsLifeRef, aside: value.aside }];
+      const claimed = ws.lives.find((life) => life.ref === value.testsLifeRef);
+      const testsLifeRef = claimed && required.includes(claimed.ref) ? claimed.ref : fallbackTarget;
+      return [{ ...base, type: "stage_duel", lives: [a, b], variable: value.variable, bet: value.bet, testsLifeRef }];
     }
     case "correction": {
       const value = output as MoveOutput["correction"];
@@ -166,13 +176,12 @@ export function commandFromOutput<K extends MoveKind>(ws: Workspace, move: K, ou
     }
     case "letter": {
       const value = output as MoveOutput["letter"];
-      return [{ ...base, type: "seal_letter", willDo: value.willDo, feeling: value.feeling, note: value.note, aside: value.aside }];
+      return [{ ...base, type: "seal_letter", willDo: value.willDo, feeling: value.feeling, note: value.note }];
     }
     case "turn": {
       const value = output as MoveOutput["turn"];
-      if (value.move === "close") return [{ ...base, type: "close_duels", aside: value.aside }];
-      if (value.move === "question") return commandFromOutput(ws, "question", value, player);
-      return commandFromOutput(ws, "duel", value, player);
+      if (value.move === "question") return commandFromOutput(ws, "question", value, player, sourceVersion);
+      return commandFromOutput(ws, "duel", value, player, sourceVersion);
     }
     default:
       return [];
@@ -237,8 +246,8 @@ export async function askSpark<K extends MoveKind>(move: K, context: PlayerConte
   }
 }
 
-export function isPersonsTurn(ws: Workspace): boolean {
+export function isPersonsTurn(ws: Workspace, at: Date = new Date()): boolean {
   if (openQuestion(ws)) return true;
   if (ws.phase === "duel") return Boolean(openProbe(ws));
-  return requiredMove(ws) === null;
+  return requiredMove(ws, at) === null;
 }

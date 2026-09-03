@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { detectModelContext, subscribeToToolChanges, type WebMcpModelContext, type WebMcpRegisteredTool } from "../../webmcp/runtime";
+import { detectModelContext, subscribeToToolChanges, waitForModelContext, type WebMcpModelContext, type WebMcpRegisteredTool } from "../../webmcp/runtime";
 
 export interface CatalogueTool {
   name: string;
@@ -43,28 +43,32 @@ export function useLiveCatalogue(): { names: string[]; tools: CatalogueTool[]; c
   const [lastChange, setLastChange] = useState<number | null>(null);
   // document.modelContext is attached synchronously (or not at all) before this component's first paint,
   // same assumption StingWebMcp makes; a lazy initializer keeps the connected flag out of the effect body.
-  const [connected] = useState(() => detectModelContext() !== null);
+  const [connected, setConnected] = useState(() => detectModelContext() !== null);
 
   useEffect(() => {
-    const context: WebMcpModelContext | null = detectModelContext();
-    if (!context) return;
     let cancelled = false;
+    let unsubscribe: () => void = () => undefined;
 
-    const read = async () => {
-      try {
-        const result = context.getTools ? await context.getTools() : [];
-        if (cancelled) return;
-        setTools((result as readonly WebMcpRegisteredTool[]).map((tool) => ({ name: tool.name, description: tool.description })));
-        setLastChange(Date.now());
-      } catch {
-        // The room re-registers constantly; a race here just waits for the next event.
-      }
+    const attach = async () => {
+      const context: WebMcpModelContext | null = detectModelContext() ?? await waitForModelContext(15_000);
+      if (!context || cancelled) return;
+      setConnected(true);
+      const read = async () => {
+        try {
+          const result = context.getTools ? await context.getTools() : [];
+          if (cancelled) return;
+          setTools((result as readonly WebMcpRegisteredTool[]).map((tool) => ({ name: tool.name, description: tool.description })));
+          setLastChange(Date.now());
+        } catch {
+          // A catalogue replacement can race this read; the next toolchange retries it.
+        }
+      };
+      await read();
+      if (cancelled) return;
+      unsubscribe = subscribeToToolChanges(context, () => void read());
     };
 
-    void read();
-    const handler = () => void read();
-    const unsubscribe = subscribeToToolChanges(context, handler);
-
+    void attach();
     return () => {
       cancelled = true;
       unsubscribe();
@@ -77,14 +81,14 @@ export function useLiveCatalogue(): { names: string[]; tools: CatalogueTool[]; c
 
 function defaultNarrate(removed: string[], added: string[]): string | null {
   if (removed.includes("stage_duel") || removed.includes("stage_probe")) return "The bet is sealed. Your choice decides it.";
-  if (removed.includes("propose_hypothesis")) return "It lost the right to describe you.";
+  if (removed.includes("propose_hypothesis")) return "That line is locked. The room moved on.";
   if (removed.includes("present_evidence")) return "The ring is closed.";
   if (removed.includes("stage_route_auditions")) return "It has shown you the three lives.";
   if (removed.includes("propose_experiment")) return "The dare is yours now.";
   if (removed.includes("ask_once")) return "It spent its question.";
   if (added.includes("stage_cast")) return "It may lay out eight lives.";
   if (added.includes("stage_duel")) return "It may bet on you again.";
-  if (added.includes("propose_hypothesis")) return "It has earned the right to describe you.";
+  if (added.includes("propose_hypothesis")) return "It may make the room’s next evidence-bound guess.";
   if (added.includes("seal_letter")) return "It may seal a letter about your week.";
   if (added.includes("open_letter")) return "The letter can be opened.";
   return null;
@@ -98,11 +102,11 @@ function relativeTime(at: number, now: number): string {
   return `${minutes}m ago`;
 }
 
-export function AuthorityStrip({ fallbackNames, narrate }: { fallbackNames: string[]; narrate?: NarrateFn }) {
+export function AuthorityStrip({ fallbackNames, active = true, inactiveLabel = "The house controls this room", narrate }: { fallbackNames: string[]; active?: boolean; inactiveLabel?: string; narrate?: NarrateFn }) {
   const { tools } = useLiveCatalogue();
   // The room state is the same command kernel that shapes the catalogue. Hosts
   // can deliver toolchange late, so a stale browser read must not mislead people.
-  const effectiveTools: CatalogueTool[] = fallbackNames.map((name) => ({ name }));
+  const effectiveTools = useMemo<CatalogueTool[]>(() => active ? fallbackNames.map((name) => tools.find((tool) => tool.name === name) ?? { name }) : [], [active, fallbackNames, tools]);
   const effectiveNames = useMemo(() => effectiveTools.map((tool) => tool.name), [effectiveTools]);
   const namesKey = effectiveNames.join("|");
 
@@ -168,7 +172,7 @@ export function AuthorityStrip({ fallbackNames, narrate }: { fallbackNames: stri
     return () => window.clearInterval(timer);
   }, [lines.length]);
 
-  const raw = useMemo(() => effectiveTools.map((tool) => ({ name: tool.name, description: tool.description ?? null })), [effectiveTools]);
+  const raw = useMemo(() => fallbackNames.map((name) => ({ name, description: tools.find((tool) => tool.name === name)?.description ?? null })), [fallbackNames, tools]);
 
   const [open, setOpen] = useState(false);
   const latest = lines[0];
@@ -176,7 +180,7 @@ export function AuthorityStrip({ fallbackNames, narrate }: { fallbackNames: stri
   return (
     <aside className={`authority ${open ? "authority--open" : ""}`} aria-label="what the agent may do">
       <button type="button" className="authority__head" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <span className="sting-eyebrow">why ChatGPT has limits</span>
+        <span className="sting-eyebrow">{active ? "why ChatGPT has limits" : inactiveLabel}</span>
         <span className="authority__count">{open ? "less" : "more"}</span>
       </button>
       <div className="authority__chips">
@@ -201,7 +205,7 @@ export function AuthorityStrip({ fallbackNames, narrate }: { fallbackNames: stri
       ) : null}
       {open ? (
         <>
-          <p className="authority__note sting-small">The page decides what ChatGPT may do. Your taps and final calls stay yours.</p>
+          <p className="authority__note sting-small">{active ? "The page decides what ChatGPT may do. Your taps and final calls stay yours." : "No visiting-agent tools are active. The in-page player still obeys the same command kernel."}</p>
           <ul className="authority__ticker" aria-live="polite">
             {lines.map((line) => (
               <li key={line.id}>

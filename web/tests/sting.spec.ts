@@ -82,6 +82,8 @@ async function playThroughToCard(page: Page) {
   // The letter: sealed now, hash visible, contents hidden; opened only once the dare is due (demo clock +8 days).
   await expect(page.locator(".letter")).toContainText(/sealed letter about your week · [0-9a-f]{4}/, { timeout: 15_000 });
   await expect(page.locator(".letter")).toContainText("Come back");
+  await expect(page.locator(".toast")).toHaveCount(0, { timeout: 5_000 });
+  await page.screenshot({ path: "test-results/sting-card-sealed-phone.png", fullPage: true, animations: "disabled" });
   await page.goto("/?clock=+8d");
   await expect(page.getByRole("button", { name: "I did it" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "I did it" }).click();
@@ -129,6 +131,8 @@ test.describe("STING house match", () => {
     await page.screenshot({ path: "test-results/sting-door-desktop.png", animations: "disabled" });
     await page.getByRole("button", { name: "Play" }).click();
     await expect(page.locator(".sting-grid .poster")).toHaveCount(8);
+    await expect(page.locator(".sting-grid .poster.skeleton")).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByRole("heading", { level: 2 })).toContainText("wish were yours");
     await page.screenshot({ path: "test-results/sting-cast-desktop.png", animations: "disabled" });
   });
 });

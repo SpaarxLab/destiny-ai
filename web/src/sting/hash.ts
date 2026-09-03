@@ -15,6 +15,20 @@ async function sha256Hex(text: string): Promise<string> {
   return hash.toString(16).padStart(8, "0").repeat(8);
 }
 
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+}
+
+/** Binds an idempotency key to the actor, command kind and semantic payload (not room version). */
+export async function requestFingerprint(actor: string, command: Record<string, unknown>): Promise<string> {
+  const { operationId: _operationId, expectedVersion: _expectedVersion, ...payload } = command;
+  void _operationId;
+  void _expectedVersion;
+  return (await sha256Hex(canonical({ actor, payload }))).slice(0, 12);
+}
+
 /** Short commitment shown before a reveal: sha256(payload ‖ operationId), first 4 hex. */
 export async function commitment(payload: unknown, operationId: string): Promise<string> {
   const full = await sha256Hex(`${JSON.stringify(payload)}\u0000${operationId}`);
@@ -33,7 +47,10 @@ export async function chainHash(input: {
   command: string;
   stateVersion: number;
   summary: string;
+  requestHash?: string;
 }): Promise<string> {
-  const full = await sha256Hex([input.prev, input.seq, input.operationId, input.command, input.stateVersion, input.summary].join("\u0000"));
+  const parts = [input.prev, input.seq, input.operationId, input.command, input.stateVersion, input.summary];
+  if (input.requestHash) parts.push(input.requestHash);
+  const full = await sha256Hex(parts.join("\u0000"));
   return full.slice(0, 12);
 }
