@@ -24,7 +24,7 @@ import {
   type Workspace,
 } from "./domain";
 import { LABEL_WORDS, OUT_OF_BOUNDS, nearDuplicate } from "./content";
-import { chainHash, commitment } from "./hash";
+import { chainHash, commitment, requestFingerprint } from "./hash";
 import type { StingStore } from "./store";
 import { StoreError } from "./store";
 
@@ -53,9 +53,11 @@ export type Command = Base &
     | { type: "stage_lives"; player: Player; posters: LifePoster[]; aside?: string }
     | { type: "choose_poster"; posterRef: string }
     | { type: "propose_dare"; player: Player; dare: { action: string; doneLooksLike: string; days: number; hours: number; money: number; currency: "INR" | "USD" | "EUR" | "GBP" | "AED"; source?: { url: string; excerpt: string } } }
+    | { type: "reject_dare" }
     | { type: "accept_dare"; hours: number; money: number; currency: "INR" | "USD" | "EUR" | "GBP" | "AED" }
     | { type: "write_brief"; player: Player; text: string }
     | { type: "identify"; player: Player; via: string }
+    | { type: "yield_agent"; target: "spark" | "house" }
     | { type: "ask_once"; player: Player; text: string; options: [string, string, string]; aside?: string }
     | { type: "answer_question"; questionRef: string; choice: 0 | 1 | 2 }
     | { type: "add_rule"; text: string }
@@ -88,6 +90,9 @@ export type DenialCode =
   | "UNTESTED_STING"
   | "TRAY_FULL"
   | "BUST"
+  | "CANCELLED"
+  | "IDEMPOTENCY_CONFLICT"
+  | "COLD_READ_REQUIRED"
   | "COLD_READ_CLOSED"
   | "NOT_EARNED"
   | "TENSION_UNDER_EVIDENCED"
@@ -103,6 +108,7 @@ export type DenialCode =
   | "QUESTION_OPEN"
   | "RULES_FULL"
   | "LETTER_EXISTS"
+  | "BRIEF_REQUIRED"
   | "LETTER_SEALED"
   | "NO_LETTER"
   | "PERSISTENCE";
@@ -146,12 +152,50 @@ function checkLifeText(line: string) {
   if (wordCount(line) > MAX_LIFE_WORDS) throw new Denial("LIFE_TOO_LONG", `A life is at most ${MAX_LIFE_WORDS} words.`);
   if (LABEL_RE.test(line)) throw new Denial("LIFE_IS_A_LABEL", "A life is a moment, never a title or a type.");
   if (OUT_OF_BOUNDS_RE.test(line)) throw new Denial("OUT_OF_BOUNDS_LIFE", "That life is out of bounds for this game.");
+  if (PREDICTION_RE.test(line)) throw new Denial("PREDICTION_LANGUAGE", "No predictions. Show a moment, not a forecast.");
 }
 
 function checkClaimText(text: string) {
   if (OUT_OF_BOUNDS_RE.test(text)) throw new Denial("OUT_OF_BOUNDS_LIFE", "That claim is out of bounds for this game.");
   if (PREDICTION_RE.test(text)) throw new Denial("PREDICTION_LANGUAGE", "No predictions. Wanting, not being.");
   if (LABEL_RE.test(text)) throw new Denial("LABEL_LANGUAGE", "No titles, no types.");
+}
+
+function checkAgentText(workspace: Workspace, text: string) {
+  checkClaimText(text);
+  if (workspace.kills.some((kill) => nearDuplicate(kill.text, text))) throw new Denial("KILLED", "The person killed that line. It stays dead.");
+}
+
+function checkQuotedEvidence(workspace: Workspace, text: string) {
+  if (OUT_OF_BOUNDS_RE.test(text)) throw new Denial("OUT_OF_BOUNDS_LIFE", "That evidence is out of bounds for this game.");
+  if (workspace.kills.some((kill) => nearDuplicate(kill.text, text))) throw new Denial("KILLED", "The person killed that line. It stays dead.");
+}
+
+function requireColdRead(workspace: Workspace) {
+  if (!workspace.hypotheses.some((item) => item.kind === "cold_read")) {
+    throw new Denial("COLD_READ_REQUIRED", "Seal the cold read before the first duel or question.");
+  }
+}
+
+function requireCreativeStanding(workspace: Workspace, player: Player) {
+  if (player !== "house" && workspace.record.chips < 6) {
+    throw new Denial("NOT_EARNED", "Under six chips, the player may still bet, revise or ask once, but the house must supply creative moves.");
+  }
+}
+
+function substantiveCorrection(value: string | undefined): string {
+  const normalized = value?.trim().replace(/\s+/g, " ") ?? "";
+  const prefix = normalized.match(/^i misread you\b[\s,.:;!?—-]*/i)?.[0] ?? "";
+  const detail = normalized.slice(prefix.length).trim();
+  const meaningfulWords = detail.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (!prefix || meaningfulWords.length < 3) {
+    throw new Denial("CORRECTION_REQUIRED", 'Begin with "I misread you", then name the mistaken assumption in at least three more words.');
+  }
+  return normalized;
+}
+
+function markPlayer(workspace: Workspace, player: Player) {
+  if (!workspace.record.players.includes(player)) workspace.record.players.push(player);
 }
 
 export class StingKernel {
@@ -164,10 +208,24 @@ export class StingKernel {
     return this.store.load();
   }
 
-  async execute(actor: Actor, command: Command): Promise<Result> {
+  /** The same clock used for due-date enforcement, including the visible demo clock. */
+  now(): Date {
+    return this.clock();
+  }
+
+  async execute(actor: Actor, command: Command, commitIf: () => boolean = () => true): Promise<Result> {
     const current = this.store.load();
+    if (!commitIf()) return { ok: false, code: "CANCELLED", message: "The caller yielded before this move could be saved.", stateVersion: current.stateVersion };
+    const requestHash = await requestFingerprint(actor, command as unknown as Record<string, unknown>);
     const replay = current.receipts.find((receipt) => receipt.operationId === command.operationId);
-    if (replay) return { ok: true, workspace: current, receipt: replay, replayed: true };
+    if (replay) {
+      if (!replay.requestHash) {
+        return { ok: false, code: "IDEMPOTENCY_CONFLICT", message: "That operationId belongs to a legacy receipt whose original payload cannot be verified. Use a new operationId.", stateVersion: current.stateVersion };
+      }
+      const sameRequest = Boolean(replay.requestHash && replay.requestHash === requestHash);
+      if (!sameRequest) return { ok: false, code: "IDEMPOTENCY_CONFLICT", message: "That operationId already belongs to a different move.", stateVersion: current.stateVersion };
+      return { ok: true, workspace: current, receipt: replay, replayed: true };
+    }
     if (current.stateVersion !== command.expectedVersion) {
       return { ok: false, code: "STALE_VERSION", message: "The room moved on. Read it again.", stateVersion: current.stateVersion };
     }
@@ -179,11 +237,9 @@ export class StingKernel {
       next = applied.workspace;
       summary = applied.summary;
       const aside = "aside" in command && typeof command.aside === "string" ? command.aside.trim().slice(0, 140) : "";
-      if (aside && "player" in command && actor !== "participant") {
-        checkClaimText(aside);
-        if (command.type === "stage_duel" && /\b(side|pole)?\s*[ab]\b|\bleft\b|\bright\b/i.test(aside) && /\bbet|chips?\b/i.test(aside)) {
-          throw new Denial("PREDICTION_LANGUAGE", "Say something to them, not which side you bet.");
-        }
+      const sealsContent = command.type === "stage_duel" || command.type === "seal_letter" || (command.type === "propose_hypothesis" && command.kind === "cold_read");
+      if (aside && "player" in command && actor !== "participant" && !sealsContent) {
+        checkAgentText(next, aside);
         next.voice.push({ at: current.stateVersion + 1, player: command.player, text: aside });
         next.activity.push({ at: current.stateVersion + 1, who: command.player, text: `“${aside}”` });
       }
@@ -194,18 +250,26 @@ export class StingKernel {
       throw error;
     }
 
+    if (!commitIf()) return { ok: false, code: "CANCELLED", message: "The caller yielded before this move could be saved.", stateVersion: current.stateVersion };
+
     next.stateVersion = current.stateVersion + 1;
     const prev = current.receipts.at(-1)?.hash ?? "genesis";
     const seq = current.receipts.length;
-    const hash = await chainHash({ prev, seq, operationId: command.operationId, command: command.type, stateVersion: next.stateVersion, summary });
-    const receipt: Receipt = { seq, operationId: command.operationId, command: command.type, stateVersion: next.stateVersion, at: this.clock().toISOString(), summary, prev, hash };
+    const hash = await chainHash({ prev, seq, operationId: command.operationId, command: command.type, stateVersion: next.stateVersion, summary, requestHash });
+    const receipt: Receipt = { seq, operationId: command.operationId, command: command.type, stateVersion: next.stateVersion, at: this.clock().toISOString(), summary, requestHash, prev, hash };
     next.receipts = [...next.receipts, receipt];
     if (next.activity.length > 500) next.activity = next.activity.slice(-500);
 
     try {
-      await this.store.save(current.stateVersion, next);
+      await this.store.save(current.stateVersion, next, commitIf);
     } catch (error) {
       if (error instanceof StoreError) {
+        if (error.code === "WRITE_CANCELLED") {
+          return { ok: false, code: "CANCELLED", message: error.message, stateVersion: error.currentVersion ?? current.stateVersion };
+        }
+        if (error.code === "STALE_WRITE") {
+          return { ok: false, code: "STALE_VERSION", message: "The room moved on. Read it again.", stateVersion: error.currentVersion ?? current.stateVersion };
+        }
         return { ok: false, code: "PERSISTENCE", message: error.message, stateVersion: error.currentVersion ?? current.stateVersion };
       }
       throw error;
@@ -220,6 +284,8 @@ export class StingKernel {
     const agent = (player: Player) => {
       if (actor === "participant") throw new Denial("AGENT_ONLY", "That move belongs to the player, not the person.");
       if (actor !== player) throw new Denial("AGENT_ONLY", "That move was signed by a different player.");
+      if (player === "chatgpt" && (!ws.record.externalAllowed || ws.record.players.some((item) => item !== "chatgpt"))) throw new Denial("AGENT_ONLY", "The person handed this room to an in-page player. The visiting agent may only inspect it.");
+      if (ws.record.bust && player !== "house") throw new Denial("BUST", `${playerName(player)} is out of chips and may only inspect the room.`);
     };
     const v = ws.stateVersion + 1;
     const say = (whoDid: "you" | Player | "room", text: string) => ws.activity.push({ at: v, who: whoDid, text });
@@ -246,6 +312,7 @@ export class StingKernel {
         if (axes.size < 4) throw new Denial("CAST_NOT_SPREAD", "Eight lives must pull in at least four directions.");
         ws.lives = command.lives;
         ws.record.player = command.player;
+        markPlayer(ws, command.player);
         ws.probes.push({ ref: `probe-cast-${v}`, kind: "cast", operationId: command.operationId, player: command.player, lives: command.lives, stagedAt: v, status: "open" });
         say(who(command.player), `${playerName(command.player)} cast eight lives for you.`);
         return { workspace: ws, summary: `${playerName(command.player)} cast eight lives.` };
@@ -299,6 +366,7 @@ export class StingKernel {
       case "stage_duel": {
         agent(command.player);
         requirePhase(ws, "duel");
+        requireColdRead(ws);
         if (ws.record.bust) throw new Denial("BUST", `${playerName(command.player)} is out of chips and cannot bet.`);
         if (openProbe(ws)) throw new Denial("TRAY_FULL", "A duel is already waiting for the person.");
         if (openQuestion(ws)) throw new Denial("QUESTION_OPEN", "Your question is still waiting for an answer.");
@@ -309,11 +377,20 @@ export class StingKernel {
         const [a, b] = command.lives;
         if (!command.bet) throw new Denial("BET_REQUIRED", "A duel needs a bet.");
         if (command.bet.chips > ws.record.chips) throw new Denial("INSUFFICIENT_CHIPS", `Only ${ws.record.chips} chips left.`);
-        if (a.axis !== b.axis || a.pole === b.pole || !command.variable?.trim()) {
+        if (a.axis !== b.axis || a.pole === b.pole || !command.variable?.trim() || wordCount(command.variable) > 4) {
           throw new Denial("DUEL_NOT_ISOLATED", "A duel changes exactly one thing on one axis.");
         }
+        const required = [...ws.picks.stings, ...(ws.picks.secret ? [ws.picks.secret] : [])];
+        const target = ws.lives.find((life) => life.ref === command.testsLifeRef);
+        if (!target || !required.includes(target.ref)) throw new Denial("UNKNOWN_REF", "A duel must test one of the person's selected lives.");
+        if (target.axis !== a.axis) throw new Denial("DUEL_NOT_ISOLATED", "A duel must stay on the axis of the selected life it tests.");
+        const tested = new Set(done.map((probe) => probe.testsLifeRef).filter(Boolean));
+        if (tested.has(target.ref) && required.some((ref) => !tested.has(ref))) throw new Denial("UNTESTED_STING", "Test every selected life once before repeating one.");
         checkLifeText(a.line);
         checkLifeText(b.line);
+        checkAgentText(ws, command.variable);
+        checkAgentText(ws, command.bet.because);
+        markPlayer(ws, command.player);
         const sealed = await commitment(command.bet, command.operationId);
         ws.probes.push({
           ref: `probe-duel-${v}`,
@@ -379,6 +456,7 @@ export class StingKernel {
       case "close_duels": {
         agent(command.player);
         requirePhase(ws, "duel");
+        requireColdRead(ws);
         if (openProbe(ws)) throw new Denial("TRAY_FULL", "Answer the open duel first.");
         const done = answeredDuels(ws);
         if (done.length < MIN_DUELS && !ws.record.bust) throw new Denial("NOT_ENOUGH_DUELS", `At least ${MIN_DUELS} duels before a verdict.`);
@@ -398,6 +476,7 @@ export class StingKernel {
       case "kill": {
         participant();
         requirePhase(ws, "verdict", "card");
+        if (ws.phase === "verdict" && openQuestion(ws)) throw new Denial("QUESTION_OPEN", "Answer the open question before changing the verdict.");
         const hypothesis = ws.hypotheses.find((item) => item.ref === command.hypothesisRef);
         if (!hypothesis || !["proposed", "kept"].includes(hypothesis.status)) throw new Denial("UNKNOWN_REF", "Nothing to kill there.");
         hypothesis.status = "killed";
@@ -409,6 +488,7 @@ export class StingKernel {
       case "keep_all": {
         participant();
         requirePhase(ws, "verdict");
+        if (openQuestion(ws)) throw new Denial("QUESTION_OPEN", "Answer the open question before keeping the verdict.");
         for (const hypothesis of ws.hypotheses) if (hypothesis.status === "proposed") hypothesis.status = "kept";
         const hungers = ws.hypotheses.filter((item) => item.kind === "hunger" && item.status === "kept");
         // The match always goes on to three lives and a dare, even when every line was killed.
@@ -420,6 +500,9 @@ export class StingKernel {
       case "stage_fight": {
         agent(command.player);
         requirePhase(ws, "fight");
+        requireCreativeStanding(ws, command.player);
+        if (ws.fight) throw new Denial("TRAY_FULL", "The fight is already waiting for the person's crown.");
+        if (new Set(command.refs).size !== 2) throw new Denial("UNKNOWN_REF", "A fight needs two different kept hungers.");
         const [a, b] = command.refs.map((ref) => ws.hypotheses.find((item) => item.ref === ref));
         if (!a || !b || a.kind !== "hunger" || b.kind !== "hunger" || a.status !== "kept" || b.status !== "kept") {
           throw new Denial("UNKNOWN_REF", "A fight needs two kept hungers.");
@@ -447,8 +530,18 @@ export class StingKernel {
       case "stage_lives": {
         agent(command.player);
         requirePhase(ws, "lives");
+        requireCreativeStanding(ws, command.player);
+        if (ws.posters.length) throw new Denial("TRAY_FULL", "Three lives are already waiting for the person's choice.");
         if (command.posters.length !== 3) throw new Denial("UNKNOWN_REF", "Exactly three lives.");
-        for (const poster of command.posters) checkLifeText(poster.line);
+        if (new Set(command.posters.map((poster) => poster.axis)).size !== 3) throw new Denial("UNKNOWN_REF", "The three lives need three different axes.");
+        for (const poster of command.posters) {
+          checkLifeText(poster.line);
+          checkAgentText(ws, poster.line);
+          for (const line of poster.week) checkAgentText(ws, line);
+          checkAgentText(ws, poster.tradeoff);
+          checkAgentText(ws, poster.question);
+        }
+        markPlayer(ws, command.player);
         ws.posters = command.posters;
         say(who(command.player), `${playerName(command.player)} laid out three lives.`);
         return { workspace: ws, summary: "Three lives staged." };
@@ -467,19 +560,37 @@ export class StingKernel {
       case "propose_dare": {
         agent(command.player);
         requirePhase(ws, "dare");
+        requireCreativeStanding(ws, command.player);
+        if (ws.dare) throw new Denial("TRAY_FULL", "A dare is already waiting for the person's decision.");
         const dare = command.dare;
         const lower = dare.action.toLowerCase();
-        if (IRREVERSIBLE.some((verb) => lower.includes(verb)) || dare.days > 7) throw new Denial("NOT_REVERSIBLE", "A dare must be undoable inside a week.");
+        if (IRREVERSIBLE.some((verb) => lower.includes(verb)) || dare.days < 1 || dare.days > 7) throw new Denial("NOT_REVERSIBLE", "A dare must be undoable inside a week.");
+        if (dare.hours < 0 || dare.hours > 6 || dare.money < 0 || dare.money > 2000) throw new Denial("OVER_LIMITS", "A dare must fit inside six hours and the bounded money estimate.");
         if (dare.source && !dare.source.url.startsWith("https://")) throw new Denial("BAD_SOURCE", "Sources are https only.");
-        checkClaimText(dare.action);
+        checkAgentText(ws, dare.action);
+        checkAgentText(ws, dare.doneLooksLike);
+        if (dare.source) checkQuotedEvidence(ws, dare.source.excerpt);
+        markPlayer(ws, command.player);
         ws.dare = { ref: `dare-${v}`, lifeRef: ws.chosenPoster!, ...dare, status: "proposed" };
         say(who(command.player), `${playerName(command.player)} dared you.`);
         return { workspace: ws, summary: "Dare proposed." };
       }
 
+      case "reject_dare": {
+        participant();
+        requirePhase(ws, "dare");
+        if (!ws.dare) throw new Denial("UNKNOWN_REF", "No dare is waiting.");
+        ws.dare = undefined;
+        ws.chosenPoster = undefined;
+        ws.phase = "lives";
+        say("you", "You rejected that dare. Pick a different life to test.");
+        return { workspace: ws, summary: "Dare rejected; returned to the three lives." };
+      }
+
       case "write_brief": {
         agent(command.player);
         requirePhase(ws, "card");
+        if (command.player !== "house") throw new Denial("AGENT_ONLY", "The room compiles the field brief from accepted game state; a player cannot replace it.");
         if (ws.brief) throw new Denial("TRAY_FULL", "The brief is already written.");
         if (OUT_OF_BOUNDS_RE.test(command.text)) throw new Denial("OUT_OF_BOUNDS_LIFE", "That brief is out of bounds.");
         ws.brief = { text: command.text.trim().slice(0, 2000), player: command.player, at: v };
@@ -496,18 +607,36 @@ export class StingKernel {
         return { workspace: ws, summary: `${playerName(command.player)} identified via ${via}.` };
       }
 
+      case "yield_agent": {
+        participant();
+        ws.record.externalAllowed = false;
+        ws.record.player = command.target;
+        ws.record.via = undefined;
+        say("you", `You handed the room to ${command.target === "spark" ? "Spark" : "the house"}.`);
+        return { workspace: ws, summary: `Visiting-agent writes ended; ${command.target === "spark" ? "Spark" : "the house"} now holds the room.` };
+      }
+
       case "ask_once": {
         agent(command.player);
         requirePhase(ws, "duel", "verdict");
+        requireColdRead(ws);
+        if (ws.phase === "verdict") {
+          const hasLiveHunger = ws.hypotheses.some((item) => item.kind === "hunger" && item.status !== "killed");
+          const hasLiveEdge = ws.hypotheses.some((item) => item.kind === "edge" && item.status !== "killed");
+          if (hasLiveHunger && hasLiveEdge) throw new Denial("TRAY_FULL", "The verdict is on the table. The person is deciding what to keep or kill.");
+        }
         if (ws.record.bust) throw new Denial("BUST", `${playerName(command.player)} is out of chips and cannot ask.`);
         if (ws.questions.length > 0) throw new Denial("QUESTION_SPENT", "One question per match. It is spent.");
         if (openProbe(ws)) throw new Denial("TRAY_FULL", "A duel is waiting for the person. Ask after the tap.");
         if (ws.record.chips <= QUESTION_COST) throw new Denial("INSUFFICIENT_CHIPS", "A question costs a chip you cannot spare.");
-        checkClaimText(command.text);
+        checkAgentText(ws, command.text);
         if (!command.text.trim().endsWith("?")) throw new Denial("LABEL_LANGUAGE", "A question ends with a question mark.");
         const options = command.options.map((option) => option.trim()) as [string, string, string];
         if (new Set(options.map((option) => option.toLowerCase())).size !== 3) throw new Denial("UNKNOWN_REF", "Three different answers.");
+        for (const option of options) checkAgentText(ws, option);
+        markPlayer(ws, command.player);
         ws.record.chips -= QUESTION_COST;
+        ws.record.earned = isEarned(ws.record, ws.reactions);
         ws.questions.push({ ref: `q-${v}`, player: command.player, text: command.text.trim(), options, chipsCost: QUESTION_COST, askedAt: v });
         say(who(command.player), `${playerName(command.player)} spent a chip to ask you something.`);
         return { workspace: ws, summary: `Question asked for ${QUESTION_COST} chip: "${command.text.trim()}"` };
@@ -539,10 +668,16 @@ export class StingKernel {
       case "seal_letter": {
         agent(command.player);
         requirePhase(ws, "card");
+        requireCreativeStanding(ws, command.player);
+        if (!ws.brief) throw new Denial("BRIEF_REQUIRED", "Wait for the room to compile the field brief before sealing the letter.");
         if (!ws.dare || ws.dare.status !== "accepted" || !ws.dare.dueAt) throw new Denial("WRONG_PHASE", "A letter is about an accepted dare.");
+        if (this.clock().getTime() >= new Date(ws.dare.dueAt).getTime()) throw new Denial("WRONG_PHASE", "The dare is already due; a prediction cannot be sealed after the outcome.");
         if (ws.letter) throw new Denial("LETTER_EXISTS", "The letter is already sealed.");
         if (ws.record.bust) throw new Denial("BUST", `${playerName(command.player)} is out of chips and cannot stake a letter.`);
-        checkClaimText(command.note);
+        if (ws.record.chips < LETTER_STAKE) throw new Denial("INSUFFICIENT_CHIPS", `A letter costs ${LETTER_STAKE} chips; only ${ws.record.chips} remain.`);
+        checkAgentText(ws, command.note);
+        checkAgentText(ws, command.feeling);
+        markPlayer(ws, command.player);
         const sealed = { willDo: command.willDo, feeling: command.feeling.trim().slice(0, 60), note: command.note.trim().slice(0, 280) };
         const hash = await commitment(sealed, command.operationId);
         ws.letter = { ref: `letter-${v}`, player: command.player, sealed, commitment: hash, operationId: command.operationId, sealedAt: v, opensAt: ws.dare.dueAt, status: "sealed" };
@@ -560,10 +695,12 @@ export class StingKernel {
           throw new Denial("LETTER_SEALED", `The letter opens ${new Date(letter.opensAt).toDateString()}. Come back then.`);
         }
         const hit = letter.sealed.willDo === command.didIt;
-        const moved = hit ? LETTER_STAKE : -LETTER_STAKE;
-        ws.record.chips = Math.max(0, ws.record.chips + moved);
+        const moved = hit ? LETTER_STAKE : -Math.min(LETTER_STAKE, ws.record.chips);
+        ws.record.chips += moved;
+        ws.record.bust = ws.record.chips <= 0;
         if (hit) ws.record.hits += 1;
         else ws.record.misses += 1;
+        ws.record.earned = isEarned(ws.record, ws.reactions);
         letter.status = "opened";
         letter.opened = { didIt: command.didIt, feltLikeIt: command.feltLikeIt, at: v, outcome: hit ? "hit" : "miss", chipsMoved: moved };
         say("you", command.didIt ? "You did it." : "You did not do it.");
@@ -575,9 +712,7 @@ export class StingKernel {
         participant();
         requirePhase(ws, "dare");
         if (!ws.dare || ws.dare.status !== "proposed") throw new Denial("UNKNOWN_REF", "No dare on the table.");
-        if (command.hours < ws.dare.hours || command.money < ws.dare.money) {
-          throw new Denial("OVER_LIMITS", `The dare needs ${ws.dare.hours}h and ${ws.dare.money} ${ws.dare.currency}. Raise your limits or pick another life.`);
-        }
+        if (command.hours < 0 || command.hours > 6 || command.money < 0 || command.money > 2000) throw new Denial("OVER_LIMITS", "Your chosen limits must stay between zero and the room's six-hour / 2000-unit ceiling.");
         ws.dare.status = "accepted";
         ws.dare.acceptedAt = v;
         ws.dare.hours = command.hours;
@@ -603,11 +738,14 @@ export class StingKernel {
 
   private async proposeHypothesis(actor: Actor, ws: Workspace, command: Extract<Command, { type: "propose_hypothesis" }>, v: number) {
     if (actor === "participant" || actor !== command.player) throw new Denial("AGENT_ONLY", "Only the player proposes.");
-    checkClaimText(command.text);
+    if (command.player === "chatgpt" && (!ws.record.externalAllowed || ws.record.players.some((item) => item !== "chatgpt"))) throw new Denial("AGENT_ONLY", "The person handed this room to an in-page player. The visiting agent may only inspect it.");
+    if (ws.record.bust && command.player !== "house") throw new Denial("BUST", `${playerName(command.player)} is out of chips and may only inspect the room.`);
+    checkAgentText(ws, command.text);
+    markPlayer(ws, command.player);
     const name = playerName(command.player);
 
     if (command.kind === "cold_read") {
-      requirePhase(ws, "cast", "duel");
+      requirePhase(ws, "duel");
       if (answeredDuels(ws).length > 0 || ws.hypotheses.some((item) => item.kind === "cold_read")) {
         throw new Denial("COLD_READ_CLOSED", "The cold read is sealed before the first duel, once.");
       }
@@ -619,26 +757,40 @@ export class StingKernel {
     }
 
     if (command.kind === "revision") {
+      requirePhase(ws, "duel");
       const reaction = ws.reactions.find((item) => item.ref === command.revises);
       if (!reaction || reaction.betOutcome !== "miss") throw new Denial("UNKNOWN_REF", "A revision answers a miss.");
-      if (!command.correction?.trim()) throw new Denial("CORRECTION_REQUIRED", "Say what you misread.");
+      if (reaction.corrected || ws.hypotheses.some((item) => item.kind === "revision" && item.revises === reaction.ref)) {
+        throw new Denial("TRAY_FULL", "That miss already has its correction.");
+      }
+      const correction = substantiveCorrection(command.correction);
+      checkAgentText(ws, correction);
       reaction.corrected = true;
-      ws.hypotheses.push({ ref: `hyp-${v}`, kind: "revision", text: command.text, proofRefs: [reaction.ref], status: "revealed", revises: reaction.ref, correction: command.correction, earned: true, player: command.player, at: v });
+      ws.hypotheses.push({ ref: `hyp-${v}`, kind: "revision", text: command.text, proofRefs: [reaction.ref], status: "revealed", revises: reaction.ref, correction, earned: true, player: command.player, at: v });
       ws.record.earned = isEarned(ws.record, ws.reactions);
-      ws.activity.push({ at: v, who: who(command.player), text: `"${command.correction}"` });
-      return { workspace: ws, summary: `Correction filed: "${command.correction}".` };
+      ws.activity.push({ at: v, who: who(command.player), text: `"${correction}"` });
+      return { workspace: ws, summary: `Correction filed: "${correction}".` };
     }
 
     requirePhase(ws, "verdict");
+    if (openQuestion(ws)) throw new Denial("QUESTION_OPEN", "Your question is still waiting for an answer.");
+    const hasLiveHunger = ws.hypotheses.some((item) => item.kind === "hunger" && item.status !== "killed");
+    const hasLiveEdge = ws.hypotheses.some((item) => item.kind === "edge" && item.status !== "killed");
+    if (hasLiveHunger && hasLiveEdge) throw new Denial("TRAY_FULL", "The verdict is on the table. The person is deciding what to keep or kill.");
+    if (ws.record.chips < 6 && command.player !== "house") throw new Denial("NOT_EARNED", "Under six chips, the player may correct itself but may not describe the person.");
     if (ws.kills.some((kill) => nearDuplicate(kill.text, command.text))) throw new Denial("KILLED", "That was killed. It stays dead.");
     const refs = command.proofRefs ?? [];
+    if (new Set(refs).size !== refs.length || new Set(refs).size < 3) throw new Denial("TENSION_UNDER_EVIDENCED", "A line needs three different real taps behind it.");
     const reactions = refs.map((ref) => ws.reactions.find((item) => item.ref === ref)).filter((item): item is NonNullable<typeof item> => Boolean(item));
     if (reactions.length < 3 || reactions.length !== refs.length) throw new Denial("TENSION_UNDER_EVIDENCED", "A line needs at least three real taps behind it.");
     const strong = reactions.some((item) => item.dwellMs >= SLOW_DWELL_MS || item.betOutcome === "miss");
     const anyStrong = ws.reactions.some((item) => item.dwellMs >= SLOW_DWELL_MS || item.betOutcome === "miss");
     // The rule can only be demanded when the room contains a slow tap or a miss at all.
-    if (!strong && anyStrong && ws.settings.timing) throw new Denial("TENSION_UNDER_EVIDENCED", "A line needs one slow tap or one miss behind it.");
+    if (!strong && anyStrong) throw new Denial("TENSION_UNDER_EVIDENCED", "A line needs one slow tap or one miss behind it.");
     const sameKind = ws.hypotheses.filter((item) => item.kind === command.kind && item.status !== "killed");
+    if (sameKind.some((item) => nearDuplicate(item.text, command.text))) {
+      throw new Denial("TRAY_FULL", "That line or a close copy is already on the table.");
+    }
     if ((command.kind === "hunger" && sameKind.length >= 2) || (command.kind !== "hunger" && sameKind.length >= 1)) {
       throw new Denial("TRAY_FULL", "That line is already on the table.");
     }

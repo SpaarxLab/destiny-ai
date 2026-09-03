@@ -8,11 +8,19 @@ API route both need a real per-request server). Primary target is Vercel; Netlif
 
 | Var | Required | Effect |
 |---|---|---|
-| `OPENCODE_GO_API_KEY` | no | enables the optional local lab assistant (solo-mode house replacement, server-side only, never in the client bundle); unset means the deterministic house plays and the whole game still works with zero network calls |
+| `OPENCODE_GO_API_KEY` | no | enables the optional local lab assistant (solo-mode house replacement, server-side only, never in the client bundle); unset means the deterministic house plays with zero model-provider calls and browser-local match state |
 | `STING_PLAYER_MODEL` | no | overrides the lab assistant's model name; default is set in `web/src/sting/spark/provider.ts` |
 | `WEBMCP_ORIGIN_TRIAL_TOKEN` | recommended for judging on stock Chrome | sent as the `Origin-Trial` response header on every route (see `web/next.config.ts`), so `document.modelContext` exists without a judge flipping a flag |
 
-Set `STING_PLAYER=off` on any environment to force the house even when `OPENCODE_GO_API_KEY` is present (used for CI and for demoing the zero-network path deliberately).
+Set `STING_PLAYER=off` on any environment to force the house even when `OPENCODE_GO_API_KEY` is present (used for CI and for demoing the zero-provider path deliberately).
+
+With Spark disabled, the deterministic house needs no model-provider call and the match document
+stays in browser `localStorage`. Enabling Spark is an explicit privacy change: the browser sends a
+bounded `PlayerContext` (cast lives and taps, bucketed dwell, duel outcomes, hypotheses, rules,
+chosen route, dare and letter status) to `/api/sting/move`; that server route then sends the encoded
+context to the configured model provider. The API key remains server-side, but provider handling
+and retention are governed by that provider and are not guaranteed by STING. External WebMCP hosts
+likewise receive the bounded `inspect_room` projections they request.
 
 Root directory for the build: **`web`**. Node version: **24** (the repository-root `.nvmrc` and `.node-version` both pin 24; also select Node 24 explicitly in the host's project settings).
 
@@ -49,7 +57,6 @@ Chrome 149–156.
 4. The trial covers Chrome/Edge/Android/webview milestones 149–156 only; if Chrome has shipped
    past 156 by judging time, the token silently stops working and Chrome visitors need the flag
    again. Check the current stable Chrome version before the deadline.
-5. This step is irrelevant to the ChatGPT built-in browser path — that surface does not check the
-   origin-trial token at all, only the model (GPT-5.6 Sol or Terra) and the workspace tier.
-
-See `/tmp/sting-research/03-origin-trial.md` for the full source trail behind these facts.
+5. This step is irrelevant to the ChatGPT built-in browser path — that host supplies the WebMCP
+   surface independently of Chrome&rsquo;s origin-trial token. Site-tool availability can vary by chat;
+   STING keeps the complete deterministic house path available when no agent connects.

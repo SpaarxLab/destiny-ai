@@ -37,12 +37,12 @@ export function DoorScreen({ act, playerLabel, enabled, connected }: { act: Act;
         <div className="door-agent">
           <span className="sting-eyebrow" style={{ color: "var(--cold)" }}>an agent can use this page</span>
           <p className="sting-body" style={{ margin: 0 }}>
-            Tap Play, then tell your agent: <code>play STING with me</code>. It casts eight lives from what it already knows about you, then bets chips on every tap you make. Right, it earns the right to describe you. Wrong, it loses chips and has to say what it misread. Only you can tap.
+            Tap Play, then tell your agent: <code>play STING with me</code>. It casts eight lives from what it already knows about you, then bets chips before each two-life choice. Right, it earns the right to describe you. Wrong, it loses chips and has to say what it misread. Only you can tap.
           </p>
         </div>
       ) : (
         <p className="sting-body sting-muted" style={{ maxWidth: 480 }}>
-          It shows you eight lives. You tap the ones you’d want. Then it bets on you, with chips, before every choice. Leave with what you actually want, what you’re good at, and one small thing to try this week.
+          It shows you eight lives. You tap the ones you’d want. Then it stakes chips before each two-life choice and pays when it misreads you. Leave with what you actually want, what you’re good at, and one small thing to try this week.
         </p>
       )}
       <div className="sting-actions">
@@ -54,7 +54,7 @@ export function DoorScreen({ act, playerLabel, enabled, connected }: { act: Act;
         <span className="sting-small">{LINES.door.meta}</span>
         <label className="sting-toggle">
           <input type="checkbox" checked={timing} onChange={(event) => setTiming(event.target.checked)} />
-          measure how long I hesitate (never shown to anyone until the card)
+          measure hesitation (shared only as fast / medium / slow with this match&apos;s player; raw timing stays here)
         </label>
         <span className="sting-small">
           {connected
@@ -231,9 +231,18 @@ function SealVerify({ probe }: { probe: Probe }) {
 /* ---------- Verdict ---------- */
 
 export function VerdictScreen({ ws, act, player, playerLabel, thinking, ready }: ScreenProps) {
+  const [pendingKill, setPendingKill] = useState(false);
+  const question = openQuestion(ws);
+  if (question) {
+    return (
+      <div className="sting-enter" style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 640 }}>
+        <QuestionCard ws={ws} act={act} />
+      </div>
+    );
+  }
   const lines = ws.hypotheses.filter((item) => ["hunger", "mask", "edge"].includes(item.kind) && item.status !== "killed");
   const cold = ws.hypotheses.find((item) => item.kind === "cold_read");
-  const waiting = !ready;
+  const waiting = !ready || pendingKill;
   const misses = ws.reactions.filter((item) => item.betOutcome === "miss");
   const name = playerLabel;
 
@@ -260,11 +269,10 @@ export function VerdictScreen({ ws, act, player, playerLabel, thinking, ready }:
         </ul>
       ) : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {lines.map((line) => <VerdictLine key={line.ref} ws={ws} line={line} act={act} />)}
+        {lines.map((line) => <VerdictLine key={line.ref} ws={ws} line={line} act={act} onKilling={setPendingKill} />)}
       </div>
       {ws.voice.at(-1) && (ws.voice.at(-1)!.at > (ws.reactions.at(-1)?.at ?? 0)) ? <VoiceLine ws={ws} at={ws.voice.at(-1)!.at} /> : null}
-      <QuestionCard ws={ws} act={act} />
-      {waiting && !openQuestion(ws) ? <Thinking player={player} label={thinking ?? `${name} is deciding`} /> : null}
+      {waiting ? <Thinking player={player} label={thinking ?? `${name} is deciding`} /> : null}
       {cold?.text ? <p className="sting-small">Its cold guess, sealed before the first duel, was “{cold.text}”.</p> : null}
       <RulesOfMe ws={ws} act={act} />
       <AgentView ws={ws} />
@@ -277,14 +285,20 @@ export function VerdictScreen({ ws, act, player, playerLabel, thinking, ready }:
   );
 }
 
-function VerdictLine({ ws, line, act }: { ws: Workspace; line: Hypothesis; act: Act }) {
+function VerdictLine({ ws, line, act, onKilling }: { ws: Workspace; line: Hypothesis; act: Act; onKilling: (pending: boolean) => void }) {
   const [confirming, setConfirming] = useState(false);
   const [dying, setDying] = useState(false);
   const { pressing, handlers } = useLongPress(() => setConfirming(true));
   const proofLines = useMemo(() => humanLine(ws, line), [ws, line]);
   const kill = async () => {
     setDying(true);
-    window.setTimeout(() => void act({ type: "kill", hypothesisRef: line.ref }), 650);
+    onKilling(true);
+    try {
+      const killed = await act({ type: "kill", hypothesisRef: line.ref });
+      if (!killed) setDying(false);
+    } finally {
+      onKilling(false);
+    }
   };
   const label = `${line.kind === "hunger" ? "what you want" : line.kind === "mask" ? "what you chase, and let go of" : "what you're good at"}${line.earned ? "" : " · unearned draft"}`;
   return (
@@ -420,7 +434,7 @@ function DareForm({ ws, act, player }: { ws: Workspace; act: Act; player: Player
           </details>
         ) : null}
         <hr className="sting-hr" />
-        <span className="sting-eyebrow">your limits this week (it filled these in; change anything)</span>
+        <span className="sting-eyebrow">your limits this week (its estimate is only a starting point; change anything)</span>
         <form
           className="limits"
           onSubmit={(event) => {
@@ -430,11 +444,11 @@ function DareForm({ ws, act, player }: { ws: Workspace; act: Act; player: Player
         >
           <label>
             hours
-            <input inputMode="decimal" value={hours} onChange={(event) => setHours(event.target.value)} />
+            <input inputMode="decimal" type="number" min="0" max="6" step="0.5" value={hours} onChange={(event) => setHours(event.target.value)} />
           </label>
           <label>
             money
-            <input inputMode="numeric" value={money} onChange={(event) => setMoney(event.target.value)} />
+            <input inputMode="numeric" type="number" min="0" max="2000" step="1" value={money} onChange={(event) => setMoney(event.target.value)} />
           </label>
           <label>
             currency
@@ -444,6 +458,7 @@ function DareForm({ ws, act, player }: { ws: Workspace; act: Act; player: Player
           </label>
           <div className="sting-actions" style={{ gridColumn: "1 / -1", marginTop: 6 }}>
             <button type="submit" className="sting-btn sting-btn--warm">{LINES.takeDare}</button>
+            <button type="button" className="sting-btn sting-btn--quiet" onClick={() => void act({ type: "reject_dare" })}>Not this dare</button>
           </div>
         </form>
       </div>

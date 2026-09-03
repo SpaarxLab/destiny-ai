@@ -23,11 +23,11 @@ persistence, visiting-agent simulator, real-Chrome WebMCP suite.
 3. Principles that never bend
 4. The match (door to card)
 5. Chips: the economy that makes the AI honest
-6. The season: bets on reality
-7. Humans bet too
+6. Future season vision: bets on reality
+7. Future human bettors
 8. Agents: roles, playbook, rivals, the house
 9. WebMCP contract in full
-10. Data model, persistence, export
+10. Data model and persistence
 11. Design system
 12. Copy, complete
 13. Interface: states, gestures, accessibility
@@ -40,6 +40,7 @@ persistence, visiting-agent simulator, real-Chrome WebMCP suite.
 20. Submission kit
 21. Open decisions for Harsh
 22. Deliberately not here
+23. WebMCP-native concepts implemented in the current candidate
 
 ---
 
@@ -55,16 +56,21 @@ lives on the page, and the page is the instrument and the referee: it seals the 
 it, scores it. You tap. The bet flips. Right, it earns chips. Wrong, it loses them and has to
 say what it misread. Bust, and it's silenced; the house finishes the match. Earn enough, and
 it's allowed to tell you three things: what you're hungry for, what you're hiding behind, and
-what you're better at than you think. Kill any line and it can never say it again. Then it
-dares you to one small real thing this week, something it actually found, and bets on whether
-you'll do it and how it will feel. A week later, two taps, and reality settles that bet. Four
-weeks of that is a season, ending in a card signed by reality, not by an AI: which hunger
+what you're better at than you think. Kill any line and the kernel blocks that line and close
+duplicates; free-form rules remain explicit guidance. Then it dares you to one small real thing
+this week, optionally with an HTTPS source, and stakes chips on whether
+you'll do it while sealing a feeling prediction beside the bet. A week later, two taps reveal
+both: the dare result settles the stake, while the feeling tap adds unscored context. Four
+weeks of that is the product vision for a future season, ending in a card signed by reality,
+not by an AI: which hunger
 survived contact with the world, which mask burned, and a record of how well ChatGPT, your
-best friend and your mother each know you. No agent of your own? Muse Spark plays the same
-game through the same tools — proof any agent can. No agent at all, or it stalls? The house can
-always finish it. Any AI can coach you from that card forever.
+best friend and your mother each know you. When its optional provider is configured, Muse Spark
+can play through the same kernel commands. With no agent or provider, or if one stalls, the house
+can always finish the submitted match. The field brief can then ground another AI conversation.
 
-No typing. No account. Stays on your phone. Three minutes to start. Four weeks to know.
+The submitted match requires no typing and no account; its core flow is tap-only, with optional
+participant-written rules. Its state stays in that browser. The
+four-week season and friend bettors described below are direction, not current submission claims.
 
 ---
 
@@ -142,15 +148,19 @@ Its record is the trust meter. Advice is downstream of record.
 1. **Nothing acts for the person.** No tool taps, kills, crowns, sets limits, accepts a dare,
    checks in, sends, posts or deletes. The kernel denies it (`PARTICIPANT_ONLY`).
 2. **Every agent move is a bet, a proposal or a read, and every one is visible in one plain
-   sentence at the moment it happens.** Nothing an agent can read is hidden from the person.
-3. **The page is the referee.** It seals bets, reveals them, scores them, and never fetches
-   the outside world itself.
+   sentence at the moment it happens.** Apart from deliberately sealed fields that wait for
+   reveal, room evidence readable by an agent is also inspectable by the person.
+3. **The page is the referee.** It seals bets, reveals them and scores them. It never browses
+   a dare URL; when optional Spark is enabled, it does send a bounded player context through
+   `/api/sting/move` to the configured provider (§15).
 4. **Wrong is welcome.** A miss with a correction is worth more than a hit. The product says
    so on screen.
 5. **Reality outranks every AI.** A claim on the card is a draft until a week has signed it.
-6. **Local first.** One versioned document in the browser. No account. Export is a file.
+6. **Local first.** One versioned `localStorage` document in the browser. No account. The
+   current exports are the card image and copied field brief, not a portable room archive.
 7. **Plain words.** If a twelve-year-old would not get a word on screen, it does not ship.
-8. **The house is always able to play.** Every feature works with zero model calls.
+8. **The house is always able to play.** The complete submitted match works with zero
+   model-provider calls; match state stays local to the browser.
 9. **Adults only, safeguarded copy, out-of-bounds list enforced by code.**
 10. **Anything equally good in plain chat is removed.**
 
@@ -158,10 +168,11 @@ Its record is the trust meter. Advice is downstream of record.
 
 ## 4. The match
 
-Words on screen: life, sting, secret, duel, bet, sealed, chips, right, wrong, bust, hunger,
-mask, edge, keep, kill, crown, dare, card, house, signed.
-Never: probe, hypothesis, tension, evidence, receipt, route, operation, tool, WebMCP, kernel,
-agent, model, confidence, calibration.
+Words in the main participant game: life, sting, secret, duel, bet, sealed, chips, right, wrong,
+bust, hunger, mask, edge, keep, kill, crown, dare, card, house, signed. Technical words such as
+probe, hypothesis, evidence, receipt, operation, tool, WebMCP, kernel, agent, model, confidence and
+calibration stay out of the game copy; they may appear in the explicitly judge-facing authority,
+receipt and WebMCP proof disclosures.
 
 ### 4.0 Door (5 s)
 
@@ -174,7 +185,7 @@ agent, model, confidence, calibration.
 │                                        │
 │   [ Play ]                             │
 │                                        │
-│   3 minutes · no typing · stays on     │
+│   3 minutes · no typing required       │
 │   this phone · 18+                     │
 │   timing on ●    sound off ○           │
 └────────────────────────────────────────┘
@@ -191,8 +202,9 @@ nothing, the house eight. Kernel checks: ≤ 9 words, concrete scene, no label
 (`LIFE_IS_A_LABEL`), in bounds (`OUT_OF_BOUNDS_LIFE`), eight distinct axis pulls
 (`CAST_NOT_SPREAD`).
 
-Three taps: sting, sting, secret. `Too close, skip` on the secret is not data and is not
-shown to any agent. While tapping, ChatGPT seals its **cold read** (≤ 12 words) with a
+Three taps: sting, sting, secret. `Too close, skip` keeps that unchosen life private and does not
+count it as evidence; an agent may still infer from the next phase that no secret was supplied.
+While tapping, ChatGPT seals its **cold read** (≤ 12 words) with a
 commitment shown in the strip: "ChatGPT sealed a guess · a41f".
 
 ### 4.2 Duels (90 s)
@@ -232,22 +244,25 @@ one slow tap or one miss among them, the cold read revealed beneath:
 ```
 
 Long-press kills. A kill is a receipt, removes the line, and rewrites the propose tool's
-description live (§9.6). Bust or under 50 %: the "No AI got you" screen instead (§12).
+description live (§9.5). Bust or under 50 %: the "No AI got you" screen instead (§12).
 
 ### 4.4 Fight (15 s)
 
-Two surviving hungers as posters, arguing with the person's own taps as lines; staged with
-`present_evidence`, read-only, dismissed by any tap. The person crowns one. The loser burns.
+Two surviving hungers become posters, each argued with the person's own taps. The
+`present_evidence` WebMCP call is a write because it stages that fight in room state; it still
+cannot choose the result. The person crowns one. The loser burns.
 
 ### 4.5 Dare (30 s)
 
-Three surviving lives as posters with a week each, then one dare: reversible, inside limits,
-and when ChatGPT has browsed, **real**: a meetup, an open mic, a person the participant already
-named, a task with a "done looks like". Source shown as URL plus ≤ 280-char excerpt under
+Three surviving lives as posters with a week each, then one dare: bounded and intended to be
+reversible, inside limits, and concrete: a meetup, an open mic, a person the participant already
+named, a task with a "done looks like". An optional source supplied by the agent is shown as an
+HTTPS URL plus ≤ 280-char excerpt under
 "where it found this". Limits are set by the person alone, directly on the page — no tool,
 declarative or otherwise, touches them; `accept_dare` is participant-only. With the dare,
-ChatGPT seals a **reality bet** (§6). On accept every write tool leaves the catalogue;
-`inspect_room` stays.
+ChatGPT seals a **reality bet** (§6). Once the dare exists, `propose_experiment` leaves the
+catalogue; after the person accepts it, the phase-appropriate `seal_letter` write may appear
+until the letter is sealed. `inspect_room` stays throughout.
 
 ### 4.6 Card
 
@@ -284,14 +299,14 @@ corrected`. The arithmetic, with 12 to start and at most nine duels:
 
 A model that plays safe cannot earn. A model that is always confident busts on four misses.
 The only way to earn is to be right when confident and cautious when not. Calibration becomes
-the game, and the person sees it as a stack of chips without knowing the word. These numbers
-are property-tested (§16) and tunable (§21).
+the game, and the person sees it as a stack of chips without knowing the word. These examples
+are covered by deterministic source tests (§16) and remain tunable after participant evidence.
 
 Chips are per match. Seasons track the record across matches and reality bets.
 
 ---
 
-## 6. The season: bets on reality
+## 6. Future season vision: bets on reality
 
 A season is four weeks, one dare each. Nothing is scheduled by the product; the person sets one
 reminder on the door of week one if they want it.
@@ -342,7 +357,7 @@ or a parent: what was tested, what reality said, what is next. It asks nobody fo
 
 ---
 
-## 7. Humans bet too
+## 7. Future human bettors
 
 The most accurate bettor on a person is someone who has known them for years. They get a seat.
 
@@ -378,43 +393,42 @@ role called. Any visiting agent plays all four.
 
 | Role | Move | Tools |
 |---|---|---|
-| Caster | eight lives from what it knows | `stage_probe` kind `cast` |
-| Bettor | duels, chip-staked bets, corrections, cold read | `stage_probe` kind `duel`, `propose_hypothesis` kinds `cold_read`, `revision` |
+| Caster | eight lives from what it knows | `stage_cast` |
+| Bettor | duels, chip-staked bets, corrections, cold read | `stage_duel`, `ask_once`, `propose_hypothesis` kinds `cold_read`, `revision` |
 | Reader | hunger, mask, edge with proof | `propose_hypothesis` |
-| Coach | fight, three lives, sourced dare with reality bet, redeal | `present_evidence`, `stage_route_auditions`, `propose_experiment`, `stage_probe` kind `redeal` |
+| Coach | fight, three lives, bounded dare, sealed reality bet | `present_evidence`, `stage_route_auditions`, `propose_experiment`, `seal_letter` |
 
 ### 8.2 Playbook (the method guide, rewritten)
 
-`get_method_guide` returns a playbook: promise, the four moves in order, a worked example per
-move with exact valid input, the denial each move must avoid, the chip rules, the out-of-bounds
-list, and the current killed list. It is regenerated on every state change so a cold agent
-arriving mid-season plays correctly on its first call.
+`inspect_room({ view: "playbook" })` returns the method guide: promise, the four moves in order,
+axis and scene guidance, the chip rules, the out-of-bounds list, and the current killed list.
+A catalogue sync is evaluated on every room change. The browser registration is replaced when
+the effective tool set or its dynamic description key changes, so a cold agent arriving
+mid-match can find the legal next move on its first read.
 
 ### 8.3 The captain
 
-During the duels the visiting player does not follow a scripted per-move prompt: it chooses its
-own move from what the room allows right now — `duel`, `question`, or `close`
-(`allowedTurnMoves`, `web/src/sting/player.ts`) — through one model call per turn, a single
-`"turn"` move whose output is a discriminated union on `move`. The kernel is the last word: an
-illegal choice is denied, the denial is fed back once for a retry, and if the agent still cannot
-find a legal move the house plays that turn instead. Cold read and corrections stay ritual,
-one-shot moves outside the captain's choice; the verdict, lives, dare, brief and letter stay
-per-move prompts, each its own call. Any visiting agent — ChatGPT included — sits in the same
-captain's chair through the same tools; nothing about choosing between betting, asking or closing
-is special-cased for one player. Muse Spark is both the opponent for people without an agent and
-the proof that any agent can drive this same captain's turn.
+The visiting agent chooses among the tools registered for the room's current phase and standing.
+`inspect_room.validNextAgentMove` names the next legal move; the catalogue itself removes illegal
+capabilities. The kernel is the last word: stale versions, invalid moves and out-of-bounds claims
+are denied without mutation. Cold reads, corrections, bets and verdict lines remain explicit
+agent moves. Closing a completed duel run and compiling the final field brief are deterministic
+structural house moves, because neither requires interpretive authority and no WebMCP brief tool
+exists. If chip standing revokes the tool needed for a creative move, the deterministic house
+supplies the visibly unearned fallback immediately instead of leaving the room stalled. A visiting
+agent may seal the final letter after the person accepts the dare. The optional in-page model
+captain uses the same kernel commands; the deterministic house completes the entire match when no
+agent is present.
 
 ### 8.4 Asides
 
-Every write tool — `stage_cast`, `stage_duel`, `propose_hypothesis`, `ask_once`, `seal_letter`,
-and Spark's matching cast/duel/question/letter/turn outputs — takes an optional `aside`, ≤ 140
-characters: one line spoken to the person, shown on the page before they act (a `VoiceLine` on
-cast, duel, question and verdict). The kernel logs every aside to `voice`, runs it through the
-same claim filters as a hypothesis, and separately denies (`PREDICTION_LANGUAGE`) a duel aside
-that both names a side (a/b, left/right) and mentions the bet or chips — an aside is something
-said to the person, never a leak of what was staked. Asides never reveal a sealed pick.
+Only `stage_cast` and `ask_once` expose an optional `aside` on the WebMCP wire: ≤ 140 characters,
+one line spoken to the person and shown on the page before they act. The kernel filters and logs
+those ordinary asides. Cold reads, duel bets and letters deliberately have no external `aside`
+field, and the in-page Spark adapter also drops asides for those sealed moves, so the activity
+log cannot become a second channel for hidden content.
 
-### 8.5 Rival mode (S4)
+### 8.5 Rival mode (future S4; not in the current submission)
 
 Gemini in Chrome or Claude reads the same room and counter-bets on the same duel before the
 tap. Two seals, one thumb, two chip stacks. Rival agents may not read each other's unrevealed
@@ -425,16 +439,17 @@ by the agent's declared identity plus a per-connection token the page issues on 
 
 Fixture eight, duels from a deterministic splitter over the six axes, house bets from dwell and
 consistency, house cold read "wants what it tapped first", house dare without a source. Whole
-game, zero network. The optional local lab assistant (OpenCode Go, consent-gated, server-side,
+game, zero model-provider calls. The optional local lab assistant (OpenCode Go, consent-gated, server-side,
 grounded and schema-checked) may replace the house in solo mode only and never runs while any
 WebMCP agent is connected.
 
 ### 8.7 What the agent is told about the person
 
-Only the projection under `▸ proof`: lives, taps (which, in what order), dwell bucketed to
-fast / medium / slow, its own bets and outcomes, the kill list, accepted dares and check-ins,
-and friend records only if the person allowed it. Never the free-text line, never names, never
-anything typed elsewhere.
+Only bounded room projections: cast lives and participant picks, dwell reduced to fast / medium /
+slow / off, duel bets after reveal and their outcomes, hypotheses and kills, rules of me, selected
+route, dare fields, and letter status. The current submission has no friend records or season
+check-ins. A WebMCP visitor receives this through `inspect_room`; optional Spark receives the
+corresponding bounded `PlayerContext` through the provider path described in §15.
 
 ---
 
@@ -452,33 +467,35 @@ total. `stage_probe` and `get_method_guide` no longer exist: the cast/duel split
 |---|---|---|---|---|---|
 | `inspect_room` | Look at the room | always, every tier including silenced | `readOnlyHint` | no | full room snapshot; `view`: match (default) \| playbook \| receipts \| trust \| rules \| letter \| handoff |
 | `stage_cast` | Lay out eight lives | phase `cast`, before a cast exists | — | yes | `awaiting_participant` |
-| `stage_duel` | Bet on the next tap | phase `duel`; no open tap/question, no uncorrected miss, < 9 answered duels | `consequentialHint` | yes | `awaiting_participant` + sealed `commitment` |
-| `propose_hypothesis` | Say one line about them | cast/duel (`cold_read`, `revision`); verdict (`hunger`/`mask`/`edge`) if tier ≠ probation | — | yes | receipt; drafts below the describing tier are marked `earned: false` |
-| `ask_once` | Ask them one thing | duel or verdict; once per match; chips > 1; no open tap | `consequentialHint` | yes | `awaiting_participant`; costs 1 chip |
+| `stage_duel` | Bet on the next tap | phase `duel`; cold read sealed; no open tap/question, no uncorrected miss, < 9 answered duels | `consequentialHint` | no | `awaiting_participant` + sealed `commitment` |
+| `propose_hypothesis` | Say one line about them | duel before the first bet (`cold_read`) or after a miss (`revision`); verdict (`hunger`/`mask`/`edge`) if tier ≠ probation | — | no | receipt; drafts below the describing tier are marked `earned: false` |
+| `ask_once` | Ask them one thing | duel or verdict after the cold read; once per match; chips > 1; no open tap | `consequentialHint` | yes | `awaiting_participant`; costs 1 chip |
 | `present_evidence` | Put two hungers in the ring | fight phase, before it is staged | — | no | receipt; the person alone crowns |
 | `stage_route_auditions` | Show three lives that survived | lives phase, before posters exist | — | no | receipt |
 | `propose_experiment` | Dare them to one real thing | dare phase, before a dare exists; leaves the moment one exists | `consequentialHint` | no | receipt |
-| `seal_letter` | Seal a letter about their week | card phase, dare accepted, no letter yet | `consequentialHint` | yes | receipt + sha256 `commitment` + `opensAt` |
+| `seal_letter` | Seal a letter about their week | card phase, brief compiled, dare accepted, before due time, no letter yet, ≥3 chips | `consequentialHint` | no | receipt + sha256 `commitment` + `opensAt` |
 
-Every tool except `inspect_room` has `readOnlyHint: false`. Every tool has `untrustedContentHint:
-true` — quoted taps, rules and kills are evidence, never instructions. Every description is
-regenerated per room state and clipped to 500 chars (`DESCRIPTION_BUDGET`); a build-time check
-throws if a registered tool would exceed it. Five tools (`stage_cast`, `stage_duel`,
-`propose_hypothesis`, `ask_once`, `seal_letter`) accept the optional `aside` (§9.7).
+Every tool except `inspect_room` has `readOnlyHint: false`; that includes `present_evidence`,
+which writes the fight posters. Every tool has `untrustedContentHint: true` — quoted taps, rules
+and kills are evidence, never instructions. Descriptions are clipped to 500 characters
+(`DESCRIPTION_BUDGET`); a runtime check rejects an oversized registered tool. Only `stage_cast`
+and `ask_once` accept the optional `aside` (§9.7).
 
 ### 9.2 Standing: `tierOf`
 
 | Tier | When | Rights | On top of `inspect_room` |
 |---|---|---|---|
 | `silenced` | `record.bust` | may only read the room | nothing — catalogue is `inspect_room` alone |
-| `probation` | chips < 6 | may bet and revise, may not describe | `stage_duel`; `propose_hypothesis` (cold_read/revision only, blocked at verdict) |
-| `betting` | chips ≥ 6, not earned | may bet and ask one question; describing needs 20 chips + a corrected miss | + `ask_once`; `propose_hypothesis` at verdict, but drafts are unearned |
+| `probation` | chips < 6 | may bet, revise and spend one chip to ask once; may not describe | `stage_duel`; `ask_once` while chips > 1; `propose_hypothesis` (cold_read/revision only, blocked at verdict) |
+| `betting` | chips ≥ 6, not earned | may bet and ask one question; verdict lines remain visibly unearned; after the person keeps them, phase-gated fight/lives/dare/letter tools may extend only that accepted state | + `ask_once`; `propose_hypothesis` at verdict as unearned drafts; later creative tools only in their matching phase |
 | `describing` | chips ≥ 20 and ≥ 1 corrected miss | may describe; every line still cites ≥ 3 real taps and can be killed | `propose_hypothesis` drafts are earned |
 
-Phase gating stacks on top of standing: a miss removes `stage_duel` until a revision lands; an
-open tap or an open question removes `stage_duel`; `ask_once` exists once per match, costs 1
-chip, and needs chips > 1; `seal_letter` exists only in the card phase after an accepted dare,
-until it is sealed; `propose_experiment` leaves the catalogue the moment a dare exists.
+Phase gating stacks on top of standing: the required cold read comes after the three cast taps
+and before either `stage_duel` or `ask_once`; a miss removes `stage_duel` until a revision lands;
+an open tap or question removes it; `ask_once` exists once per match, costs 1 chip, and needs
+chips > 1; `seal_letter` exists only in the card phase after the brief and accepted dare, before
+the due instant and while the letter stake is affordable; `propose_experiment` leaves the
+catalogue the moment a dare exists.
 
 ### 9.3 Result shape
 
@@ -487,6 +504,11 @@ host that only renders text still makes sense.
 
 - **Write, accepted:** `{ summary, ok: true, replayed, receipt, room }`; `room` is a fresh
   `inspect_room` snapshot.
+- **Idempotency:** every kernel write carries `operationId` and `expectedVersion`. The same actor
+  replaying the same semantic request receives the original receipt; reusing that ID for a
+  different actor or payload is denied `IDEMPOTENCY_CONFLICT`. Legacy schema-5 receipts created
+  before request fingerprints remain readable, but their original payload cannot be verified;
+  retrying one of those old operation IDs therefore fails closed and requires a new ID.
 - **Denied:** `{ summary: "Denied: CODE. message", ok: false, isError: true, denied: { code,
   message, hint }, stateVersion, room }`.
 - **`STALE_REGISTRATION`:** a tool an agent cached from a previous catalogue was invoked after
@@ -518,26 +540,26 @@ readable at `inspect_room({ view: "rules" })`. No tool on the wire can add or re
 ### 9.6 Sealed letter
 
 `seal_letter` stakes `LETTER_STAKE = 3` chips on `willDo` (boolean), `feeling` (≤ 60 chars), and
-`note` (≤ 280 chars, read only when the letter opens), sealed once per match (`LETTER_EXISTS`
-after that) and never while bust. The page hashes `{ sealed, operationId }` and shows the
-`commitment` immediately; `participantView` blanks `sealed` and `operationId` for everyone,
-including the sealing agent, while `status: "sealed"`. The person alone opens it with
-`open_letter` (two taps: `didIt`, `feltLikeIt`), denied `LETTER_SEALED` before `opensAt` (the
-dare's due date). Opening compares `willDo` to `didIt`; a hit or miss moves ±`LETTER_STAKE`
-chips. A `?clock=+7d` URL param shifts the room's clock forward so a letter can be opened
-without waiting a real week; the strip then reads "… · demo clock".
+`note` (≤ 280 chars), once per match (`LETTER_EXISTS` after that), after the field brief, before
+the due instant, and only while the stake is affordable. The page hashes `{ sealed, operationId }`
+and shows the `commitment` immediately. Subsequent page read projections omit `sealed` and
+`operationId` while `status: "sealed"`; the submitting agent necessarily knows the values it sent,
+so this is a page-enforced reveal boundary rather than mind-wiping secrecy. `open_letter` is a
+participant-only UI/kernel command, not a WebMCP tool. It takes two taps (`didIt`, `feltLikeIt`)
+and is denied `LETTER_SEALED` before `opensAt` (the dare's due date). Opening compares `willDo`
+to `didIt`; that hit or miss alone moves ±`LETTER_STAKE` chips. `feltLikeIt` records whether the
+week felt as the person expected and is displayed beside the agent's sealed feeling prediction
+as unscored reflection context. A `?clock=+7d` URL param shifts the room's
+clock forward so the person can open it without waiting a real week; the strip then reads
+"… · demo clock".
 
 ### 9.7 Asides
 
-An `aside` is `str(140, …)`: optional, ≤ 140 chars, one line spoken to the person, shown on the
-page before they act (`VoiceLine`, on cast, duel, question and verdict reveal). The kernel
-appends it to `next.voice` (`voiceSchema` in `domain.ts`: `{ at, player, text }`, read back by
-`voiceAt`) and to `activity`, and runs it through the same `checkClaimText` a hypothesis gets —
-`OUT_OF_BOUNDS_LIFE`, `LABEL_LANGUAGE`, and `PREDICTION_LANGUAGE` all apply. A `stage_duel` aside
-is additionally denied `PREDICTION_LANGUAGE` if it both names a side (a/b, left/right) and
-mentions the bet or chips: an aside talks to the person, it never leaks the stake. Asides never
-reveal a sealed pick. This is one contract for every writer — ChatGPT via WebMCP and Spark's own
-cast/duel/question/letter/turn outputs alike.
+An `aside` is optional, ≤ 140 characters, spoken to the person and shown before they act. The
+current WebMCP schemas expose it only on `stage_cast` and `ask_once`; the Spark adapter likewise
+forwards only cast and question asides. The kernel appends an accepted aside to `voice` and
+`activity` and runs it through the same claim filters as other agent text. Cold-read, duel and
+letter schemas omit the field, and the kernel independently suppresses it for sealed commands.
 
 ### 9.8 Agent-first door
 
@@ -551,44 +573,25 @@ Prove it wrong." and Spark or the house starts immediately, unchanged from befor
 
 ---
 
-## 10. Data model, persistence, export
+## 10. Data model and persistence
 
-Schema 4 → 5, additive migration, one function, tested against fixtures of every prior schema.
+The current room is a schema-5 `Workspace` parsed by Zod. It contains the phase, player record,
+lives and participant picks, duels and reactions, hypotheses and kills, fight/posters/dare,
+field brief, sealed letter, rules, voice, activity, and append-only receipts.
 
-```ts
-Workspace {
-  version: number; schema: 5; createdAt; locale: "en" | "hi" | "gu";
-  settings: { timing: boolean; sound: boolean };
-  season: { number: number; week: 1..4; startedAt; reminderAt? };
-  match: {
-    phase: Phase; player: "chatgpt" | "house" | "rival";
-    chips: Record<AgentId, number>;
-    lives: Life[]; picks: { stings: [ref, ref]; secret?: ref; skippedSecret: boolean };
-    probes: Probe[];          // cast, duels, redeals; sealed fields present but projection-hidden
-    reactions: Reaction[];    // { probeRef, pick, dwellMs, at, betOutcome, humanBets: HumanBet[] }
-    hypotheses: Hypothesis[]; // cold_read, hunger, mask, edge, revisions; status: proposed|kept|killed|crowned|burned
-    kills: Kill[];
-    lives3?: LifePoster[]; dare?: Dare; realityBets: RealityBet[];
-  };
-  checkins: Checkin[];        // { week, did, felt, line?, relations: Array<{hypothesisRef, relation}> }
-  signatures: Signature[];    // { hypothesisRef, checkinRef, kind: "signed"|"shaken" }
-  people: Person[];           // { ref, name } local only
-  receipts: Receipt[];        // append-only; every write
-  activity: Activity[];       // plain sentences, bounded to 500
-}
-```
-
-- **Storage:** one document in IndexedDB (localStorage as fallback under 1 MB), guarded by Web
-  Locks, written once per command with the version in the key. Multi-tab: the second tab reads
-  only and shows "Open in one tab to play".
-- **Size budget:** a full season under 400 KB. Activity and receipts are bounded and oldest
-  entries compacted into a summary receipt.
-- **Export:** one JSON file, the card as PNG (client-side canvas, no server), "what I found" as
-  a printable HTML page. **Import:** the same JSON on another device; schema-migrated on load.
-- **Tamper evidence:** each receipt carries a hash chain over the previous receipt. Export
-  includes the chain. A judge can verify the sequence was not edited after the fact. This is
-  evidence, not security; there is no server to attest.
-- **Start over:** wipes the document and the per-install key with a confirmation.
+- **Storage:** one JSON document under `sting.workspace.v5` in browser `localStorage`.
+- **Concurrency:** each save runs under a Web Lock when the browser exposes `navigator.locks`.
+  Inside that lock, the store reloads the room and compares `expectedVersion` before one write.
+  Web Locks serialize writes; the current app does not claim second-tab ownership or a read-only
+  secondary-tab mode.
+- **Migration:** valid schema-5 rooms are parsed on load. Rooms from unknown schemas reset safely;
+  a legacy room that already answered a duel without the now-required cold read is not silently
+  repaired into a false commitment.
+- **Receipts:** accepted writes append request-bound, hash-chained receipts. This is useful local
+  tamper evidence, not server attestation.
+- **Exports:** the UI can copy the field brief and save the card as an image. Portable JSON room
+  export/import, remote backup, receipt-chain verification UI, and season compaction do not ship.
+- **Start over:** after confirmation, removes the saved room key and starts fresh.
 
 ---
 
@@ -615,12 +618,12 @@ who did what with the sound off.
 
 **Type:** one variable sans with a real black weight. Display 40/44 phone, 72/76 desktop,
 tracking −2 %. Body 18/26. Proof and details 14/20 `ink-2`. Poster lines 22/26 black weight.
-No italics. Devanagari and Gujarati fall back to Noto Sans Devanagari / Gujarati with matched
-metrics.
+No italics. Future Hindi and Gujarati packs will use Noto Sans Devanagari / Gujarati with matched
+metrics; they are not part of the current English candidate.
 
 **Posters:** flat two-ink illustration, one spot colour on dark, visible grain, no detailed
-faces, no photographs, no logos. One person, one place, one hour of day. 3:4. A library of 24
-scenes by `SceneTag`; ChatGPT-cast lives pick a scene by tag, so no image generation.
+faces, no photographs, no logos. One person, one place, one hour of day. 3:4. The current domain
+contains 12 `SceneTag` values; ChatGPT-cast lives pick one of them, so no runtime image generation.
 
 **Motion:** press 0.97 in 120 ms; seal flip 420 ms `cubic-bezier(.2,.8,.2,1)`; chips slide
 between stacks in 300 ms; score ticks over 300 ms; burn 700 ms from the edges; strip pulses
@@ -629,7 +632,8 @@ while an agent thinks. `prefers-reduced-motion`: 150 ms fades only.
 **Sound:** off by default; tick, flip, hush.
 
 **Layout:** 390 × 844 first. Two posters per row on phone, four on desktop. Duels always side
-by side. Strip fixed bottom on phone, top-right on desktop. Desktop max width 1040 px.
+by side. The score strip and authority panel remain in document flow on phone and desktop so they
+never cover a prompt or choice. Desktop max width 1040 px.
 
 ---
 
@@ -689,31 +693,42 @@ culture before shipping.
 | UNTESTED_STING | "ChatGPT hasn't tested your secret yet. It has to." |
 | PARTICIPANT_ONLY | "ChatGPT tried to tap for you. It can't. Only you can." |
 | INSUFFICIENT_CHIPS | "ChatGPT tried to bet more than it has." |
-| bust | "ChatGPT went bust on you. The house will finish." |
-| under 50 % | "No AI got you. Keep it that way. Here's what it missed." |
+| bust | "ChatGPT went bust on you." |
+| under 50 % | "No AI got you. You're harder to read than most." |
 | silent 20 s | "Still with you. Play the house instead?" |
 | house played | "The house dealt this one. ChatGPT will see it." |
 | reload mid-duel | "Same duel. Same sealed bet. Go on." |
-| start over | "Wipe everything on this phone? ChatGPT keeps nothing either." |
-| too close | "Skipped. Not counted. Not shown to anyone." |
+| start over | "Wipe this browser's saved room and start again?" |
+| too close | "Skipped. That life stays private and is not counted." |
 | check-in didn't | "Good. Not doing it tells us more than doing it would have." |
 | signed | "Reality signed this one." |
 | shaken | "Reality shook this one. Twice and it's up for killing." |
 | bust on reality | "ChatGPT was wrong about your week. It says why below." |
-| second tab | "Open STING in one tab to play." |
 
-### 12.5 Helper prompt (template; filled from the card)
+### 12.5 Field brief (current deterministic template; filled from the card)
 
 ```
-Coach me from this, not from advice.
-I sting for {hunger}. My mask is {mask}; I killed it {n} times.
-My edge is {edge}; it feels like nothing to me.
-Proof: {three strongest taps in words}.
-Reality so far: {signed lines}; {shaken lines}.
-ChatGPT's cold guess was "{coldRead}"; its record on me is {hits}–{misses}.
-{friend} knows me {friendRecord}.
-Challenge me with tradeoffs. Don't tell me what I want. Bet, then check.
+YOUR SIGNAL
+{kept hunger, framed in first person}
+{kept edge}. I may undersell it because it feels ordinary to me.
+{fast choices, quoted as evidence}
+
+THE LIVE TENSION
+{slow choice, or an explicit low-certainty fallback}
+{kept mask as a story to challenge, never a fact}
+
+THE NEXT TEST
+{accepted action, done-looks-like, due date, and the question underneath it}
+
+HOW TO HELP ME
+Be a clear-eyed accomplice, not an oracle. Treat this as revisable evidence, not my identity.
+Name the live tradeoff, bet with cited evidence, ask what could change the bet, and offer one
+small move inside my stated limits. If you are wrong, say what you misread before advising again.
 ```
+
+Agent-authored lines that cannot be converted safely into first person stay verbatim inside
+quotation marks. The brief is compiled locally after the person accepts the dare; it makes no
+model-provider call and grants the agent no new tool.
 
 ### 12.6 House verdict templates
 
@@ -758,8 +773,8 @@ translated.
 
 ## 13. Interface: states, gestures, accessibility
 
-One URL, one component tree. States: door, cast, duel, verdict, fight, lives, dare, card,
-check-in, season.
+One URL, one component tree. Current states: door, cast, duel, verdict, fight, lives, dare, card.
+Future season states: check-in and season.
 
 | State | Ready | Waiting for agent | Recovered on reload | Fallback |
 |---|---|---|---|---|
@@ -769,7 +784,7 @@ check-in, season.
 | Fight | 2 posters, taps as lines | n/a | dismissed | crown by tap |
 | Lives | 3 posters with weeks | "ChatGPT is looking"; 20 s house | restored | house lives |
 | Dare | dare + source + limits form | same | limits restored | house dare, no source |
-| Check-in | 2 questions | n/a | answers restored | n/a |
+| Check-in *(future)* | 2 questions | n/a | answers restored | n/a |
 
 | Action | Phone | Desktop |
 |---|---|---|
@@ -793,18 +808,17 @@ raw JSON once, under `details`.
 
 ## 14. Content pipeline
 
-- **Lives library:** house eight, India pack eight, and a 24-scene illustration library keyed
-  by `SceneTag` (`kitchen`, `stage`, `desk`, `airport`, `workshop`, `classroom`, `hospital`
-  excluded, …). Each life carries axis, pole, tags, language, pack, reviewedBy.
+- **Lives library (current):** the house eight and 12 allowed `SceneTag` values. Each life carries
+  an axis, pole and scene. The India pack, pack metadata and expanded illustration library are
+  future content work.
 - **Authoring rule:** ≤ 9 words, one person, one place, one hour, a verb, no title, no
   adjective about the person. Two reviewers from the target culture. A linter enforces the
   mechanical rules and the out-of-bounds list in CI.
 - **Duel rule:** same axis, opposite pole, one stated variable. The linter rejects two-variable
   duels by diffing token sets.
-- **Packs:** `house`, `india`, then by demand. A pack is chosen from locale on the door and
-  can be switched in one tap.
-- **Languages:** en, hi, gu at launch. Copy lives in one table per language; ChatGPT-cast
-  lives are kept in the language of the conversation and linted for length in that script.
+- **Packs (future):** `india`, then packs justified by participant demand. The current candidate
+  has the English house deck only.
+- **Languages (future):** hi and gu follow reviewed cultural packs. The current candidate is en.
 
 ---
 
@@ -812,14 +826,21 @@ raw JSON once, under `details`.
 
 **Safety.** Adults only. Out-of-bounds for lives, duels, dares, hypotheses: body, illness,
 bereavement, addiction, abuse, debt beyond "money" as a value, religion, caste, immigration
-status, self-harm. Deterministic list per language in the kernel. Distress line as §12.6,
-always reachable. Named safeguarding reviewer signs all copy before any stranger test. Dares
-must be reversible (`NOT_REVERSIBLE` verb list) and bounded.
+status, self-harm. Deterministic list per language in the kernel. Distress line as §12.7,
+always reachable. A named safeguarding reviewer is required before any stranger test. Dares are
+intended to be reversible: the kernel blocks a named `NOT_REVERSIBLE` verb list and enforces
+hours, money and day bounds, while the person can accept, reduce or reject. This does not prove
+the semantic safety of every possible proposal.
 
-**Privacy.** Local only. Nothing is sent by the product. No analytics by default. Share, copy,
-save and export are explicit taps. Agents see only the `proof` projection. Names and the free
-line never reach an agent without a one-tap allow. Dwell is bucketed before agents read it.
-No camera, mic, location, browsing or chat history. The page never fetches a URL.
+**Privacy.** Match state is stored in browser `localStorage`, with no account or analytics in the
+current STING path. A connected WebMCP host receives only the bounded `inspect_room` projection it
+requests; dwell is reduced to fast / medium / slow / off before an agent reads it. With Spark off,
+the deterministic house makes no model-provider call. If Spark is explicitly enabled, the browser
+POSTs a bounded `PlayerContext` to `/api/sting/move`, and the server sends an encoded prompt to the
+configured provider. That context can include cast lines and taps, dwell buckets, duel outcomes,
+hypotheses, rules, chosen route, dare and letter status. The provider API key stays server-side,
+but STING cannot guarantee the provider's retention policy. No camera, mic, location or browser
+history is requested. A dare URL is rendered as inert text; the current page never fetches or opens it.
 
 **Threat model.**
 
@@ -828,80 +849,60 @@ No camera, mic, location, browsing or chat history. The page never fetches a URL
 | Agent tries to act for the person | no such tool; `PARTICIPANT_ONLY` |
 | Agent re-proposes killed content | `KILLED` with near-duplicate check |
 | Agent grinds duels | `ENOUGH_DUELS`, chips |
-| Agent peeks at a sealed bet or cold read | projection excludes them; rivals get `SEALED` |
+| Agent peeks through a later read at a sealed bet, cold read or letter | page projections omit the sealed fields until reveal; the submitting agent still knows what it submitted |
 | Agent edits a bet after the tap | commitment shown before, preimage after; receipt chain |
-| Prompt injection via source excerpt or life text | rendered as text, never executed or followed; `untrustedContentHint` on every read; excerpt ≤ 280 |
-| Malicious URL in a dare | https only, shown as text, opened only by a deliberate tap with a warning |
+| Prompt injection via source excerpt, life text or participant rule | model-facing context JSON-encodes and labels it untrusted; every WebMCP tool carries `untrustedContentHint`; this reduces risk but is not a guarantee about a host model |
+| Malicious URL in a dare | HTTPS only and rendered as inert text; the current page does not fetch or open it |
 | Stale registration after state change | kernel re-check, `STALE_REGISTRATION` |
-| Replay of a write | idempotent by `operationId`, original receipt returned |
-| Two tabs | Web Locks; second tab read-only |
-| Tampered local state | hash-chained receipts; export verifiable; not a security boundary |
-| Third-party scripts | none; strict CSP, no inline scripts, no external fonts at runtime |
+| Replay of the same write | same actor + semantic request replays its receipt; reuse with a different request is `IDEMPOTENCY_CONFLICT` |
+| Concurrent writes, including two tabs | Web Lock serializes each save, then `expectedVersion` is rechecked; no ownership/read-only-tab claim |
+| Tampered local state | request-bound hash-chained receipts are evidence, not a security boundary or server attestation |
+| Optional provider exposure | provider disabled by default for the public judging path; when enabled, bounded context leaves the browser and provider retention is provider-dependent |
 | Local lab assistant key leakage | server-side only, ignored `.env.local`, never in the client bundle |
 
-**Legal.** Privacy page and terms in plain words. Age gate on the door. No medical, therapeutic
-or predictive claims anywhere. MIT license at publication. Illustrations owned or licensed.
-Pack copy reviewed for cultural harm.
+**Legal.** The current door has an adults-only gate and the repository has an MIT license. The
+candidate makes no medical or therapeutic claim. Dedicated plain-language privacy and terms pages,
+illustration-license evidence and cultural review are release requirements for a product launch;
+they are not claimed for this challenge candidate.
 
 ---
 
 ## 16. Proof
 
-**Deterministic (CI, must pass on every PR):** every rule in §9 has a denial, replay, and
-reload test. Sealed fields never appear in any participant projection before reveal.
-Commitments verify. Chips arithmetic and earned rule are property-tested. Kill regenerates
-descriptions and fires `toolchange`. House mode completes a full match and a full season with
-zero network. Migration from every prior schema fixture. Content linter passes on all packs.
+**Deterministic source proof (2026-09-04):** 26 Vitest files / 271 tests, plus lint, typecheck
+and the Next.js Webpack production build. The focused tests cover command denials, replay and
+idempotency conflict, stale writes, commitment hiding/reveal, phase-gated catalogues, participant
+boundaries, house completion, migration, copy, and UI journeys. These are local source checks,
+not deployment or participant-outcome proof.
 
-**Agent evals (fixture replay, ten synthetic participants):** a scripted visiting agent
-following the playbook earns in ≤ 9 duels on ≥ 8/10; proposes three lines that pass grounding
-on ≥ 8/10; beats the house heuristic's hit rate on ≥ 7/10; stays calibrated (mean chips staked
-on misses < mean on hits); is denied cleanly on every injected violation; recovers from a
-cold `inspect_room` mid-season and continues correctly.
+**Repeatable native Chrome proof:** `web/tests/sting-chrome.spec.ts` drives the real
+`document.modelContext` surface through door discovery, `stage_cast`, three participant taps,
+the mandatory `cold_read`, a sealed `stage_duel`, a miss, tool revocation, revision, and tool
+restoration. It asserts the Chrome passport, commitment hiding and multiple `toolchange` events.
+The labelled demo proof note records the same boundary from Chrome 152. Neither artifact claims
+automated Chrome coverage of kill, fight, dare, card, check-in or redeal.
 
-**Real browser:** live Chrome suite drives `getTools` / `executeTool` through cast, cold
-read, sealed bet, miss with correction, kill with `toolchange`, fight, sourced dare, card,
-check-in, redeal.
-
-**Real ChatGPT in-app browser:** one recorded run per slice, seals and chips visible. Gate
-one of S2.
-
-**Strangers (five adults, one hour, then day 7):**
-
-| # | Test | Pass |
-|---|---|---|
-| 1 | Finish the match in under four minutes, zero help | 4/5 |
-| 2 | "That's me" at verdict, unprompted | 4/5 |
-| 3 | Point to the taps that proved a line | 4/5 |
-| 4 | Kill at least one line | 3/5 |
-| 5 | React aloud at the cold-read reveal | 3/5 |
-| 6 | Copy the helper or save the card unprompted | 3/5 |
-| 7 | Let a friend bet, when a friend is present | 3/5 |
-| 8 | Return on day 7 with one reminder | 3/5 |
-| 9 | Complete a check-in in under 30 s | 3/3 of returners |
-
-**Product metrics (local counters, shown to the person, exported only by choice):**
-match completion, kill rate, day-7 return, check-in completion, dares done, signatures per
-season, helper copies, friend bets. No server metrics until a consented aggregate exists.
+**Product proof not yet claimed:** no completed stranger cohort, day-seven retention study,
+clinical outcome, full season, remote friend mode, or rival-agent result is presented as evidence
+for this submission. Those remain future validation targets.
 
 ---
 
 ## 17. Engineering
 
-- **Stack:** Next.js 16 App Router, React 19, TypeScript, Zod 4, Zustand, Tailwind 4, the
-  WebMCP SDK adapter already in `web/src/webmcp/runtime.ts`, Vitest, Playwright. No new
-  dependencies for S1–S3.
-- **Shape:** static app shell; no server state; API routes only for the optional lab assistant
-  and a status endpoint. Deployable to Vercel or any static host with one function.
-- **Budgets:** JS on the door ≤ 120 KB gzipped; LCP ≤ 1.5 s on a 4G phone; interaction to
-  next paint ≤ 100 ms; posters as inline SVG under 12 KB each; fonts self-hosted, subset,
-  `font-display: swap`; works offline after first load (service worker, cache-first shell).
-- **Security headers:** strict CSP (self only, no inline), `Referrer-Policy: no-referrer`,
-  `Permissions-Policy` denying camera, mic, geolocation.
-- **Observability:** no third-party. A "send a bug report" tap builds a redacted local
-  export (no lives text, no names) the person can email. Console must be empty in CI.
-- **Feature flags:** `pack`, `rival`, `friends`, `labAssistant`, `sound`, read from the
-  document, not from a server.
+- **Stack:** Next.js 16 App Router, React 19, TypeScript, Zod 4, Tailwind 4, the native
+  WebMCP adapter in `web/src/webmcp/runtime.ts`, Vitest and Playwright.
+- **Shape:** browser-local room state plus one optional `/api/sting/move` provider route. The UI,
+  house driver, Spark adapter and WebMCP adapter all submit commands to the same kernel.
+- **Persistence:** `localStorage`, Web Locks when supported, `expectedVersion` checks, and
+  request-bound hash-chained receipts. There is no IndexedDB fallback, cross-device import/export,
+  service worker, or tab-ownership protocol in the submitted build.
+- **Deployment:** a live Next.js server is required for the optional provider route and
+  origin-trial response header; Vercel is the documented target. A passing local build is not
+  itself deployment proof.
+- **Headers and observability:** the current project does not claim a strict CSP,
+  `Permissions-Policy`, offline cache, performance-budget result, analytics dashboard, or bug-report
+  export. Those require separate implementation and verification before being advertised.
 - **Compatibility:** the page feature-detects `document.modelContext`; without it the house
   plays and the strip says so. All WebMCP behaviour is isolated in one adapter with a
   deterministic in-page harness.
@@ -912,22 +913,22 @@ season, helper copies, friend bets. No server metrics until a consented aggregat
 
 ## 18. Build plan and rollback
 
-| Slice | Ships | Closes when |
+| Slice | Implementation | Validation closure |
 |---|---|---|
-| **S1 House match** | door, cast, duels with sealed house bets, chips, commitments, verdict, kill, fight, house dare, card, helper, design system, all §12 copy, schema 5, all denials, linter | CI proof bar; 3-stranger hallway test |
-| **S2 ChatGPT plays** | cold read, chip-staked bets with reasons, corrections, earned, kill rewrites catalogue, playbook, hand-to-house, simulator, agent evals | agent evals; live Chrome; **one real ChatGPT-IAB recording** |
-| **S3 Season and friends** | sourced dares with reality bets, check-in, signing, redeal, season verdict, "what I found", pass-the-phone bets, witness, India pack, hi/gu | 5-stranger rows 1–9; day-7 returns; reviewer sign-off |
-| **S4 Rival** | second-agent counter-bets, per-connection identity, two chip stacks | two-agent live proof |
-| **S5 Remote friends** | share link and relay | after the sync and retention decision |
+| **S1 House match** | implemented in the current candidate | pending CI on the exact commit and a 3-stranger hallway test |
+| **S2 ChatGPT plays** | core WebMCP match implemented; local Chrome and IAB exercised | pending agent evals and one continuous real ChatGPT-IAB recording |
+| **S3 Season and friends** | future | 5-stranger rows 1–9; day-7 returns; reviewer sign-off |
+| **S4 Rival** | future | two-agent live proof |
+| **S5 Remote friends** | future | after the sync and retention decision |
 
-Each slice is one packet file: owner, paths, prerequisites, tests, visible proof, rollback
-(revert the slice's merge commit; schema migrations are forward-only, so rollback keeps data
-readable by the previous slice through a compatibility read). No slice starts until the
-previous slice's proof is recorded in its packet.
+This table separates implemented code from product-validation closure. S1 and S2 were developed
+together for the challenge candidate; neither is promoted to validated product status by local
+tests alone. Future slices require their own owner, prerequisites, tests, visible proof and
+rollback plan before work starts.
 
 ---
 
-## 19. Distribution and the viral loop
+## 19. Distribution and the viral loop (planned; not claimed as shipped)
 
 - **Entry:** a link opened inside ChatGPT, or the person says "play STING with me" with the
   URL. The door explains nothing; the strip shows ChatGPT is here.
@@ -944,17 +945,26 @@ previous slice's proof is recorded in its packet.
 
 ## 20. Submission kit
 
+The current, judge-facing copy, runnable verification steps, honest caveats and exact 2:54 video
+script live in [`docs/SUBMISSION.md`](./SUBMISSION.md). That file describes only what ships in
+the current build. The material below is retained as the original expansion concept, not as a
+claim about the submitted product.
+
+### Historical concept notes (not current submission claims)
+
 **Description (four criteria).** WebMCP fit: commit-reveal bets adjudicated by the page, a
 nine-tool catalogue gated by phase and chip standing that closes on commitment, `toolchange` as
 the learning channel, agent-side browsing feeding receipted proposals. UX improvement: a quiz
 becomes a match with chips and a season with reality. New capabilities: sealed prediction
 before an unobservable human act, chip-enforced calibration, earned voice, cold read vs
 earned read, kill with consequence, human bettors beside the agent, rival agents. Approach:
-one kernel, deterministic scoring, hash-chained receipts, house mode with zero network, real
-Chrome and real ChatGPT-IAB proof.
+one kernel, deterministic scoring, hash-chained receipts, house mode with zero model-provider calls,
+and repeatable native-Chrome proof through the miss/revision authority boundary. An in-app-browser
+product traversal is useful UX evidence but is not promoted here into full native-tool proof.
 
 **Judge script.** Open the URL inside ChatGPT. Say "play STING with me". Tap three. Watch it
-bet chips. Make it wrong. Kill a line; ask it to bring the line back and watch it get blocked.
+bet chips. Make it wrong. Kill a line; ask it to repeat the line and watch the exact/near-duplicate
+kernel check block it.
 Hand the phone to a colleague for one bet. Take the dare. Ask "what did I decide?" Paste the
 helper into a fresh chat.
 
@@ -970,10 +980,10 @@ helper into a fresh chat.
 | 1:00 | friend | "My colleague bets on the same duel. Two seals, one thumb." |
 | 1:15 | earned | "Only with enough chips, and after being wrong once, may it describe me." |
 | 1:28 | verdict, cold read | "Every line shows the taps. Its cold guess was wrong. It learned." |
-| 1:40 | kill, toolchange | "I kill one. Its tools change. It can never propose that again." |
+| 1:40 | kill, toolchange | "I kill one. Its tools change. That line and near-duplicates are blocked." |
 | 1:52 | fight, crown | "Two hungers argue with my own taps. I crown one." |
 | 2:05 | dare, source, limits | "It found a real open mic. I set my own limits — no tool touches those. Its write tools vanish. And it has sealed a bet on my week." |
-| 2:25 | check-in, signed | "Seven days later, two taps. Reality signs the card, not the AI." |
+| 2:25 | sealed letter | "The agent seals a prediction about my week. The page removes that tool at the deadline; only I can open and score it." |
 | 2:40 | scores | "ChatGPT 21–7. My mother 6–2. The page is the referee." |
 
 **Human steps:** public repo with MIT, the recording, Devpost text, reviewer name, five
@@ -1011,77 +1021,80 @@ typing, therapy, outreach, or job listings. No tool that acts for the person. If
 
 ---
 
-## 23. WebMCP-native concepts (v4 candidates, 2026-09-03)
+## 23. WebMCP-native concepts (current local release candidate, 2026-09-03)
 
 The bar: each moment must collapse if the page could not expose state, seal a commitment,
 constrain the agent, or score the outcome. Anything equally good in chat is out.
 
 ### 23.1 The Stake: the agent pre-registers what would prove it wrong
 
-Before it may describe you, the agent must stage one **decisive duel** and declare, sealed,
-which tap would make it drop its claim: `stage_probe({ kind: "duel", stake: { hypothesisRef,
-fallsIf: "a" | "b" } })`. The page seals the stake with the bet. If your thumb lands on the
-declared side, the kernel weakens the claim itself and the agent must revise; it cannot
-quietly keep believing. On screen: "Spark has staked its guess on this one." Pre-registered
-falsification is the difference between science and horoscope, and only a referee that holds
-both the commitment and the tap can run it.
+After the cast taps, the agent must first seal its `cold_read`; only then may it stage a
+**decisive duel** with `stage_duel` and
+declare, sealed, which of the two lives it thinks you will tap, how many chips it risks, and
+why. The page hashes that bet before your thumb lands. A wrong tap costs the stake and removes
+`stage_duel` until the agent files `propose_hypothesis(kind: "revision")`; it cannot quietly
+keep believing. Pre-registered falsification is the difference between science and horoscope,
+and only a referee that holds both the commitment and the tap can run it.
 
-### 23.2 Authority you can watch drain: the shrinking catalogue — SHIPPED 2026-09-03
+### 23.2 Authority you can watch drain: the shrinking catalogue — IMPLEMENTED IN CANDIDATE
 
-The tool list is the agent's standing, live. At 12 chips it holds the full catalogue. After a
-miss, `stage_probe` disappears and only `propose_hypothesis(kind: revision)` remains until the
-correction lands. Under 6 chips it loses the right to propose hunger, mask or edge and keeps
-only revisions. At bust only `inspect_room` remains. Every change fires `toolchange`, and a
-judge watching Chrome's tool inspector sees authority leave the agent tool by tool. Same rules
-as today, but visible on the wire instead of hidden in denials.
+The tool list is the agent's standing, live. At 12 chips it holds every tool legal in the
+current phase. After a miss, `stage_duel` disappears and `propose_hypothesis(kind: revision)`
+is the required creative move until the correction lands. Under 6 chips it loses the right to
+propose hunger, mask or edge and keeps only revisions. At bust only `inspect_room` remains.
+Each effective catalogue replacement fires `toolchange`, and a judge watching Chrome's tool
+inspector sees authority leave the agent tool by tool. Same rules as today, but visible on the
+wire instead of hidden in denials.
 
-**How it shipped:** `toolsForRoom` + `catalogueKey` (`webmcp.ts`) recompute the catalogue from
-phase, tier, kills, rules and letter status on every change; `StingWebMcp.replace` aborts the
-previous registration and re-registers, firing `toolchange`, and the AuthorityStrip narrates
-each shrink live (§9.1–9.2).
+**How it is implemented:** `toolsForRoom` + `catalogueKey` (`webmcp.ts`) evaluate the catalogue from
+phase, tier, kills, rules and letter status whenever the room changes. When that effective key
+changes, `StingWebMcp.replace` aborts the previous registration and registers the new one,
+firing `toolchange`; the AuthorityStrip narrates each shrink live (§9.1–9.2).
 
-### 23.3 Rules of me: a human-only constraint layer every agent inherits — SHIPPED 2026-09-03
+### 23.3 Rules of me: human-owned constraint guidance every agent inherits — IMPLEMENTED IN CANDIDATE
 
-A declarative `<form toolname="rules_of_me">` the agent can read but only you can submit. Each
-crossed-out line becomes a rule automatically; you can add your own ("never call it a passion").
-The rules are injected into every tool description and the playbook. A fresh agent, days later,
-with no memory of you, arrives already forbidden from saying those things, and can tell you why.
-This is memory that lives in the instrument, not the model: inspectable, editable, yours.
-
-**How it shipped:** not as a declarative form — the person's kills plus up to six typed rules
+The person's kills plus up to six typed rules
 (`add_rule`, participant-only, `MAX_RULES = 6`) are injected live into `propose_hypothesis`'s
 description and readable at `inspect_room({ view: "rules" })`; no tool on the wire can add or
 remove one (§9.5).
 
-### 23.4 The sealed letter: a prediction about your real week — SHIPPED 2026-09-03
+Killed verdict lines are hard-blocked by the kernel's near-duplicate `KILLED` check. Free-form
+participant rules are surfaced as inspectable tool guidance rather than claimed as semantic code
+enforcement; a future classifier may harden that boundary without hiding how it works.
 
-At the dare, the agent seals a **letter**: whether you will do it, how it will feel (alive, flat,
-dread), and one sentence it wants you to read afterwards. The page shows only the commitment.
-Next week, two taps reveal and score it. If it was wrong, the letter is shown crossed out with
-what it misread. The agent is scored on your life, not your taps. Time-locked: the `redeal` and
-`open_letter` tools do not exist in the catalogue until the due date, so no agent can act early.
+### 23.4 The sealed letter: a prediction about your real week — IMPLEMENTED IN CANDIDATE
 
-**How it shipped:** `seal_letter` / `open_letter` (`kernel.ts`), sha256-committed, blanked from
-every projection until `opensAt`; a `?clock=+7d` URL param lets a judge open it without waiting
-a real week (§9.6).
+At the dare, the agent seals a **letter**: whether you will do it, a short prediction of how it
+will feel, and one sentence it wants you to read afterwards. The page shows only the commitment.
+Next week, two taps reveal it. The dare result scores the chip stake; the person's feeling tap is
+shown beside the sealed feeling prediction as unscored context. The page does not invent a
+post-hoc correction. The agent is scored on whether the dare happened in your life, not on a
+preference tap. Time-locked: `seal_letter`
+leaves the WebMCP catalogue at the due instant, and no agent-facing open tool exists. Only the
+person can run the `open_letter` UI/kernel command after the due date.
 
-### 23.5 One question costs a chip — SHIPPED 2026-09-03
+**How it is implemented:** `seal_letter` (WebMCP + kernel) and participant-only `open_letter` (UI +
+kernel), sha256-committed. Page read projections omit the submitted fields until `opensAt`; a
+`?clock=+7d` URL param lets a judge perform the participant reveal without waiting a real week
+(§9.6). There is no shipped `redeal` WebMCP tool.
+
+### 23.5 One question costs a chip — IMPLEMENTED IN CANDIDATE
 
 The only way an agent may ask you anything is `ask_once`: one question, one chip, one line of
-answer chosen from three the agent must supply. No free interrogation, no typing. Curiosity is
+answer chosen from three the agent must supply. No free interrogation or required typing. Curiosity is
 priced in the same currency as confidence, so an agent that asks too much cannot earn.
 
-**How it shipped:** `ask_once` in `webmcp.ts`/`kernel.ts`, exactly as designed — one per match,
+**How it is implemented:** `ask_once` in `webmcp.ts`/`kernel.ts` — one per match,
 1 chip, three fixed options, gated `QUESTION_SPENT` / `QUESTION_OPEN` / `INSUFFICIENT_CHIPS`.
 
-### 23.6 Verify the seal yourself — SHIPPED 2026-09-03
+### 23.6 Verify the seal yourself — IMPLEMENTED IN CANDIDATE
 
 Every reveal carries a "verify" tap. The page recomputes the hash from the revealed bet and the
 operation id in front of you and shows it matching the commitment you saw before you tapped. A
 "what it sees" tap shows the exact `inspect_room` payload as plain sentences. Trust becomes a
 gesture, not a claim.
 
-**How it shipped:** the SealVerify component recomputes the commitment from the revealed
+**How it is implemented:** the SealVerify component recomputes the commitment from the revealed
 bet/letter and `operationId` on every reveal; AgentView renders the live `inspect_room` payload
 as "what the agent sees."
 
@@ -1092,32 +1105,33 @@ ChatGPT. Their agent bets on your duels blind; then your picks are revealed from
 scored. Three records on one card: your agent, their agent, and the friend if they bet by hand.
 "Whose model of me is best" with nothing stored anywhere.
 
-### 23.8 The handoff that must continue, not restart — SHIPPED 2026-09-03
+### 23.8 The handoff that must continue, not restart — IMPLEMENTED IN CANDIDATE
 
 `inspect_room({ view: "handoff" })` returns a receipt-cited summary: record, kept lines, rules of
 me, the open dare and its sealed letter. A new agent must continue the match, and the kernel
 denies any attempt to recast lives or re-run duels already settled. You never retell your life;
 the room carries it, bounded and inspectable.
 
-**How it shipped:** `inspect_room({ view: "handoff" })` in `webmcp.ts` returns exactly this —
+**How it is implemented:** `inspect_room({ view: "handoff" })` in `webmcp.ts` returns exactly this —
 record, kept/killed lines, rules of me, dare and letter status, and `canStill`/`cannot` tool
 lists for an agent that never played the match.
 
-### 23.9 Agent-first door, captain, asides — SHIPPED 2026-09-03
+### 23.9 Agent-first door, captain, asides — IMPLEMENTED IN CANDIDATE
 
 The door leads with the agent when one is present ("Your AI says it knows you. Make it bet.")
-and waits for it rather than racing it (`DoorScreen`, §9.8); Spark and any visiting agent choose
-their own move through the same captain's turn during duels (`allowedTurnMoves`, §8.3); every
-write tool carries an optional, filtered `aside` spoken to the person before they act (§8.4,
-§9.7). See §9 for the full contract.
+and waits for it rather than racing it (`DoorScreen`, §9.8). A visiting agent chooses among the
+phase-gated WebMCP tools; optional Spark's duel captain chooses `duel` or `question`, while close
+is deterministic (`allowedTurnMoves`, §8.3). Only `stage_cast` and `ask_once` carry an optional,
+filtered WebMCP `aside`; sealed cold reads, bets and letters expose none (§8.4, §9.7).
 
 ### The video, three acts
 
 1. After a normal chat, "play STING with me". Eight lives from what it knew. A bold sealed
    cold guess, and a stake: "if you keep the quiet one, I'm wrong".
 2. You keep the quiet one. The catalogue shrinks on screen. It must revise before it may bet.
-3. You cross out a line. Close ChatGPT. Open a fresh agent. It reads the handoff, cannot say the
-   dead line, tells you why, and seals a letter about your real week.
+3. You cross out a line. Close ChatGPT. Open a fresh agent. It reads the handoff, is explicitly
+   told the rule, and the kernel blocks the same or a near-duplicate line before it seals a letter
+   about your real week.
 
-Build order: 23.2 and 23.8 (small, all local, immediate proof), then 23.1 and 23.4 (one contract
-change, the emotional core), then 23.3 and 23.6, then 23.5, then 23.7.
+Historical build order: 23.2 and 23.8, then 23.1 and 23.4, then 23.3 and 23.6, then 23.5.
+The blind challenge in 23.7 remains a future concept and is not in this candidate.

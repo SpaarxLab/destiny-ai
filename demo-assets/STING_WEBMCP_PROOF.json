@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-09-03",
+  "origin": "http://localhost:3113",
+  "browser": "Chrome 152.0.0.0",
+  "api": "document.modelContext.getTools()",
+  "captureMethod": "Chrome DevTools Protocol Runtime.evaluate against the user's live Chrome tab",
+  "visualization": "05-webmcp-proof.svg is a labelled rendering of these values, not a DevTools screenshot",
+  "afterMiss": [
+    "ask_once",
+    "inspect_room",
+    "propose_hypothesis"
+  ],
+  "afterRevision": [
+    "ask_once",
+    "inspect_room",
+    "propose_hypothesis",
+    "stage_duel"
+  ],
+  "miss": {
+    "reactionRef": "react-9",
+    "outcome": "miss",
+    "chipsLost": 2,
+    "requiredNextMove": "propose_hypothesis kind revision"
+  },
+  "revision": "I misread you: the quiet won."
+}

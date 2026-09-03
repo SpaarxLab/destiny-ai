@@ -11,7 +11,6 @@ export const playerContextSchema = z.object({
   picks: z.object({
     stings: z.array(z.object({ ref: z.string(), line: z.string(), dwell: z.enum(["fast", "medium", "slow", "off"]) })).max(2),
     secret: z.object({ ref: z.string(), line: z.string(), dwell: z.enum(["fast", "medium", "slow", "off"]) }).optional(),
-    secretSkipped: z.boolean(),
   }),
   duels: z.array(z.object({
     reactionRef: z.string(),
@@ -32,11 +31,11 @@ export const playerContextSchema = z.object({
   lines: z.array(z.object({ kind: z.string(), text: z.string(), status: z.string() })).max(12),
   killed: z.array(z.string()).max(12),
   crowned: z.string().optional(),
-  chosenLife: z.object({ line: z.string(), axis: axisSchema, pole: poleSchema }).optional(),
-  dare: z.object({ action: z.string(), doneLooksLike: z.string(), days: z.number(), hours: z.number(), money: z.number(), currency: z.string() }).optional(),
+  chosenLife: z.object({ line: z.string(), scene: sceneSchema, axis: axisSchema, pole: poleSchema, week: z.array(z.string()).min(3).max(7), tradeoff: z.string(), question: z.string() }).optional(),
+  dare: z.object({ action: z.string(), doneLooksLike: z.string(), days: z.number(), hours: z.number(), money: z.number(), currency: z.string(), source: z.object({ url: z.string(), excerpt: z.string() }).optional() }).optional(),
   questions: z.array(z.object({ text: z.string(), answer: z.string().nullable() })).max(3).default([]),
   /** Moves the room allows the player right now (duel phase only). */
-  allowed: z.array(z.enum(["duel", "question", "close"])).max(3).default([]),
+  allowed: z.array(z.enum(["duel", "question"])).max(2).default([]),
   rulesOfMe: z.array(z.string().max(200)).max(20).default([]),
   letter: z.object({ status: z.string(), opensAt: z.string() }).optional(),
 });
@@ -68,7 +67,11 @@ export const duelOutputSchema = z.object({
 
 export const correctionOutputSchema = z.object({
   text: z.string().min(3).max(120),
-  correction: z.string().min(3).max(120),
+  correction: z.string().min(1).max(120).refine((value) => {
+    const normalized = value.trim().replace(/\s+/g, " ");
+    const prefix = normalized.match(/^i misread you\b[\s,.:;!?—-]*/i)?.[0] ?? "";
+    return Boolean(prefix) && (normalized.slice(prefix.length).match(/[\p{L}\p{N}]+/gu) ?? []).length >= 3;
+  }, 'Begin with "I misread you", then name the mistaken assumption in at least three more words.'),
 });
 
 const claim = z.object({ text: z.string().min(3).max(120), proofRefs: z.array(z.string()).max(8) });
@@ -98,6 +101,10 @@ export const dareOutputSchema = z.object({
   hours: z.number().min(0).max(6),
   money: z.number().min(0).max(2000),
   currency: z.enum(["INR", "USD", "EUR", "GBP", "AED"]),
+  source: z.object({
+    url: z.string().url().max(500).refine((value) => value.startsWith("https://"), "Sources are https only."),
+    excerpt: z.string().min(3).max(280),
+  }).optional(),
 });
 
 export const briefOutputSchema = z.object({ brief: z.string().min(40).max(1400) });
@@ -112,7 +119,6 @@ export const letterOutputSchema = z.object({
   willDo: z.boolean(),
   feeling: z.string().min(1).max(60),
   note: z.string().min(10).max(280),
-  aside,
 });
 
 /**
@@ -122,7 +128,6 @@ export const letterOutputSchema = z.object({
 export const turnOutputSchema = z.discriminatedUnion("move", [
   z.object({ move: z.literal("duel") }).extend(duelOutputSchema.shape),
   z.object({ move: z.literal("question") }).extend(questionOutputSchema.shape),
-  z.object({ move: z.literal("close"), aside }),
 ]);
 
 export const OUTPUT_SCHEMAS = {

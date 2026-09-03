@@ -11,12 +11,11 @@ export function Preflight({ connected, sparkEnabled }: { connected: boolean; spa
       <summary>Playing with your own AI?</summary>
       <div className="preflight__body">
         <p className="sting-small">
-          ChatGPT desktop app: open this page in ChatGPT&rsquo;s built-in browser with GPT-5.6 Sol or Terra. Luna has site tools off. Enterprise and Edu
-          workspaces cannot use site tools yet.
+          ChatGPT: open this page in the built-in browser and ask your agent to play. If this chat does not expose Site tools, use the house fallback.
         </p>
         <p className="sting-small">
-          Chrome 149+: turn on <code>chrome://flags/#enable-webmcp-testing</code>, or open Chrome DevTools &gt; Application &gt; WebMCP to run the tools by
-          hand.
+          Chrome 149+: enable <code>chrome://flags/#enable-webmcp-testing</code>, relaunch, then open Chrome DevTools &gt; Application &gt; WebMCP to inspect
+          or run the tools.
         </p>
         <p className="sting-small">No agent? The house plays. Same rules, fewer surprises.</p>
       </div>
