@@ -56,6 +56,16 @@ test("skipping the suggested reasons preserves the explicitly chosen reaction", 
 });
 
 test("a dealer note appears and remains a participant decision", async ({ page }) => {
+  await expect.poll(() => page.evaluate((key) => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    try {
+      return Array.isArray(JSON.parse(raw).dealerNotes);
+    } catch {
+      return false;
+    }
+  }, WORKSPACE_KEY)).toBe(true);
+
   await page.evaluate((key) => {
     const workspace = JSON.parse(localStorage.getItem(key) ?? "null");
     workspace.dealerNotes.push({ id: "8a0a0000-0000-4000-8000-000000000011", ref: "note-browser-1", availableActions: [], text: "A visiting agent can propose this note, but only you can dismiss it.", status: "visible", postedBy: { source: "other_webmcp", role: "dealer", label: "Visiting agent" }, createdAt: "2026-09-02T08:00:00.000Z" });
