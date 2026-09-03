@@ -13,6 +13,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "check": "npm run test && npm run lint && npm run typecheck && npm run build",
     "test:live": "playwright test -c playwright.live.config.ts",
+    "test:chrome": "playwright test -c playwright.sting-chrome.config.ts",
+    "test:sting-live": "playwright test -c playwright.sting-live.config.ts",
     "test:journey": "playwright test tests/journey.spec.ts",
     "eval:live": "node --env-file-if-exists=.env.local --import tsx scripts/eval-live.ts"
   },

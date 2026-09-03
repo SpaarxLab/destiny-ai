@@ -48,7 +48,7 @@ const FAKE_MODEL_CONTEXT = `
 `;
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/legacy");
   await page.evaluate(({ key, workspace }) => {
     localStorage.clear();
     localStorage.setItem(key, JSON.stringify(workspace));
@@ -195,7 +195,7 @@ test("390px, 200% text, reduced motion, and forced colours keep the flow usable"
 
 test.skip("legacy broad visiting-agent catalogue is superseded by the six-tool ChatGPT experience", async ({ page }) => {
   await page.addInitScript(FAKE_MODEL_CONTEXT);
-  await page.goto("/");
+  await page.goto("/legacy");
   await page.evaluate(({ key, workspace }) => {
     localStorage.clear();
     localStorage.setItem(key, JSON.stringify(workspace));

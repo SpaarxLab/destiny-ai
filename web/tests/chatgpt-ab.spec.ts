@@ -26,7 +26,7 @@ const FAKE_MODEL_CONTEXT = `
 test("ChatGPT stages a recoverable probe and receives only the participant's webpage response", async ({ page }) => {
   const errors = captureConsoleErrors(page);
   await page.addInitScript(FAKE_MODEL_CONTEXT);
-  await page.goto("/");
+  await page.goto("/legacy");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 

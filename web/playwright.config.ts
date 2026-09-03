@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["journey.spec.ts", "deck.spec.ts", "chatgpt-ab.spec.ts", "p8b-browser-context-isolation.spec.ts"],
+  testMatch: ["sting.spec.ts", "journey.spec.ts", "deck.spec.ts", "chatgpt-ab.spec.ts", "p8b-browser-context-isolation.spec.ts"],
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
-    env: { NEXT_PUBLIC_DESTINY_FIXTURES: "on", EMBEDDED_ROLES: "off" },
+    env: { NEXT_PUBLIC_DESTINY_FIXTURES: "on", EMBEDDED_ROLES: "off", STING_PLAYER: "off" },
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
     timeout: 120_000,

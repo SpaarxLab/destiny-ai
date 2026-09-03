@@ -81,7 +81,7 @@ async function seedContext(
   draft: ReturnType<typeof emptyJourneyDraft>,
   token?: string,
 ) {
-  await page.goto(baseURL ?? "http://127.0.0.1:3100");
+  await page.goto(`${baseURL ?? "http://127.0.0.1:3100"}/legacy`);
   await expect(page.locator(".moment-card")).toBeVisible();
   await page.evaluate(({ workspaceKey, workspaceValue, draftKey, draftValue, tokenKey, tokenValue }) => {
     localStorage.clear();

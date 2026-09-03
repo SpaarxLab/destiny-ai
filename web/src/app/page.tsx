@@ -1,5 +1,5 @@
-import { DestinyJourney } from "../components/journey/destiny-journey";
+import { StingApp } from "../sting/ui/sting-app";
 
 export default function Home() {
-  return <DestinyJourney />;
+  return <StingApp />;
 }

@@ -4,14 +4,12 @@ These rules apply to the whole repository. `web/AGENTS.md` adds framework-specif
 
 ## Read before action
 
-1. `PROJECT_STATE.md` — current authority, checkout, phase, and open owner decisions.
-2. `SPEC.md` — product and system contract.
-3. `docs/DECISIONS.md` — accepted and owner-dependent decisions.
-4. `docs/PLAN.md` — approved delivery sequence and packet gates.
-5. The active packet in `docs/packets/`.
+1. `docs/STING.md` — the single design authority for the current build.
+2. `docs/2026-09-03-sting-once-and-done.md` — the original STING brainstorm it grew from.
+3. `web/AGENTS.md` — framework rules.
 
-`docs/archive/` holds superseded history and receipts. It is never current authority; do not
-cite it as current without explicit revalidation.
+All earlier documents (SPEC, PROJECT_STATE, DECISIONS, PLAN, packets, evidence) were removed on
+2026-09-03. They exist only in git history and are not current authority.
 
 ## Repository boundary
 

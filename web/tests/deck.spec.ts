@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const WORKSPACE_KEY = "destiny-ai.workspace.v1";
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/legacy");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 });
