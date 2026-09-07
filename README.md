@@ -133,3 +133,5 @@ recording of the interaction.
 MIT. See [`LICENSE`](LICENSE).
 
 Design authority: [`docs/STING.md`](docs/STING.md). Submission kit: [`docs/SUBMISSION.md`](docs/SUBMISSION.md). Deploy steps: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+New contributors: start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md) for the pinned runtime, fork workflow, credential-free setup, optional provider boundaries, and verification commands.
