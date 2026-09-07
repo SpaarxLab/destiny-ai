@@ -35,7 +35,13 @@ npm run build -- --webpack
 npm run check
 ```
 
-`test:browser` runs the Chromium house-match journey. `test:chrome` needs Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled and a locally started production server on port 3111. `test:live` and `test:sting-live` require an explicitly supplied deployment/provider endpoint and are optional.
+`test:browser` runs the STING house-match journey and legacy Deck, Route Room,
+and ChatGPT browser scenarios. The [7 September CI run](https://github.com/SpaarxLab/destiny-ai/actions/runs/34087323043)
+had 8 browser failures,
+including HTTP 429 responses; 13 passed and 2 were skipped. `npm run check`
+does not include browser tests, so its local pass does not mean CI is green.
+
+`test:chrome` needs Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled and a locally started production server on port 3111. `test:live` and `test:sting-live` require an explicitly supplied deployment/provider endpoint and are optional.
 
 ## Optional providers
 
