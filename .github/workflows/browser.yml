@@ -1,0 +1,39 @@
+name: Browser (manual + nightly)
+
+# Full Playwright suite is deliberately NOT required for PRs.
+# Run it manually, nightly, or on main-only web changes.
+# This is what used to fail every PR with:
+#   "Failed to load resource: the server responded with a status of 429"
+# on `expect(errors).toEqual([])`.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser

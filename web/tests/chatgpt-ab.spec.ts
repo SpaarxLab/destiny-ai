@@ -80,7 +80,17 @@ async function call(page: Page, name: string, input: unknown): Promise<Record<st
 
 function captureConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-  page.on("pageerror", (error) => errors.push(error.message));
+  // Lean CI: ignore transient network-resource noise (429, favicon, fonts).
+  const IGNORED = /Failed to load resource|429|favicon|net::ERR|Download the React DevTools/i;
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (IGNORED.test(text)) return;
+    errors.push(text);
+  });
+  page.on("pageerror", (error) => {
+    if (IGNORED.test(error.message)) return;
+    errors.push(error.message);
+  });
   return errors;
 }

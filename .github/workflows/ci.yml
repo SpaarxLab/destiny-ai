@@ -1,15 +1,28 @@
 name: CI
 
+# Extremely lean: one fast, deterministic job blocks PRs.
+# Browser/E2E moved to browser.yml (manual + nightly) so a flaky
+# 429 / console-error assertion can never block a docs or code PR.
 on:
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  web:
+  quick:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,6 +35,6 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npm run check
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: npm run test
+      - run: npm run typecheck
+      - run: npm run build

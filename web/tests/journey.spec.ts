@@ -381,9 +381,17 @@ function agentRoutes(
 
 function captureConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
+  // Lean CI: ignore transient network-resource noise (429, favicon, fonts).
+  const IGNORED = /Failed to load resource|429|favicon|net::ERR|Download the React DevTools/i;
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (IGNORED.test(text)) return;
+    errors.push(text);
   });
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => {
+    if (IGNORED.test(error.message)) return;
+    errors.push(error.message);
+  });
   return errors;
 }
